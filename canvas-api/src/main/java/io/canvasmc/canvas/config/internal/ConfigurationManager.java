@@ -2,13 +2,13 @@ package io.canvasmc.canvas.config.internal;
 
 import io.canvasmc.canvas.config.ConfigSerializer;
 import io.canvasmc.canvas.config.Configuration;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
 
 public class ConfigurationManager {
-    private static final Map<Class<?>, ConfigHolder<?>> holders = new HashMap<>();
+    private static final Map<Class<?>, ConfigHolder<?>> holders = new ConcurrentHashMap<>();
 
     private ConfigurationManager() {
     }

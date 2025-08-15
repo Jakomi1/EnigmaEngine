@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import io.canvasmc.canvas.configuration.validator.ValidationException;
 import org.jetbrains.annotations.NotNull;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
@@ -280,7 +281,7 @@ public class AnnotationBasedYamlSerializer<T> implements ConfigSerializer<T> {
     }
 
     @Override
-    public void serialize(T config) throws SerializationException {
+    public void write(T config) throws SerializationException {
         Path configPath = this.getConfigPath();
 
         try {
@@ -332,7 +333,7 @@ public class AnnotationBasedYamlSerializer<T> implements ConfigSerializer<T> {
             }
             // Write to disk
             Files.writeString(configPath, yamlWriter.toString());
-            T deserialized = deserialize();
+            T deserialized = read();
             // Validate entries
             data = buildYamlData(deserialized);
             forEach(data, keyToField, "", (key, field, value) -> {
@@ -380,7 +381,7 @@ public class AnnotationBasedYamlSerializer<T> implements ConfigSerializer<T> {
     }
 
     @Override
-    public T deserialize() throws SerializationException {
+    public T read() throws SerializationException {
         Path configPath = this.getConfigPath();
         if (Files.exists(configPath)) {
             try {

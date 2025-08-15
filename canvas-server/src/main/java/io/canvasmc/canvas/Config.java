@@ -8,11 +8,11 @@ import io.canvasmc.canvas.config.ConfigHandlers;
 import io.canvasmc.canvas.config.ConfigSerializer;
 import io.canvasmc.canvas.config.Configuration;
 import io.canvasmc.canvas.config.ConfigurationUtils;
-import io.canvasmc.canvas.config.RuntimeModifier;
 import io.canvasmc.canvas.config.SerializationBuilder;
-import io.canvasmc.canvas.config.annotation.Comment;
-import io.canvasmc.canvas.config.annotation.NamespacedKey;
 import io.canvasmc.canvas.config.internal.ConfigurationManager;
+import io.canvasmc.canvas.configuration.AnnotationBasedJson5Serializer;
+import io.canvasmc.canvas.configuration.validator.NamespacedKeyValidator;
+import io.canvasmc.canvas.configuration.writer.Comment;
 import io.canvasmc.canvas.entity.EntityCollisionMode;
 import io.canvasmc.canvas.simd.SIMDDetection;
 import io.canvasmc.canvas.util.YamlTextFormatter;
@@ -394,14 +394,14 @@ public class Config {
         "This can assist for servers that need this changed to a different world",
         "due to setup reasoning, like needing to send the players to the spawn world",
         "or the wilderness world, etc.",
-        "This needs a NamedspacedKey string pattern, like 'namespace:key' that points",
+        "This needs a NamespacedKey string pattern, like 'namespace:key' that points",
         "to the dimension you want to use. The default is 'minecraft:overworld'",
         "",
         "This also applies to the end portal and nether portal, in replacement of the overworld",
         "For example, if you set this to 'minecraft:the_nether', all entities entering the",
         "end portal from the end will respawn in the nether rather than the overworld"
     })
-    @NamespacedKey
+    @NamespacedKeyValidator.NamespacedKey
     public String defaultRespawnDimensionKey = "minecraft:overworld";
 
     public ResourceKey<Level> fetchRespawnDimensionKey() {
@@ -556,12 +556,13 @@ public class Config {
     @Comment("Disables all criterion triggers. Advancements will not work!")
     public boolean disableCriterionTrigger = false;
 
-    @NamespacedKey
+    @NamespacedKeyValidator.NamespacedKey
     @Comment("Defines non-tickable entities. This is defined by a leniently-parsed resource location associated with the entity type")
     public List<String> nonTickableEntities = new ArrayList<>();
     public record EntityNonTickableConf(String raw, ResourceLocation parsed) {}
 
     private static <T extends Config> @NotNull ConfigSerializer<T> buildSerializer(Configuration config, Class<T> configClass) {
+        /*
         ConfigurationUtils.extractKeys(configClass);
         Set<String> changes = new LinkedHashSet<>();
         return new AnnotationBasedYamlSerializer<>(SerializationBuilder.<T>newBuilder()
@@ -582,7 +583,6 @@ public class Config {
             .validator(ConfigHandlers.NonNegativeProcessor::new)
             .validator(ConfigHandlers.NonPositiveProcessor::new)
             .validator(ConfigHandlers.PatternProcessor::new)
-            .validator(ConfigHandlers.NamespacedKeyProcessor::new)
             .post(context -> {
                 INSTANCE = context.configuration();
                 // build and print config tree.
@@ -635,6 +635,8 @@ public class Config {
             })
             .build(config, configClass), changes::add
         );
+         */
+        return new AnnotationBasedJson5Serializer<>(configClass);
     }
 
     public static Config init() {

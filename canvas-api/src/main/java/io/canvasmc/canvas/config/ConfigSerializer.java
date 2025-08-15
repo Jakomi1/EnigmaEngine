@@ -12,9 +12,9 @@ import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 
 public interface ConfigSerializer<T> {
-    void serialize(T var1) throws ConfigSerializer.SerializationException;
+    void write(T var1) throws ConfigSerializer.SerializationException;
 
-    T deserialize() throws ConfigSerializer.SerializationException;
+    T read() throws ConfigSerializer.SerializationException;
 
     T createDefault();
 

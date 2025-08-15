@@ -2,7 +2,6 @@ package io.canvasmc.canvas.config;
 
 import io.canvasmc.canvas.config.annotation.Comment;
 import io.canvasmc.canvas.config.annotation.Experimental;
-import io.canvasmc.canvas.config.annotation.NamespacedKey;
 import io.canvasmc.canvas.config.annotation.Pattern;
 import io.canvasmc.canvas.config.annotation.RegisteredHandler;
 import io.canvasmc.canvas.config.annotation.numeric.NegativeNumericValue;
@@ -10,7 +9,7 @@ import io.canvasmc.canvas.config.annotation.numeric.NonNegativeNumericValue;
 import io.canvasmc.canvas.config.annotation.numeric.NonPositiveNumericValue;
 import io.canvasmc.canvas.config.annotation.numeric.PositiveNumericValue;
 import io.canvasmc.canvas.config.annotation.numeric.Range;
-import net.kyori.adventure.key.Key;
+import io.canvasmc.canvas.configuration.validator.ValidationException;
 import org.jetbrains.annotations.NotNull;
 import java.io.StringWriter;
 import java.lang.reflect.Field;
@@ -150,50 +149,6 @@ public class ConfigHandlers {
 
         public Class<Pattern> pattern() {
             return Pattern.class;
-        }
-    }
-
-    @RegisteredHandler("namespacedKey")
-    public static class NamespacedKeyProcessor implements AnnotationValidationProvider<NamespacedKey> {
-        @Override
-        public boolean validate(final String fullKey, final Field field, final NamespacedKey annotation, final Object value) throws ValidationException {
-            if (value == null) {
-                return false; // quick escape
-            }
-            String string = value.toString();
-            if (string.isEmpty() || string.length() > Short.MAX_VALUE) throw new ValidationException("String is empty or exceeds char limit");
-
-            String[] components = string.split(":", 3);
-            if (components.length > 2) {
-                throw new ValidationException("Contains multiple ':' characters");
-            }
-
-            String key = (components.length == 2) ? components[1] : "";
-            if (components.length == 1) {
-                String comp0 = components[0];
-                if (comp0.isEmpty() || !Key.parseableValue(comp0)) {
-                    throw new ValidationException("Invalid namespaced key, comp0 was empty or unparsable");
-                }
-
-                return true; // valid, use minecraft
-            } else if (components.length == 2 && !Key.parseableValue(key)) {
-                throw new ValidationException("Invalid/unparsable key");
-            }
-
-            String namespace = components[0];
-            if (namespace.isEmpty()) {
-                return true; // valid, use minecraft
-            }
-
-            if (!Key.parseableNamespace(namespace)) {
-                throw new ValidationException("Invalid/unparsable namespace");
-            }
-
-            return true; // passed
-        }
-
-        public Class<NamespacedKey> namespacedKey() {
-            return NamespacedKey.class;
         }
     }
 }

@@ -2,7 +2,7 @@ package io.canvasmc.canvas.config.internal;
 
 import io.canvasmc.canvas.config.ConfigSerializer;
 import io.canvasmc.canvas.config.Configuration;
-import io.canvasmc.canvas.config.ValidationException;
+import io.canvasmc.canvas.configuration.validator.ValidationException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.ApiStatus;
@@ -40,7 +40,7 @@ public class InternalConfigManager<T> implements ConfigHolder<T> {
 
     public void save() {
         try {
-            this.serializer.serialize(this.config);
+            this.serializer.write(this.config);
         } catch (ConfigSerializer.SerializationException e) {
             this.logger.error("Failed to save config '{}'", this.configClass, e);
         }
@@ -50,7 +50,7 @@ public class InternalConfigManager<T> implements ConfigHolder<T> {
     public boolean load() {
         try {
 
-            this.config = this.serializer.deserialize();
+            this.config = this.serializer.read();
             return true;
         } catch (ValidationException | ConfigSerializer.SerializationException e) {
             this.logger.error("Failed to load config '{}', using default!", this.configClass, e);
