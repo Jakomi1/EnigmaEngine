@@ -147,19 +147,6 @@
      }
      // CraftBukkit end
  
-@@ -2034,6 +_,12 @@
- 
-     public abstract boolean isEpollEnabled();
- 
-+    // Canvas start - Leaf - Bump netty to 4.2.x
-+    public abstract boolean isIoUringEnabled();
-+
-+    public abstract boolean isKqueueEnabled();
-+    // Canvas end - Leaf - Bump netty to 4.2.x
-+
-     public boolean isPvpAllowed() {
-         return this.pvp;
-     }
 @@ -2201,6 +_,13 @@
          return 256;
      }

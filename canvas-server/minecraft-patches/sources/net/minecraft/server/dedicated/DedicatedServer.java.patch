@@ -36,26 +36,3 @@
          // Paper end - initialize global and world-defaults configuration
          this.server.spark.enableEarlyIfRequested(); // Paper - spark
          // Paper start - fix converting txt to json file; convert old users earlier after PlayerList creation but before file load/save
-@@ -448,8 +_,20 @@
- 
-     @Override
-     public boolean isEpollEnabled() {
--        return this.getProperties().useNativeTransport;
--    }
-+        return this.getProperties().useNativeTransport && io.canvasmc.canvas.NetworkModel.fromProperty() == io.canvasmc.canvas.NetworkModel.EPOLL; // Canvas - Leaf - Bump netty to 4.2.x
-+    }
-+    // Canvas start - Leaf - Bump netty to 4.2.x
-+
-+    @Override
-+    public boolean isIoUringEnabled() {
-+        return this.getProperties().useNativeTransport && io.canvasmc.canvas.NetworkModel.fromProperty() == io.canvasmc.canvas.NetworkModel.IO_URING;
-+    }
-+
-+    @Override
-+    public boolean isKqueueEnabled() {
-+        return this.getProperties().useNativeTransport && io.canvasmc.canvas.NetworkModel.fromProperty() == io.canvasmc.canvas.NetworkModel.KQUEUE;
-+    }
-+    // Canvas end - Leaf - Bump netty to 4.2.x
- 
-     @Override
-     public DedicatedPlayerList getPlayerList() {

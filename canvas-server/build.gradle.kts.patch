@@ -82,18 +82,10 @@
          isTransitive = false
      }
 -    implementation("io.netty:netty-codec-haproxy:4.1.118.Final") // Add support for proxy protocol
-+    implementation("io.netty:netty-codec-haproxy:4.2.4.Final") // Add support for proxy protocol // bump depend
++    implementation("io.netty:netty-codec-haproxy:4.1.123.Final") // Add support for proxy protocol // bump depend
      implementation("org.apache.logging.log4j:log4j-iostreams:2.24.1")
      implementation("org.ow2.asm:asm-commons:9.8")
      implementation("org.spongepowered:configurate-yaml:4.2.0")
-@@ -210,6 +_,7 @@
-     // Spark
-     implementation("me.lucko:spark-api:0.1-20240720.200737-2")
-     implementation("me.lucko:spark-paper:1.10.133-20250413.112336-1")
-+    implementation("io.netty:netty-all:4.2.4.Final")
- }
- 
- tasks.jar {
 @@ -224,14 +_,14 @@
          val gitBranch = git.exec(providers, "rev-parse", "--abbrev-ref", "HEAD").get().trim()
          attributes(
