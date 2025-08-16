@@ -7,13 +7,21 @@ import io.canvasmc.canvas.configuration.ConfigSerializer;
 import io.canvasmc.canvas.configuration.Configuration;
 import io.canvasmc.canvas.configuration.internal.ConfigurationManager;
 import io.canvasmc.canvas.configuration.Json5Builder;
+import io.canvasmc.canvas.configuration.jankson.Jankson;
+import io.canvasmc.canvas.configuration.jankson.JsonObject;
 import io.canvasmc.canvas.configuration.validator.NamespacedKeyValidator;
 import io.canvasmc.canvas.configuration.writer.Comment;
 import io.canvasmc.canvas.entity.EntityCollisionMode;
 import io.canvasmc.canvas.simd.SIMDDetection;
 import io.canvasmc.canvas.util.GsonTextFormatter;
+import java.io.IOException;
+import java.io.StringReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.random.RandomGeneratorFactory;
@@ -27,6 +35,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Range;
+import org.yaml.snakeyaml.Yaml;
 
 @Configuration("canvas-server")
 public class Config {
@@ -548,29 +557,31 @@ public class Config {
 
     private static <T extends Config> @NotNull ConfigSerializer<T> buildSerializer(Configuration config, Class<T> configClass) {
         return new Json5Builder<T>()
-            .header("/*\n" +
-                "  This is the main Canvas configuration file\n" +
-                "  All configuration options here are made for vanilla-compatibility\n" +
-                "  and not for performance. Settings must be configured specific\n" +
-                "  to your hardware and server type. If you have questions\n" +
-                "  join our discord at https://canvasmc.io/discord\n" +
-                "  As a general rule of thumb, do NOT change a setting if\n" +
-                "  you don't know what it does! If you don't know, ask!\n" +
-                "\n" +
-                "  This configuration file is based off of Json5, a Json\n" +
-                "  syntax with Java-like comment capabilities. You are\n" +
-                "  able to add your own custom comments to the configuration\n" +
-                "  however there must always be 1 comment per option, however you\n" +
-                "  may add as many comments as you want in the \"header\", or above\n" +
-                "  the root json block or else your comment may be deleted. Proper\n" +
-                "  indentation is forced, restarting the server will reformat your\n" +
-                "  comment to include proper indentation and remove trailing\n" +
-                "  whitespaces.\n" +
-                "\n" +
-                "  You may add comments to the header, here, remove comments anywhere,\n" +
-                "  or replace them wholesale. If you have any questions, ask in our\n" +
-                "  discord server.\n" +
-                "*/\n")
+            .header("""
+                /*
+                  This is the main Canvas configuration file
+                  All configuration options here are made for vanilla-compatibility
+                  and not for performance. Settings must be configured specific
+                  to your hardware and server type. If you have questions
+                  join our discord at https://canvasmc.io/discord
+                  As a general rule of thumb, do NOT change a setting if
+                  you don't know what it does! If you don't know, ask!
+                
+                  This configuration file is based off of Json5, a Json
+                  syntax with Java-like comment capabilities. You are
+                  able to add your own custom comments to the configuration
+                  however there must always be 1 comment per option, however you
+                  may add as many comments as you want in the "header", or above
+                  the root json block or else your comment may be deleted. Proper
+                  indentation is forced, restarting the server will reformat your
+                  comment to include proper indentation and remove trailing
+                  whitespaces.
+                
+                  You may add comments to the header, here, remove comments anywhere,
+                  or replace them wholesale. If you have any questions, ask in our
+                  discord server.
+                */
+                """)
             .classOf(configClass)
             .post(context -> {
                 INSTANCE = context.configuration();
@@ -638,5 +649,31 @@ public class Config {
         //noinspection ResultOfMethodCallIgnored
         ParallelSearchRadiusIteration.getSearchIteration(MoonriseConstants.MAX_VIEW_DISTANCE);
         return INSTANCE;
+    }
+
+    public static @NotNull Config getDefault() {
+        // TODO - remove this on next Minecraft update.
+        final Path path = Paths.get("./canvas-server.yml");
+        if (Files.exists(path)) {
+            LOGGER.info("Old configuration detected, migrating.");
+            try {
+                Yaml yaml = new Yaml();
+                String yamlContent = Files.readString(path);
+                String[] lines = yamlContent.split("\n", 2);
+                String body = lines.length > 1 ? lines[1] : "";
+
+                JsonObject object = new JsonObject();
+                Map<String, Object> yamnlMap = yaml.load(new StringReader(body));
+                io.canvasmc.canvas.configuration.writer.Util.migrate(
+                    yamnlMap, object
+                );
+                Files.delete(path);
+                LOGGER.info("Migration complete, reparsing");
+                return Jankson.builder().build().fromJson(object, Config.class);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return new Config();
     }
 }

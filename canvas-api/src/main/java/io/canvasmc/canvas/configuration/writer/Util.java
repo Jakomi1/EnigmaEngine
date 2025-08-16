@@ -2,15 +2,19 @@ package io.canvasmc.canvas.configuration.writer;
 
 import com.google.common.collect.Lists;
 import io.canvasmc.canvas.configuration.TriConsumer;
+import io.canvasmc.canvas.configuration.jankson.JsonArray;
 import io.canvasmc.canvas.configuration.jankson.JsonElement;
+import io.canvasmc.canvas.configuration.jankson.JsonNull;
 import io.canvasmc.canvas.configuration.jankson.JsonObject;
 import java.lang.reflect.AccessFlag;
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import io.canvasmc.canvas.configuration.jankson.JsonPrimitive;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -103,6 +107,51 @@ public class Util {
                 }
             }
         }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static void migrate(Map<String, Object> yamlMap, JsonObject janksonObject) {
+        for (final Map.Entry<String, Object> entry : yamlMap.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                // nested object
+                JsonObject child = janksonObject.getObject(key);
+                if (child == null) {
+                    child = new JsonObject();
+                    janksonObject.put(key, child);
+                }
+                migrate((Map<String, Object>) value, child);
+            } else if (value instanceof List list) {
+                JsonArray array = new JsonArray();
+                for (final Object o : list) {
+                    array.add(convertElement(o));
+                }
+                janksonObject.put(key, array);
+            } else {
+                janksonObject.put(key, convertElement(value));
+            }
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static JsonElement convertElement(Object o) {
+        if (o == null) return JsonNull.INSTANCE;
+        if (o instanceof String
+        || o instanceof Boolean || o instanceof Number) return new JsonPrimitive(o);
+        if (o instanceof Map) {
+            JsonObject jsonObject = new JsonObject();
+            migrate((Map<String, Object>) o, jsonObject);
+            return jsonObject;
+        }
+        if (o instanceof List list) {
+            JsonArray array = new JsonArray();
+            for (final Object object : list) {
+                array.add(convertElement(object));
+            }
+            return array;
+        }
+        return new JsonPrimitive(o.toString());
     }
 
     public static @Nullable JsonElement getValueByPath(@NotNull JsonObject root, @NotNull String path) {

@@ -12,11 +12,11 @@ import java.util.Map;
 //   for easier readability when logged to console
 public record GsonTextFormatter(String indent, int offset) {
 
-    private static final TextColor KEY_COLOR = NamedTextColor.AQUA;
-    private static final TextColor STRING_COLOR = NamedTextColor.GREEN;
-    private static final TextColor NUMBER_COLOR = NamedTextColor.GOLD;
-    private static final TextColor BOOLEAN_COLOR = NamedTextColor.BLUE;
-    private static final TextColor NULL_COLOR = NamedTextColor.DARK_GRAY;
+    private static final TextColor KEY_COLOR = TextColor.color(0x5DBBEA);
+    private static final TextColor STRING_COLOR = TextColor.color(0x4EF4E2);
+    private static final TextColor NUMBER_COLOR = TextColor.color(0xC71FFF);
+    private static final TextColor BOOLEAN_COLOR = TextColor.color(0x49CD22);
+    private static final TextColor NULL_COLOR = TextColor.color(0x49CD22);
 
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 

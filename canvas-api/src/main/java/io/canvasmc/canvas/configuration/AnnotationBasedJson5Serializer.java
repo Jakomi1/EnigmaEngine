@@ -11,6 +11,8 @@ import io.canvasmc.canvas.configuration.writer.Util;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -193,6 +195,12 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
 
     @Override
     public C createDefault() {
-        return constructUnsafely(configClass);
+        try {
+            Method method = configClass.getDeclaredMethod("getDefault");
+            method.setAccessible(true);
+            return (C) method.invoke(null);
+        } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+            return constructUnsafely(configClass);
+        }
     }
 }
