@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
-
 import org.jetbrains.annotations.NotNull;
 
 public interface ConfigSerializer<T> {
@@ -20,7 +19,7 @@ public interface ConfigSerializer<T> {
     T createDefault();
 
     default Path getConfigFolder() {
-        return Paths.get("./");
+        return Paths.get("./config/");
     }
 
     default <V> V constructUnsafely(@NotNull Class<V> cls) {

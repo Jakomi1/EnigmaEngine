@@ -39,9 +39,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 public class JsonObject extends JsonElement implements Map<String, JsonElement> {
+    private final List<Entry> entries = new ArrayList<>();
     @SuppressWarnings("deprecation")
     protected Marshaller marshaller = MarshallerImpl.getFallback();
-    private final List<Entry> entries = new ArrayList<>();
 
     /**
      * If there is an entry at this key, and that entry is a json object, return it. Otherwise returns null.

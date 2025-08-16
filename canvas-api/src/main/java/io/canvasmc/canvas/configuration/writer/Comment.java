@@ -32,5 +32,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface Comment {
-	String[] value() default ""; // Canvas - support multi-line
+    String[] value() default ""; // Canvas - support multi-line
 }

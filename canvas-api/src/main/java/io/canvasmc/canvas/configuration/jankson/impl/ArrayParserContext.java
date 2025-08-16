@@ -30,8 +30,8 @@ import io.canvasmc.canvas.configuration.jankson.api.SyntaxError;
 
 public class ArrayParserContext implements ParserContext<JsonArray> {
     private final JsonArray result = new JsonArray();
-    private boolean foundClosingBrace = false;
     private final String comment = null;
+    private boolean foundClosingBrace = false;
 
     /**
      * Assumes the opening brace has already been consumed!

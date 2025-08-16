@@ -57,11 +57,12 @@ import javax.annotation.Nullable;
 @Deprecated
 public class MarshallerImpl implements Marshaller {
     private static final MarshallerImpl INSTANCE = new MarshallerImpl();
-    Map<Class<?>, Function<JsonObject, ?>> typeAdapters = new HashMap<>();
     private final Map<Class<?>, Function<Object, ?>> primitiveMarshallers = new HashMap<>();
     private final Map<Class<?>, BiFunction<Object, Marshaller, JsonElement>> serializers = new HashMap<>();
     private final Map<Class<?>, DeserializerFunctionPool<?>> deserializers = new HashMap<>();
     private final Map<Class<?>, Supplier<?>> typeFactories = new HashMap<>();
+    Map<Class<?>, Function<JsonObject, ?>> typeAdapters = new HashMap<>();
+
     public MarshallerImpl() {
         register(Void.class, (it) -> null);
 
@@ -263,7 +264,7 @@ public class MarshallerImpl implements Marshaller {
             obj.setMarshaller(this);
 
             if (typeAdapters.containsKey(clazz)) {
-                return (T) typeAdapters.get(clazz).apply((JsonObject) elem);
+                return (T) typeAdapters.get(clazz).apply(obj);
             }
 
             if (typeFactories.containsKey(clazz)) {

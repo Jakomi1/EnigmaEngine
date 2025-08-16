@@ -2,11 +2,11 @@ package io.canvasmc.canvas.configuration.validator;
 
 import io.canvasmc.canvas.configuration.jankson.JsonElement;
 import io.canvasmc.canvas.configuration.jankson.JsonPrimitive;
-import net.kyori.adventure.key.Key;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import net.kyori.adventure.key.Key;
 
 public class NamespacedKeyValidator implements AnnotationValidator<NamespacedKeyValidator.NamespacedKey> {
     @Override

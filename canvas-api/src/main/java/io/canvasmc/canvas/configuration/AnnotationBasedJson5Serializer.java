@@ -1,16 +1,6 @@
 package io.canvasmc.canvas.configuration;
 
 import com.google.common.collect.Lists;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
-import java.util.Objects;
-import java.util.ServiceLoader;
-import java.util.function.Consumer;
 import io.canvasmc.canvas.configuration.jankson.Jankson;
 import io.canvasmc.canvas.configuration.jankson.JsonArray;
 import io.canvasmc.canvas.configuration.jankson.JsonElement;
@@ -18,7 +8,18 @@ import io.canvasmc.canvas.configuration.jankson.JsonObject;
 import io.canvasmc.canvas.configuration.validator.AnnotationValidator;
 import io.canvasmc.canvas.configuration.validator.ValidationResult;
 import io.canvasmc.canvas.configuration.writer.Util;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Objects;
+import java.util.ServiceLoader;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,14 +29,29 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
                                                 Jankson jankson,
                                                 List<AnnotationValidator> validators,
                                                 Consumer<Json5Builder.PostContext<C>> postInit,
-                                                String[] header) implements ConfigSerializer<C> {
+                                                String header) implements ConfigSerializer<C> {
     public static final Logger LOGGER = LoggerFactory.getLogger("Json5Serializer");
 
-    public AnnotationBasedJson5Serializer(Class<C> configClass, Consumer<Json5Builder.PostContext<C>> postInit, String[] header) {
+    public AnnotationBasedJson5Serializer(Class<C> configClass, Consumer<Json5Builder.PostContext<C>> postInit, String header, Function<Jankson.Builder, Jankson.Builder> hook) {
         this(
             Objects.requireNonNull(configClass.getAnnotation(Configuration.class), "Class must contain a Configuration annotation"),
-            configClass, Jankson.builder().build(), floodRegistries(AnnotationValidator.class), postInit, header
+            configClass, hook.apply(Jankson.builder()).build(), floodRegistries(AnnotationValidator.class), postInit, header
         );
+    }
+
+    private static <T> @NotNull List<T> floodRegistries(Class<T> serviceClass) {
+        List<T> services = Lists.newArrayList();
+        ServiceLoader<T> loader = ServiceLoader.load(serviceClass);
+        if (loader.stream().toList().isEmpty()) {
+            LOGGER.warn("No services found for {}", serviceClass.getName());
+            return services;
+        }
+
+        for (final T t : loader) {
+            LOGGER.info("Loading class {} into registries for {}", t.getClass().getSimpleName(), serviceClass.getName());
+            services.add(t);
+        }
+        return services;
     }
 
     private @NotNull Path getConfigPath() {
@@ -44,7 +60,6 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
 
     @Override
     public void write(C config) throws SerializationException {
-        // TODO - header writing and top-line comments
         Path configPath = getConfigPath();
         try {
             Files.createDirectories(configPath.getParent());
@@ -54,11 +69,17 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
             if (!configPath.toFile().exists()) {
                 LOGGER.info("Config file doesn't exist, flooding with full config write");
                 BufferedWriter writer = Files.newBufferedWriter(configPath);
-                writer.write(jankson.toJson(config).toJson(true, true));
+                // only write header once, when we fill config.
+                // this allows people to modify or remove the header later
+                final String file = header +
+                    jankson.toJson(config).toJson(true, true);
+                writer.write(file);
                 writer.close();
+                this.read();
             } else {
                 try {
-                    JsonObject disk = jankson.load(configPath.toFile());
+                    String[] split = Util.splitHeader(Files.readString(configPath.toAbsolutePath()));
+                    JsonObject disk = jankson.load(split[1]);
                     JsonObject memory = (JsonObject) jankson.toJson(config);
                     LOGGER.info("Config file exists, building diff");
                     // build a diff to see what 'disk' doesn't have in
@@ -89,7 +110,9 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
                     }
 
                     // write to disk
-                    writer.write(Util.cleanMultiLineCommentIndent(disk.toJson(true, true)));
+                    writer.write(
+                        split[0] + "\n" + Util.cleanMultiLineCommentIndent(disk.toJson(true, true))
+                    );
                     writer.close();
                 } catch (Throwable e) {
                     throw new RuntimeException("Unable to build diff for config save", e);
@@ -101,7 +124,7 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
     }
 
     @Override
-    public C read() throws SerializationException {
+    public @Nullable C read() throws SerializationException {
         Path configPath = getConfigPath();
         if (Files.exists(configPath)) {
             try {
@@ -133,7 +156,8 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
                                         }
                                     }
                                     switch (result) {
-                                        case PASS -> LOGGER.info("Validation passed for entry '{}' in validator {}", key, validator.getClass().getName());
+                                        case PASS ->
+                                            LOGGER.info("Validation passed for entry '{}' in validator {}", key, validator.getClass().getName());
                                         case FAIL -> {
                                             LOGGER.error("Validation failed for entry '{}' in validator {}", key, validator.getClass().getName());
                                             failed[0] = true;
@@ -162,6 +186,7 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
                 throw new SerializationException(e);
             }
         } else {
+            LOGGER.info("No config file currently present, constructing default configuration");
             return createDefault();
         }
     }
@@ -169,20 +194,5 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
     @Override
     public C createDefault() {
         return constructUnsafely(configClass);
-    }
-
-    private static <T> @NotNull List<T> floodRegistries(Class<T> serviceClass) {
-        List<T> services = Lists.newArrayList();
-        ServiceLoader<T> loader = ServiceLoader.load(serviceClass);
-        if (loader.stream().toList().isEmpty()) {
-            LOGGER.warn("No services found for {}", serviceClass.getName());
-            return services;
-        }
-
-        for (final T t : loader) {
-            LOGGER.info("Loading class {} into registries for {}", t.getClass().getSimpleName(), serviceClass.getName());
-            services.add(t);
-        }
-        return services;
     }
 }

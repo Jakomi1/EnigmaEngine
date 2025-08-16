@@ -38,8 +38,8 @@ import javax.annotation.Nullable;
 
 @SuppressWarnings("deprecation")
 public class JsonArray extends JsonElement implements List<JsonElement>, Iterable<JsonElement> {
-    protected Marshaller marshaller = MarshallerImpl.getFallback();
     private final List<Entry> entries = new ArrayList<>();
+    protected Marshaller marshaller = MarshallerImpl.getFallback();
 
     public JsonArray() {
     }

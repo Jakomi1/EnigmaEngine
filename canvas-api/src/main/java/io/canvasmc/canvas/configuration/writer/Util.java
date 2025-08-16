@@ -4,8 +4,6 @@ import com.google.common.collect.Lists;
 import io.canvasmc.canvas.configuration.TriConsumer;
 import io.canvasmc.canvas.configuration.jankson.JsonElement;
 import io.canvasmc.canvas.configuration.jankson.JsonObject;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import java.lang.reflect.AccessFlag;
 import java.lang.reflect.Field;
 import java.util.List;
@@ -13,6 +11,8 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class Util {
     public static @NotNull String multi(String @NotNull [] strings) {
@@ -22,7 +22,8 @@ public class Util {
     /**
      * Walks recursively throughout the Json Object, if an element is a Json Object, it will check its
      * children *after* the entry consumer has accepted the root
-     * @param object the object to walk
+     *
+     * @param object       the object to walk
      * @param forEachEntry the entry consumer
      */
     public static void walk(@NotNull JsonObject object, BiConsumer<JsonElement, String> forEachEntry, String root) {
@@ -172,6 +173,69 @@ public class Util {
         }
     }
 
+    // Note: i=0 == head, i=1 == body
+    public static String[] splitHeader(String json5) {
+        String[] result = new String[2];
+        StringBuilder header = new StringBuilder();
+        StringBuilder body = new StringBuilder();
+
+        boolean inHeader = true;
+        boolean inBlockComment = false;
+        boolean inLineComment = false;
+
+        for (int i = 0; i < json5.length(); i++) {
+            char c = json5.charAt(i);
+            char next = (i + 1 < json5.length()) ? json5.charAt(i + 1) : '\0';
+
+            if (inHeader) {
+                if (!inBlockComment && !inLineComment && c == '/' && next == '*') {
+                    inBlockComment = true;
+                    header.append(c).append(next);
+                    i++;
+                    continue;
+                }
+                if (inBlockComment && c == '*' && next == '/') {
+                    inBlockComment = false;
+                    header.append(c).append(next);
+                    i++;
+                    continue;
+                }
+                if (!inBlockComment && !inLineComment && c == '/' && next == '/') {
+                    inLineComment = true;
+                    header.append(c).append(next);
+                    i++;
+                    continue;
+                }
+                // Line comment end
+                if (inLineComment && (c == '\n' || c == '\r')) {
+                    inLineComment = false;
+                    header.append(c);
+                    if (c != '\n') {
+                        header.append('\n');
+                    }
+                    continue;
+                }
+
+                if (inLineComment || inBlockComment) {
+                    header.append(c);
+                } else if (Character.isWhitespace(c)) {
+                    header.append(c);
+                } else {
+                    inHeader = false;
+                    body.append(c);
+                }
+            } else {
+                body.append(c);
+            }
+        }
+
+        header.append('\n');
+
+        result[0] = header.toString().trim();
+        result[1] = body.toString().trim();
+        return result;
+    }
+
     /**
      * Cleans doubled indentation in multi-line comments while preserving relative indents.
      *
@@ -212,8 +276,6 @@ public class Util {
         return sb.toString();
     }
 
-    public record Diff(List<String> added, List<String> removed) {}
-
     public static @NotNull Diff diff(JsonObject oldObj, JsonObject newObj) {
         List<String> added = Lists.newLinkedList();
         List<String> removed = Lists.newLinkedList();
@@ -246,5 +308,8 @@ public class Util {
                 removed.add(prefix + key);
             }
         }
+    }
+
+    public record Diff(List<String> added, List<String> removed) {
     }
 }

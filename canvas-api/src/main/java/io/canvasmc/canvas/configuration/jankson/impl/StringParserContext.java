@@ -30,8 +30,8 @@ import io.canvasmc.canvas.configuration.jankson.api.SyntaxError;
 
 public class StringParserContext implements ParserContext<JsonPrimitive> {
     private final int quote;
-    private boolean escape = false;
     private final StringBuilder builder = new StringBuilder();
+    private boolean escape = false;
     private boolean complete = false;
 
     public StringParserContext(int quote) {

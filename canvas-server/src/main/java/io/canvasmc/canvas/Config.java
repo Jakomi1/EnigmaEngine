@@ -548,15 +548,29 @@ public class Config {
 
     private static <T extends Config> @NotNull ConfigSerializer<T> buildSerializer(Configuration config, Class<T> configClass) {
         return new Json5Builder<T>()
-            .header(new String[]{
-                "This is the main Canvas configuration file",
-                "All configuration options here are made for vanilla-compatibility",
-                "and not for performance. Settings must be configured specific",
-                "to your hardware and server type. If you have questions",
-                "join our discord at https://canvasmc.io/discord",
-                "As a general rule of thumb, do NOT change a setting if",
-                "you don't know what it does! If you don't know, ask!"
-            })
+            .header("/*\n" +
+                "  This is the main Canvas configuration file\n" +
+                "  All configuration options here are made for vanilla-compatibility\n" +
+                "  and not for performance. Settings must be configured specific\n" +
+                "  to your hardware and server type. If you have questions\n" +
+                "  join our discord at https://canvasmc.io/discord\n" +
+                "  As a general rule of thumb, do NOT change a setting if\n" +
+                "  you don't know what it does! If you don't know, ask!\n" +
+                "\n" +
+                "  This configuration file is based off of Json5, a Json\n" +
+                "  syntax with Java-like comment capabilities. You are\n" +
+                "  able to add your own custom comments to the configuration\n" +
+                "  however there must always be 1 comment per option, however you\n" +
+                "  may add as many comments as you want in the \"header\", or above\n" +
+                "  the root json block or else your comment may be deleted. Proper\n" +
+                "  indentation is forced, restarting the server will reformat your\n" +
+                "  comment to include proper indentation and remove trailing\n" +
+                "  whitespaces.\n" +
+                "\n" +
+                "  You may add comments to the header, here, remove comments anywhere,\n" +
+                "  or replace them wholesale. If you have any questions, ask in our\n" +
+                "  discord server.\n" +
+                "*/\n")
             .classOf(configClass)
             .post(context -> {
                 INSTANCE = context.configuration();
