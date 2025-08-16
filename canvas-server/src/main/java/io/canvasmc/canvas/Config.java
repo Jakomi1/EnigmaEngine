@@ -3,23 +3,28 @@ package io.canvasmc.canvas;
 import ca.spottedleaf.moonrise.common.util.MoonriseConstants;
 import ca.spottedleaf.moonrise.patches.chunk_system.util.ParallelSearchRadiusIteration;
 import io.canvasmc.canvas.chunk.FluidPostProcessingMode;
-import io.canvasmc.canvas.config.AnnotationBasedYamlSerializer;
-import io.canvasmc.canvas.config.ConfigHandlers;
-import io.canvasmc.canvas.config.ConfigSerializer;
-import io.canvasmc.canvas.config.Configuration;
-import io.canvasmc.canvas.config.ConfigurationUtils;
-import io.canvasmc.canvas.config.RuntimeModifier;
-import io.canvasmc.canvas.config.SerializationBuilder;
-import io.canvasmc.canvas.config.annotation.Comment;
-import io.canvasmc.canvas.config.annotation.NamespacedKey;
-import io.canvasmc.canvas.config.internal.ConfigurationManager;
+import io.canvasmc.canvas.configuration.ConfigSerializer;
+import io.canvasmc.canvas.configuration.Configuration;
+import io.canvasmc.canvas.configuration.internal.ConfigurationManager;
+import io.canvasmc.canvas.configuration.Json5Builder;
+import io.canvasmc.canvas.configuration.jankson.Jankson;
+import io.canvasmc.canvas.configuration.jankson.JsonObject;
+import io.canvasmc.canvas.configuration.validator.NamespacedKeyValidator;
+import io.canvasmc.canvas.configuration.validator.numeric.NonNegativeNumericValueValidator;
+import io.canvasmc.canvas.configuration.validator.numeric.PositiveNumericValueValidator;
+import io.canvasmc.canvas.configuration.validator.numeric.RangeValidator;
+import io.canvasmc.canvas.configuration.writer.Comment;
 import io.canvasmc.canvas.entity.EntityCollisionMode;
 import io.canvasmc.canvas.simd.SIMDDetection;
-import io.canvasmc.canvas.util.YamlTextFormatter;
+import io.canvasmc.canvas.util.GsonTextFormatter;
+import java.io.IOException;
+import java.io.StringReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.random.RandomGeneratorFactory;
@@ -32,7 +37,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Range;
+import org.yaml.snakeyaml.Yaml;
 
 @Configuration("canvas-server")
 public class Config {
@@ -46,6 +51,7 @@ public class Config {
         @Comment("Use euclidean distance squared for chunk task ordering. Makes the world load in what appears a circle rather than a diamond")
         public boolean useEuclideanDistanceSquared = true;
 
+        @RangeValidator.Range(from = 1, to = 10, inclusive = true)
         @Comment("The thread priority for Canvas' rewritten chunk system executor")
         public int threadPoolPriority = Thread.NORM_PRIORITY;
 
@@ -62,7 +68,6 @@ public class Config {
 
         @Comment({
             "Whether to turn fluid postprocessing into scheduled tick",
-            "",
             "Fluid post-processing is very expensive when loading in new chunks, and this can affect",
             "MSPT significantly. This option delays fluid post-processing to scheduled tick to hopefully mitigate this issue."
         })
@@ -74,6 +79,7 @@ public class Config {
         @Comment("Whether to enable End Biome Cache to accelerate The End worldgen")
         public boolean useEndBiomeCache = false;
 
+        @PositiveNumericValueValidator.PositiveNumericValue
         @Comment("The cache capacity for the end biome cache. Only works with 'useEndBiomeCache' enabled")
         public int endBiomeCacheCapacity = 1024;
 
@@ -105,12 +111,6 @@ public class Config {
         })
         public boolean asyncChunkSend = false;
 
-        @Comment({
-            "Changes the maximum view distance for the server, allowing clients to have",
-            "render distances higher than 32"
-        })
-        public int maxViewDistance = 32;
-
         @Comment("Whether to use a rewritten random tick system to optimize the server")
         public boolean optimizeRandomTick = false;
     }
@@ -123,7 +123,7 @@ public class Config {
         })
         public boolean disableClientboundSetEntityMotionPacket = false;
 
-        @Comment("Processes packets in-between ticks, which can drastically improve performance")
+        @Comment("Processes packets in-between ticks, which can drastically improve performance, but increase CPU usage")
         public boolean processPacketsInBetweenTicks = true;
 
         @Comment("Filters entity movement packets to reduce the amount of useless move packets sent")
@@ -141,6 +141,7 @@ public class Config {
         })
         public boolean optimizePlayerListTicking = false;
 
+        @PositiveNumericValueValidator.PositiveNumericValue
         @Comment("The interval in ticks for how often the server will tick the playerlist buckets")
         public int playerInfoSendInterval = 600;
     }
@@ -190,9 +191,11 @@ public class Config {
 
     public AsyncLocator asyncLocator = new AsyncLocator();
     public static class AsyncLocator {
+        @PositiveNumericValueValidator.PositiveNumericValue
         @Comment("The amount of threads allocated to the async locator")
         public int threads = 1;
 
+        @PositiveNumericValueValidator.PositiveNumericValue
         @Comment("The keepalive time in seconds for the async locator")
         public int keepalive = 60;
     }
@@ -385,14 +388,14 @@ public class Config {
         "This can assist for servers that need this changed to a different world",
         "due to setup reasoning, like needing to send the players to the spawn world",
         "or the wilderness world, etc.",
-        "This needs a NamedspacedKey string pattern, like 'namespace:key' that points",
+        "This needs a NamespacedKey string pattern, like 'namespace:key' that points",
         "to the dimension you want to use. The default is 'minecraft:overworld'",
         "",
         "This also applies to the end portal and nether portal, in replacement of the overworld",
         "For example, if you set this to 'minecraft:the_nether', all entities entering the",
         "end portal from the end will respawn in the nether rather than the overworld"
     })
-    @NamespacedKey
+    @NamespacedKeyValidator.NamespacedKey
     public String defaultRespawnDimensionKey = "minecraft:overworld";
 
     public ResourceKey<Level> fetchRespawnDimensionKey() {
@@ -402,7 +405,7 @@ public class Config {
     public Containers containers = new Containers();
     public static class Containers {
         @Comment("The amount of rows for the barrel block")
-        @Range(from = 1L, to = 6L)
+        @RangeValidator.Range(from = 1, to = 6, inclusive = true)
         public int barrelRows = 3;
         @Comment("Whether to use 6 rows for the player ender chest, rather than the normal 3")
         public boolean enderChestSixRows = false;
@@ -428,6 +431,7 @@ public class Config {
     @Comment("Makes item entities immune to lightning damage sources")
     public boolean itemEntitiesImmuneToLightning = false;
 
+    @NonNegativeNumericValueValidator.NonNegativeNumericValue
     @Comment({
         "Defines a percentage of which the server will apply to the velocity applied to",
         "item entities dropped on death. 0 means it has no velocity, 1 is default."
@@ -453,6 +457,7 @@ public class Config {
     })
     public boolean enableSuffocationOptimization = false;
 
+    @NonNegativeNumericValueValidator.NonNegativeNumericValue
     @Comment({
         "Defines the inaccuracy of skeleton bow shots. 14 being vanilla,",
         "100+ being absurdly stupidly and somewhat hilariously inaccurate",
@@ -492,6 +497,7 @@ public class Config {
         @Comment("Disables critical hits while sprinting")
         public boolean disableCritsWhileSprinting = false;
 
+        @NonNegativeNumericValueValidator.NonNegativeNumericValue
         @Comment({
             "When an entity is damaged, it has a certain amount of invulnerability",
             "ticks applied to the entity until it can be damaged next. In Vanilla, this",
@@ -547,42 +553,45 @@ public class Config {
     @Comment("Disables all criterion triggers. Advancements will not work!")
     public boolean disableCriterionTrigger = false;
 
-    @NamespacedKey
+    @NamespacedKeyValidator.NamespacedKey
     @Comment("Defines non-tickable entities. This is defined by a leniently-parsed resource location associated with the entity type")
     public List<String> nonTickableEntities = new ArrayList<>();
     public record EntityNonTickableConf(String raw, ResourceLocation parsed) {}
 
     private static <T extends Config> @NotNull ConfigSerializer<T> buildSerializer(Configuration config, Class<T> configClass) {
-        ConfigurationUtils.extractKeys(configClass);
-        Set<String> changes = new LinkedHashSet<>();
-        return new AnnotationBasedYamlSerializer<>(SerializationBuilder.<T>newBuilder()
-            .header(new String[]{
-                "This is the main Canvas configuration file",
-                "All configuration options here are made for vanilla-compatibility",
-                "and not for performance. Settings must be configured specific",
-                "to your hardware and server type. If you have questions",
-                "join our discord at https://canvasmc.io/discord",
-                "As a general rule of thumb, do NOT change a setting if",
-                "you don't know what it does! If you don't know, ask!"
-            })
-            .handler(ConfigHandlers.ExperimentalProcessor::new)
-            .handler(ConfigHandlers.CommentProcessor::new)
-            .validator(ConfigHandlers.RangeProcessor::new)
-            .validator(ConfigHandlers.NegativeProcessor::new)
-            .validator(ConfigHandlers.PositiveProcessor::new)
-            .validator(ConfigHandlers.NonNegativeProcessor::new)
-            .validator(ConfigHandlers.NonPositiveProcessor::new)
-            .validator(ConfigHandlers.PatternProcessor::new)
-            .validator(ConfigHandlers.NamespacedKeyProcessor::new)
+        return new Json5Builder<T>()
+            .header("""
+                /*
+                  This is the main Canvas configuration file
+                  All configuration options here are made for vanilla-compatibility
+                  and not for performance. Settings must be configured specific
+                  to your hardware and server type. If you have questions
+                  join our discord at https://canvasmc.io/discord
+                  As a general rule of thumb, do NOT change a setting if
+                  you don't know what it does! If you don't know, ask!
+                
+                  This configuration file is based off of Json5, a Json
+                  syntax with Java-like comment capabilities. You are
+                  able to add your own custom comments to the configuration
+                  however there must always be 1 comment per option, however you
+                  may add as many comments as you want in the "header", or above
+                  the root json block or else your comment may be deleted. Proper
+                  indentation is forced, restarting the server will reformat your
+                  comment to include proper indentation and remove trailing
+                  whitespaces.
+                
+                  You may add comments to the header, here, remove comments anywhere,
+                  or replace them wholesale. If you have any questions, ask in our
+                  discord server.
+                */
+                """)
+            .classOf(configClass)
             .post(context -> {
                 INSTANCE = context.configuration();
                 // build and print config tree.
-                YamlTextFormatter formatter = new YamlTextFormatter(4);
+                GsonTextFormatter formatter = new GsonTextFormatter(4);
                 VirtualThreadUtils.init();
                 LOGGER.info(Component.text("Printing configuration tree:").appendNewline().append(formatter.apply(context.contents())));
-                for (final String change : changes) {
-                    LOGGER.info(change);
-                }
 
                 // SIMD
                 try {
@@ -618,9 +627,21 @@ public class Config {
                     i++;
                 }
                 LOGGER.info("Successfully compiled {} entity non-tickable mappings", i);
-            })
-            .build(config, configClass), changes::add
-        );
+            }).build();
+        // return new AnnotationBasedYamlSerializer<>(SerializationBuilder.<T>newBuilder()
+        //     .handler(ConfigHandlers.ExperimentalProcessor::new)
+        //     .handler(ConfigHandlers.CommentProcessor::new)
+        //     .validator(ConfigHandlers.RangeProcessor::new)
+        //     .validator(ConfigHandlers.NegativeProcessor::new)
+        //     .validator(ConfigHandlers.PositiveProcessor::new)
+        //     .validator(ConfigHandlers.NonNegativeProcessor::new)
+        //     .validator(ConfigHandlers.NonPositiveProcessor::new)
+        //     .validator(ConfigHandlers.PatternProcessor::new)
+        //     .post(context -> {
+        //
+        //     })
+        //     .build(config, configClass), changes::add
+        // );
     }
 
     public static Config init() {
@@ -631,5 +652,31 @@ public class Config {
         //noinspection ResultOfMethodCallIgnored
         ParallelSearchRadiusIteration.getSearchIteration(MoonriseConstants.MAX_VIEW_DISTANCE);
         return INSTANCE;
+    }
+
+    public static @NotNull Config getDefault() {
+        // TODO - remove this on next Minecraft update.
+        final Path path = Paths.get("./canvas-server.yml");
+        if (Files.exists(path)) {
+            LOGGER.info("Old configuration detected, migrating.");
+            try {
+                Yaml yaml = new Yaml();
+                String yamlContent = Files.readString(path);
+                String[] lines = yamlContent.split("\n", 2);
+                String body = lines.length > 1 ? lines[1] : "";
+
+                JsonObject object = new JsonObject();
+                Map<String, Object> yamnlMap = yaml.load(new StringReader(body));
+                io.canvasmc.canvas.configuration.writer.Util.migrate(
+                    yamnlMap, object
+                );
+                Files.delete(path);
+                LOGGER.info("Migration complete, reparsing");
+                return Jankson.builder().build().fromJson(object, Config.class);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return new Config();
     }
 }
