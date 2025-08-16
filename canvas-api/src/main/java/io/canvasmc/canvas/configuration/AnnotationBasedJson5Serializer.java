@@ -1,8 +1,6 @@
 package io.canvasmc.canvas.configuration;
 
 import com.google.common.collect.Lists;
-import io.canvasmc.canvas.config.ConfigSerializer;
-import io.canvasmc.canvas.config.Configuration;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -10,6 +8,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.ServiceLoader;
+import java.util.function.Consumer;
 import io.canvasmc.canvas.configuration.jankson.Jankson;
 import io.canvasmc.canvas.configuration.jankson.JsonObject;
 import io.canvasmc.canvas.configuration.validator.AnnotationValidator;
@@ -22,13 +21,15 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings("rawtypes")
 public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<C> configClass,
                                                 Jankson jankson,
-                                                List<AnnotationValidator> validators) implements ConfigSerializer<C> {
+                                                List<AnnotationValidator> validators,
+                                                Consumer<Json5Builder.PostContext<C>> postInit,
+                                                String[] header) implements ConfigSerializer<C> {
     public static final Logger LOGGER = LoggerFactory.getLogger("Json5Serializer");
 
-    public AnnotationBasedJson5Serializer(Class<C> configClass) {
+    public AnnotationBasedJson5Serializer(Class<C> configClass, Consumer<Json5Builder.PostContext<C>> postInit, String[] header) {
         this(
             Objects.requireNonNull(configClass.getAnnotation(Configuration.class), "Class must contain a Configuration annotation"),
-            configClass, Jankson.builder().build(), floodRegistries(AnnotationValidator.class)
+            configClass, Jankson.builder().build(), floodRegistries(AnnotationValidator.class), postInit, header
         );
     }
 
@@ -39,9 +40,6 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
     @Override
     public void write(C config) throws SerializationException {
         // TODO - header writing and top-line comments
-        // TODO - validation system actually work please?
-        // TODO - make a builder for this
-        // TODO - 'post' consumer
         Path configPath = getConfigPath();
         try {
             Files.createDirectories(configPath.getParent());
@@ -102,7 +100,18 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
         Path configPath = getConfigPath();
         if (Files.exists(configPath)) {
             try {
-                return jankson.fromJson(jankson.load(getConfigPath().toFile()), configClass);
+                final JsonObject loaded = jankson.load(getConfigPath().toFile());
+                C config = jankson.fromJson(loaded, configClass);
+                // we are done reading, validate and run post
+                // TODO - validation system
+                if (config != null) {
+                    LOGGER.info("Configuration loaded successfully, running validation and post consumer");
+                    this.postInit.accept(
+                        new Json5Builder.PostContext<>(config, loaded.toJson(true, true))
+                    );
+                    LOGGER.info("Post consumer and validation completed successfully, saving changes to disk");
+                }
+                return config;
             } catch (Throwable e) {
                 throw new SerializationException(e);
             }

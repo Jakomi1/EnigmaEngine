@@ -3,23 +3,17 @@ package io.canvasmc.canvas;
 import ca.spottedleaf.moonrise.common.util.MoonriseConstants;
 import ca.spottedleaf.moonrise.patches.chunk_system.util.ParallelSearchRadiusIteration;
 import io.canvasmc.canvas.chunk.FluidPostProcessingMode;
-import io.canvasmc.canvas.config.AnnotationBasedYamlSerializer;
-import io.canvasmc.canvas.config.ConfigHandlers;
-import io.canvasmc.canvas.config.ConfigSerializer;
-import io.canvasmc.canvas.config.Configuration;
-import io.canvasmc.canvas.config.ConfigurationUtils;
-import io.canvasmc.canvas.config.SerializationBuilder;
-import io.canvasmc.canvas.config.internal.ConfigurationManager;
-import io.canvasmc.canvas.configuration.AnnotationBasedJson5Serializer;
+import io.canvasmc.canvas.configuration.ConfigSerializer;
+import io.canvasmc.canvas.configuration.Configuration;
+import io.canvasmc.canvas.configuration.internal.ConfigurationManager;
+import io.canvasmc.canvas.configuration.Json5Builder;
 import io.canvasmc.canvas.configuration.validator.NamespacedKeyValidator;
 import io.canvasmc.canvas.configuration.writer.Comment;
 import io.canvasmc.canvas.entity.EntityCollisionMode;
 import io.canvasmc.canvas.simd.SIMDDetection;
-import io.canvasmc.canvas.util.YamlTextFormatter;
+import io.canvasmc.canvas.util.GsonTextFormatter;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.random.RandomGeneratorFactory;
@@ -562,10 +556,7 @@ public class Config {
     public record EntityNonTickableConf(String raw, ResourceLocation parsed) {}
 
     private static <T extends Config> @NotNull ConfigSerializer<T> buildSerializer(Configuration config, Class<T> configClass) {
-        /*
-        ConfigurationUtils.extractKeys(configClass);
-        Set<String> changes = new LinkedHashSet<>();
-        return new AnnotationBasedYamlSerializer<>(SerializationBuilder.<T>newBuilder()
+        return new Json5Builder<T>()
             .header(new String[]{
                 "This is the main Canvas configuration file",
                 "All configuration options here are made for vanilla-compatibility",
@@ -575,23 +566,13 @@ public class Config {
                 "As a general rule of thumb, do NOT change a setting if",
                 "you don't know what it does! If you don't know, ask!"
             })
-            .handler(ConfigHandlers.ExperimentalProcessor::new)
-            .handler(ConfigHandlers.CommentProcessor::new)
-            .validator(ConfigHandlers.RangeProcessor::new)
-            .validator(ConfigHandlers.NegativeProcessor::new)
-            .validator(ConfigHandlers.PositiveProcessor::new)
-            .validator(ConfigHandlers.NonNegativeProcessor::new)
-            .validator(ConfigHandlers.NonPositiveProcessor::new)
-            .validator(ConfigHandlers.PatternProcessor::new)
+            .classOf(configClass)
             .post(context -> {
                 INSTANCE = context.configuration();
                 // build and print config tree.
-                YamlTextFormatter formatter = new YamlTextFormatter(4);
+                GsonTextFormatter formatter = new GsonTextFormatter(4);
                 VirtualThreadUtils.init();
                 LOGGER.info(Component.text("Printing configuration tree:").appendNewline().append(formatter.apply(context.contents())));
-                for (final String change : changes) {
-                    LOGGER.info(change);
-                }
 
                 // SIMD
                 try {
@@ -632,11 +613,21 @@ public class Config {
                 if (System.getProperty("io.netty.allocator.type") == null) {
                     System.setProperty("io.netty.allocator.type", "pooled");
                 }
-            })
-            .build(config, configClass), changes::add
-        );
-         */
-        return new AnnotationBasedJson5Serializer<>(configClass);
+            }).build();
+        // return new AnnotationBasedYamlSerializer<>(SerializationBuilder.<T>newBuilder()
+        //     .handler(ConfigHandlers.ExperimentalProcessor::new)
+        //     .handler(ConfigHandlers.CommentProcessor::new)
+        //     .validator(ConfigHandlers.RangeProcessor::new)
+        //     .validator(ConfigHandlers.NegativeProcessor::new)
+        //     .validator(ConfigHandlers.PositiveProcessor::new)
+        //     .validator(ConfigHandlers.NonNegativeProcessor::new)
+        //     .validator(ConfigHandlers.NonPositiveProcessor::new)
+        //     .validator(ConfigHandlers.PatternProcessor::new)
+        //     .post(context -> {
+        //
+        //     })
+        //     .build(config, configClass), changes::add
+        // );
     }
 
     public static Config init() {
