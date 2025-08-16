@@ -1,10 +1,13 @@
 package io.canvasmc.canvas.configuration.writer;
 
 import com.google.common.collect.Lists;
+import io.canvasmc.canvas.configuration.TriConsumer;
 import io.canvasmc.canvas.configuration.jankson.JsonElement;
 import io.canvasmc.canvas.configuration.jankson.JsonObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import java.lang.reflect.AccessFlag;
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -31,6 +34,20 @@ public class Util {
                 walk(jsonObject, forEachEntry, path + ".");
             }
         });
+    }
+
+    public static boolean isNestedWithin(Class<?> root, Class<?> candidate) {
+        if (root == null || candidate == null) return false;
+
+        for (Class<?> inner : root.getDeclaredClasses()) {
+            if (inner.equals(candidate)) {
+                return true;
+            }
+            if (isNestedWithin(inner, candidate)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -61,6 +78,30 @@ public class Util {
         }
 
         return null;
+    }
+
+    public static void compileMappings(Class<?> clazz, JsonObject root, String pathPrefix, TriConsumer<JsonElement, String, Field> consumer) {
+        for (final Field field : clazz.getFields()) {
+            // TODO - validate class before read/write and kill if it's invalid
+            if (field.accessFlags().contains(AccessFlag.STATIC)) continue; // don't want static
+            if (field.accessFlags().contains(AccessFlag.FINAL)) continue; // don't want final
+            if (!field.accessFlags().contains(AccessFlag.PUBLIC)) continue; // must be public
+            String fieldName = field.getName();
+            String path = pathPrefix.isEmpty() ? fieldName : pathPrefix + "." + fieldName;
+
+            Class<?> classType = field.getType();
+
+            if (Util.isNestedWithin(clazz, classType)) {
+                compileMappings(classType, root, path, consumer);
+            } else {
+                JsonElement value = Util.getValueByPath(root, path);
+                if (value != null) {
+                    consumer.accept(value, path, field);
+                } else {
+                    throw new IllegalStateException("Class(" + clazz.getName() + ") and JsonObject must have matching mappings! Missing key " + path);
+                }
+            }
+        }
     }
 
     public static @Nullable JsonElement getValueByPath(@NotNull JsonObject root, @NotNull String path) {
@@ -173,7 +214,7 @@ public class Util {
 
     public record Diff(List<String> added, List<String> removed) {}
 
-    public static Diff diff(JsonObject oldObj, JsonObject newObj) {
+    public static @NotNull Diff diff(JsonObject oldObj, JsonObject newObj) {
         List<String> added = Lists.newLinkedList();
         List<String> removed = Lists.newLinkedList();
 
@@ -182,7 +223,7 @@ public class Util {
         return new Diff(List.copyOf(added), List.copyOf(removed));
     }
 
-    private static void diffRecursive(String prefix, JsonObject oldObj, JsonObject newObj,
+    private static void diffRecursive(String prefix, @NotNull JsonObject oldObj, @NotNull JsonObject newObj,
                                       List<String> added, List<String> removed) {
         Set<String> oldKeys = oldObj.keySet();
         Set<String> newKeys = newObj.keySet();

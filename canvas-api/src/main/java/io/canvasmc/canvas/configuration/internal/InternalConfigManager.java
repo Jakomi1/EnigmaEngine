@@ -3,14 +3,14 @@ package io.canvasmc.canvas.configuration.internal;
 import io.canvasmc.canvas.configuration.ConfigSerializer;
 import io.canvasmc.canvas.configuration.Configuration;
 import io.canvasmc.canvas.configuration.validator.ValidationException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @ApiStatus.Internal
 public class InternalConfigManager<T> implements ConfigHolder<T> {
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LoggerFactory.getLogger("InternalConfigurationManager");
     private final Configuration definition;
     private final Class<T> configClass;
     private final ConfigSerializer<T> serializer;
@@ -22,7 +22,7 @@ public class InternalConfigManager<T> implements ConfigHolder<T> {
         this.serializer = serializer;
         if (this.load()) {
             this.save();
-        }
+        } else throw new RuntimeException("Couldn't load config '" + definition.value() + "'");
 
     }
 

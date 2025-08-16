@@ -3,6 +3,8 @@ package io.canvasmc.canvas.configuration;
 import com.google.common.collect.Lists;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -10,8 +12,11 @@ import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.function.Consumer;
 import io.canvasmc.canvas.configuration.jankson.Jankson;
+import io.canvasmc.canvas.configuration.jankson.JsonArray;
+import io.canvasmc.canvas.configuration.jankson.JsonElement;
 import io.canvasmc.canvas.configuration.jankson.JsonObject;
 import io.canvasmc.canvas.configuration.validator.AnnotationValidator;
+import io.canvasmc.canvas.configuration.validator.ValidationResult;
 import io.canvasmc.canvas.configuration.writer.Util;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -52,10 +57,10 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
                 writer.write(jankson.toJson(config).toJson(true, true));
                 writer.close();
             } else {
-                LOGGER.info("Config file exists, building diff");
                 try {
                     JsonObject disk = jankson.load(configPath.toFile());
                     JsonObject memory = (JsonObject) jankson.toJson(config);
+                    LOGGER.info("Config file exists, building diff");
                     // build a diff to see what 'disk' doesn't have in
                     // comparison to 'memory'
                     Util.Diff diff = Util.diff(disk, memory);
@@ -103,13 +108,54 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
                 final JsonObject loaded = jankson.load(getConfigPath().toFile());
                 C config = jankson.fromJson(loaded, configClass);
                 // we are done reading, validate and run post
-                // TODO - validation system
                 if (config != null) {
                     LOGGER.info("Configuration loaded successfully, running validation and post consumer");
-                    this.postInit.accept(
-                        new Json5Builder.PostContext<>(config, loaded.toJson(true, true))
-                    );
-                    LOGGER.info("Post consumer and validation completed successfully, saving changes to disk");
+                    boolean[] failed = new boolean[]{false};
+                    Util.compileMappings(configClass, loaded, "", (element, key, field) -> {
+                        try {
+                            for (final AnnotationValidator validator : this.validators) {
+                                // field should be accessible already, no need to make it as such
+                                Class<? extends Annotation> annotationClass = validator.typeOf();
+                                if (field.isAnnotationPresent(annotationClass)) {
+                                    Annotation annotation = field.getAnnotation(annotationClass);
+                                    // special case for json arrays, as they can have validation per-entry since
+                                    // they are a list of objects. normal json objects don't get special treatment
+                                    List<JsonElement> toVerify = Lists.newLinkedList();
+                                    if (element instanceof JsonArray array) {
+                                        toVerify.addAll(array);
+                                    } else toVerify.add(element);
+                                    ValidationResult result = ValidationResult.PASS;
+                                    for (final JsonElement jsonElement : toVerify) {
+                                        ValidationResult vr = validator.read(annotation, jsonElement);
+                                        if (vr.equals(ValidationResult.FAIL)) {
+                                            result = ValidationResult.FAIL;
+                                            break;
+                                        }
+                                    }
+                                    switch (result) {
+                                        case PASS -> LOGGER.info("Validation passed for entry '{}' in validator {}", key, validator.getClass().getName());
+                                        case FAIL -> {
+                                            LOGGER.error("Validation failed for entry '{}' in validator {}", key, validator.getClass().getName());
+                                            failed[0] = true;
+                                        }
+                                    }
+                                    if (failed[0]) break;
+                                }
+                            }
+                        } catch (Throwable thrown) {
+                            LOGGER.error("Failed to run validation for {}", key, thrown);
+                            failed[0] = true;
+                        }
+                    });
+                    if (failed[0]) {
+                        LOGGER.error("Couldn't fill configuration, exiting.");
+                        return null;
+                    } else {
+                        this.postInit.accept(
+                            new Json5Builder.PostContext<>(config, loaded.toJson(true, true))
+                        );
+                        LOGGER.info("Post consumer and validation completed successfully, saving changes to disk");
+                    }
                 }
                 return config;
             } catch (Throwable e) {
@@ -128,6 +174,10 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
     private static <T> @NotNull List<T> floodRegistries(Class<T> serviceClass) {
         List<T> services = Lists.newArrayList();
         ServiceLoader<T> loader = ServiceLoader.load(serviceClass);
+        if (loader.stream().toList().isEmpty()) {
+            LOGGER.warn("No services found for {}", serviceClass.getName());
+            return services;
+        }
 
         for (final T t : loader) {
             LOGGER.info("Loading class {} into registries for {}", t.getClass().getSimpleName(), serviceClass.getName());
