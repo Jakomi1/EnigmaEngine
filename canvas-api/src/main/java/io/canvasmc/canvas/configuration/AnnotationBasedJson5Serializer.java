@@ -157,15 +157,11 @@ public record AnnotationBasedJson5Serializer<C>(Configuration definition, Class<
                                             break;
                                         }
                                     }
-                                    switch (result) {
-                                        case PASS ->
-                                            LOGGER.info("Validation passed for entry '{}' in validator {}", key, validator.getClass().getName());
-                                        case FAIL -> {
-                                            LOGGER.error("Validation failed for entry '{}' in validator {}", key, validator.getClass().getName());
-                                            failed[0] = true;
-                                        }
+                                    if (result == ValidationResult.FAIL) {
+                                        LOGGER.error("Validation failed for entry '{}' in validator {}", key, validator.getClass().getName());
+                                        failed[0] = true;
+                                        break;
                                     }
-                                    if (failed[0]) break;
                                 }
                             }
                         } catch (Throwable thrown) {

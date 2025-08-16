@@ -10,6 +10,9 @@ import io.canvasmc.canvas.configuration.Json5Builder;
 import io.canvasmc.canvas.configuration.jankson.Jankson;
 import io.canvasmc.canvas.configuration.jankson.JsonObject;
 import io.canvasmc.canvas.configuration.validator.NamespacedKeyValidator;
+import io.canvasmc.canvas.configuration.validator.numeric.NonNegativeNumericValueValidator;
+import io.canvasmc.canvas.configuration.validator.numeric.PositiveNumericValueValidator;
+import io.canvasmc.canvas.configuration.validator.numeric.RangeValidator;
 import io.canvasmc.canvas.configuration.writer.Comment;
 import io.canvasmc.canvas.entity.EntityCollisionMode;
 import io.canvasmc.canvas.simd.SIMDDetection;
@@ -34,7 +37,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Range;
 import org.yaml.snakeyaml.Yaml;
 
 @Configuration("canvas-server")
@@ -49,6 +51,7 @@ public class Config {
         @Comment("Use euclidean distance squared for chunk task ordering. Makes the world load in what appears a circle rather than a diamond")
         public boolean useEuclideanDistanceSquared = true;
 
+        @RangeValidator.Range(from = 1, to = 10, inclusive = true)
         @Comment("The thread priority for Canvas' rewritten chunk system executor")
         public int threadPoolPriority = Thread.NORM_PRIORITY;
 
@@ -65,7 +68,6 @@ public class Config {
 
         @Comment({
             "Whether to turn fluid postprocessing into scheduled tick",
-            "",
             "Fluid post-processing is very expensive when loading in new chunks, and this can affect",
             "MSPT significantly. This option delays fluid post-processing to scheduled tick to hopefully mitigate this issue."
         })
@@ -77,6 +79,7 @@ public class Config {
         @Comment("Whether to enable End Biome Cache to accelerate The End worldgen")
         public boolean useEndBiomeCache = false;
 
+        @PositiveNumericValueValidator.PositiveNumericValue
         @Comment("The cache capacity for the end biome cache. Only works with 'useEndBiomeCache' enabled")
         public int endBiomeCacheCapacity = 1024;
 
@@ -108,12 +111,6 @@ public class Config {
         })
         public boolean asyncChunkSend = false;
 
-        @Comment({
-            "Changes the maximum view distance for the server, allowing clients to have",
-            "render distances higher than 32"
-        })
-        public int maxViewDistance = 32;
-
         @Comment("Whether to use a rewritten random tick system to optimize the server")
         public boolean optimizeRandomTick = false;
     }
@@ -126,7 +123,7 @@ public class Config {
         })
         public boolean disableClientboundSetEntityMotionPacket = false;
 
-        @Comment("Processes packets in-between ticks, which can drastically improve performance")
+        @Comment("Processes packets in-between ticks, which can drastically improve performance, but increase CPU usage")
         public boolean processPacketsInBetweenTicks = true;
 
         @Comment("Filters entity movement packets to reduce the amount of useless move packets sent")
@@ -144,6 +141,7 @@ public class Config {
         })
         public boolean optimizePlayerListTicking = false;
 
+        @PositiveNumericValueValidator.PositiveNumericValue
         @Comment("The interval in ticks for how often the server will tick the playerlist buckets")
         public int playerInfoSendInterval = 600;
     }
@@ -193,9 +191,11 @@ public class Config {
 
     public AsyncLocator asyncLocator = new AsyncLocator();
     public static class AsyncLocator {
+        @PositiveNumericValueValidator.PositiveNumericValue
         @Comment("The amount of threads allocated to the async locator")
         public int threads = 1;
 
+        @PositiveNumericValueValidator.PositiveNumericValue
         @Comment("The keepalive time in seconds for the async locator")
         public int keepalive = 60;
     }
@@ -405,7 +405,7 @@ public class Config {
     public Containers containers = new Containers();
     public static class Containers {
         @Comment("The amount of rows for the barrel block")
-        @Range(from = 1L, to = 6L)
+        @RangeValidator.Range(from = 1, to = 6, inclusive = true)
         public int barrelRows = 3;
         @Comment("Whether to use 6 rows for the player ender chest, rather than the normal 3")
         public boolean enderChestSixRows = false;
@@ -431,6 +431,7 @@ public class Config {
     @Comment("Makes item entities immune to lightning damage sources")
     public boolean itemEntitiesImmuneToLightning = false;
 
+    @NonNegativeNumericValueValidator.NonNegativeNumericValue
     @Comment({
         "Defines a percentage of which the server will apply to the velocity applied to",
         "item entities dropped on death. 0 means it has no velocity, 1 is default."
@@ -456,6 +457,7 @@ public class Config {
     })
     public boolean enableSuffocationOptimization = false;
 
+    @NonNegativeNumericValueValidator.NonNegativeNumericValue
     @Comment({
         "Defines the inaccuracy of skeleton bow shots. 14 being vanilla,",
         "100+ being absurdly stupidly and somewhat hilariously inaccurate",
@@ -495,6 +497,7 @@ public class Config {
         @Comment("Disables critical hits while sprinting")
         public boolean disableCritsWhileSprinting = false;
 
+        @NonNegativeNumericValueValidator.NonNegativeNumericValue
         @Comment({
             "When an entity is damaged, it has a certain amount of invulnerability",
             "ticks applied to the entity until it can be damaged next. In Vanilla, this",

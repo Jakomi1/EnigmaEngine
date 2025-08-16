@@ -1,4 +1,0 @@
---- /dev/null
-+++ b/src/main/resources/META-INF/services/io.canvasmc.canvas.configuration.validator.AnnotationValidator
-@@ -1,0 +_,1 @@
-+io.canvasmc.canvas.configuration.validator.NamespacedKeyValidator
