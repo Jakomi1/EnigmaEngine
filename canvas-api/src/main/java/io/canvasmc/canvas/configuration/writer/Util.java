@@ -102,8 +102,6 @@ public class Util {
                 JsonElement value = Util.getValueByPath(root, path);
                 if (value != null) {
                     consumer.accept(value, path, field);
-                } else {
-                    throw new IllegalStateException("Class(" + clazz.getName() + ") and JsonObject must have matching mappings! Missing key " + path);
                 }
             }
         }

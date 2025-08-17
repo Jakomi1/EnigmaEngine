@@ -21,7 +21,7 @@
              this.broadcastWithIgnore.accept(new ClientboundSetPassengersPacket(this.entity), list);
              // Paper start - Allow riding players
              if (this.entity instanceof ServerPlayer player) {
-@@ -193,22 +_,32 @@
+@@ -193,21 +_,36 @@
                      packet = ClientboundEntityPositionSyncPacket.of(this.entity);
                      flag3 = true;
                      flag4 = true;
@@ -39,45 +39,77 @@
 -                    flag3 = true;
 -                    flag4 = true;
 +                    if (flag2 || flag || this.entity instanceof AbstractArrow) {
-+                        if ((!flag2 || !flag) && !(this.entity instanceof AbstractArrow)) {
-+                            if (flag2) {
-+                                packet = new ClientboundMoveEntityPacket.Pos(this.entity.getId(), (short) l, (short) l1, (short) l2, this.entity.onGround());
-+                                flag3 = true;
-+                            } else if (flag) {
-+                                packet = new ClientboundMoveEntityPacket.Rot(this.entity.getId(), b, b1, this.entity.onGround());
-+                                flag4 = true;
-+                            }
-+                        } else {
-+                            packet = new ClientboundMoveEntityPacket.PosRot(this.entity.getId(), (short) l, (short) l1, (short) l2, b, b1, this.entity.onGround());
++                        if (this.entity instanceof AbstractArrow || (flag2 && flag)) {
++                            packet = new ClientboundMoveEntityPacket.PosRot(
++                                this.entity.getId(), (short) l, (short) l1, (short) l2, b, b1, this.entity.onGround()
++                            );
 +                            flag3 = true;
++                            flag4 = true;
++                        } else if (flag2) {
++                            packet = new ClientboundMoveEntityPacket.Pos(
++                                this.entity.getId(), (short) l, (short) l1, (short) l2, this.entity.onGround()
++                            );
++                            flag3 = true;
++                        } else {
++                            packet = new ClientboundMoveEntityPacket.Rot(
++                                this.entity.getId(), b, b1, this.entity.onGround()
++                            );
 +                            flag4 = true;
 +                        }
 +                    }
-+                    if (io.canvasmc.canvas.Config.INSTANCE.networking.reduceUselessMovePackets && isUselessMoveEntityPacket(packet)) {
++
++                    if (io.canvasmc.canvas.Config.INSTANCE.networking.reduceUselessMovePackets
++                        && isUselessMoveEntityPacket(packet)) {
 +                        packet = null;
 +                    }
-+                // Canvas end - reduce useless move packets
++                    // Canvas end - reduce useless move packets
                  }
  
-                 if (this.entity.hasImpulse || this.trackDelta || this.entity instanceof LivingEntity && ((LivingEntity)this.entity).isFallFlying()) {
+-                if (this.entity.hasImpulse || this.trackDelta || this.entity instanceof LivingEntity && ((LivingEntity)this.entity).isFallFlying()) {
++                if (this.entity.hasImpulse || this.trackDelta || this.entity instanceof LivingEntity && ((LivingEntity)this.entity).isFallFlying() && this.entity.getDeltaMovement() != this.lastSentMovement) {
                      Vec3 deltaMovement = this.entity.getDeltaMovement();
-+                    if (deltaMovement != this.lastSentMovement) { // Canvas - reduce useless move packets
                      double d = deltaMovement.distanceToSqr(this.lastSentMovement);
                      if (d > 1.0E-7 || d > 0.0 && deltaMovement.lengthSqr() == 0.0) {
-                         this.lastSentMovement = deltaMovement;
-@@ -222,10 +_,11 @@
+@@ -222,9 +_,38 @@
                                          )
                                      )
                                  );
 -                        } else {
-+                        } else if (!io.canvasmc.canvas.Config.INSTANCE.networking.disableClientboundSetEntityMotionPacket) { // Canvas - allow disabling set entity motion packet
++                        // Canvas start - filter ClientboundSetEntityMotionPacket
++                        } else if (!io.canvasmc.canvas.Config.INSTANCE.networking.filterClientboundSetEntityMotionPacket) {
++                            // sends all of them if not filtering
                              this.broadcast.accept(new ClientboundSetEntityMotionPacket(this.entity.getId(), this.lastSentMovement));
++                        } else {
++                            /*
++                               Filtering is enabled.
++
++                               Entities with a 360-degree rotation and movement, and item and ender eye entities
++                               get royally screwed over with this change, as it removes the synchronization
++                               of the entity delta movement.
++
++                               This packet, when disabled, can reduce bandwidth by 60%, which is insane, but we do
++                               need to add a rough filter that ensures there is no visual impact on the client
++
++                               The only entities needing this are:
++                               1. Squid, only mobs with 360° range of rotation
++                               2. Item Entities, disabling this causes glitches and often slightly desyncs their position within 0.5 blocks on the client side
++                               3. Ender Eyes, they depend on their velocity being set bc the packet sets the velocity on the client, but the client doesn't handle the
++                                    ender eye velocity on its own bc the ender eye velocity is in relation to the stronghold structure which the client doesn't have access to
++
++                               This filter helps keep unneeded packets reduced, but also ensures that we keep smooth visual gameplay
++                            */
++                            if (
++                                this.entity instanceof net.minecraft.world.entity.item.ItemEntity ||
++                                    this.entity instanceof net.minecraft.world.entity.projectile.EyeOfEnder ||
++                                    this.entity instanceof net.minecraft.world.entity.animal.Squid
++                            ) {
++                                this.broadcast.accept(new ClientboundSetEntityMotionPacket(this.entity.getId(), this.lastSentMovement));
++                            }
                          }
++                        // Canvas end - filter ClientboundSetEntityMotionPacket
                      }
-+                    } // Canvas - reduce useless move packets
                  }
  
-                 if (packet != null) {
 @@ -280,6 +_,21 @@
              this.broadcastAndSend(new ClientboundSetEntityMotionPacket(this.entity));
          }

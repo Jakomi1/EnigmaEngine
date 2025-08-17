@@ -118,10 +118,10 @@ public class Config {
     public Networking networking = new Networking();
     public static class Networking {
         @Comment({
-            "The clientbound set entity motion packet can often cause high network (Netty) usage and consumes (on larger production servers)",
-            "up to 60% of your network usage. Disabling this has minimal side effects, such as squids and glow squids swimming upright until attacked."
+            "The ClientboundSetEntityMotionPacket can often cause high network (Netty) usage and consumes (on larger production servers)",
+            "up to 60% of your network usage. Filtering should have no side effects visually on the client. If you find any, report to Canvas"
         })
-        public boolean disableClientboundSetEntityMotionPacket = false;
+        public boolean filterClientboundSetEntityMotionPacket = false;
 
         @Comment("Processes packets in-between ticks, which can drastically improve performance, but increase CPU usage")
         public boolean processPacketsInBetweenTicks = true;
