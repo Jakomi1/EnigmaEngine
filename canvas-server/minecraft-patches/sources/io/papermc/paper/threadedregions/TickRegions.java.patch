@@ -71,7 +71,7 @@
  
          // queue data
          private final RegionizedTaskQueue.RegionTaskQueueData taskQueueData;
-@@ -166,14 +_,65 @@
+@@ -166,14 +_,66 @@
  
          // async-safe read-only region data
          private final RegionStats regionStats;
@@ -122,12 +122,13 @@
 +                for (final net.minecraft.server.level.ServerPlayer player : worldData.getLocalPlayers()) {
 +                    if (player.getBukkitEntity().hasPackets()) {
 +                        this.hasPackets.set(true);
++                        hasPacketsNew = true;
 +                        break;
 +                    }
 +                }
 +            }
 +
-+            return true;
++            return hasPacketsNew;
 +        }
 +
 +        public void drainPackets(boolean isBetweenTicks) {
