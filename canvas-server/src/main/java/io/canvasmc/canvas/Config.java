@@ -123,8 +123,9 @@ public class Config {
         })
         public boolean filterClientboundSetEntityMotionPacket = false;
 
+        // TODO - try and optimize CPU usage of this
         @Comment("Processes packets in-between ticks, which can drastically improve performance, but increase CPU usage")
-        public boolean processPacketsInBetweenTicks = true;
+        public boolean processPacketsInBetweenTicks = false;
 
         @Comment("Filters entity movement packets to reduce the amount of useless move packets sent")
         public boolean reduceUselessMovePackets = false;
