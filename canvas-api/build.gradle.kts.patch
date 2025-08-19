@@ -55,15 +55,24 @@
      }
  }
  
-@@ -168,6 +_,11 @@
-             "Automatic-Module-Name" to "org.bukkit"
-         )
+@@ -170,6 +_,11 @@
      }
-+}
-+
+ }
+ 
 +tasks.withType<JavaCompile> {
 +    val compilerArgs = options.compilerArgs
 +    compilerArgs.add("--add-modules=jdk.incubator.vector")
- }
- 
++}
++
  abstract class Services {
+     @get:Inject
+     abstract val fileSystemOperations: FileSystemOperations
+@@ -178,6 +_,8 @@
+ 
+ tasks.withType<Javadoc>().configureEach {
+     val options = options as StandardJavadocDocletOptions
++    options.addStringOption("-add-modules", "jdk.incubator.vector")
++    options.addStringOption("Xdoclint:none", "-quiet")
+     options.overview = "../paper-api/src/main/javadoc/overview.html"
+     options.use()
+     options.isDocFilesSubDirs = true
