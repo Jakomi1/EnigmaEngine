@@ -9,36 +9,3 @@
      private static final int MAX_TICKS_BEFORE_LOGIN = 600;
      private final byte[] challenge;
      final MinecraftServer server;
-@@ -409,11 +_,31 @@
-         this.disconnect(ServerCommonPacketListenerImpl.DISCONNECT_UNEXPECTED_QUERY);
-     }
- 
-+    private volatile boolean changingState = false; // Leaf - Async switch connection state
-     @Override
-     public void handleLoginAcknowledgement(ServerboundLoginAcknowledgedPacket packet) {
-+        // Leaf start - Async switch connection state
-+        if (!changingState) {
-+            changingState = true;
-+            this.connection.setupOutboundProtocolAsync(ConfigurationProtocols.CLIENTBOUND).addListener(l -> {
-+                try {
-+                    net.minecraft.network.protocol.PacketUtils.ensureRunningOnSameThread(packet, this, this.server);
-+                } catch (net.minecraft.server.RunningOnDifferentThreadException ignored) {
-+                } catch (
-+                    io.papermc.paper.util.ServerStopRejectedExecutionException ignored) { // Paper - do not prematurely disconnect players on stop
-+                } catch (java.util.concurrent.RejectedExecutionException var6) {
-+                    this.connection.disconnect(Component.translatable("multiplayer.disconnect.server_shutdown"));
-+                } catch (ClassCastException var7) {
-+                    LOGGER.error("Received {} that couldn't be processed", packet.getClass(), var7);
-+                    this.connection.disconnect(Component.translatable("multiplayer.disconnect.invalid_packet"));
-+                }
-+            });
-+            return;
-+        }
-+        // Leaf end - Async switch connection state
-         net.minecraft.network.protocol.PacketUtils.ensureRunningOnSameThread(packet, this, this.server); // CraftBukkit
-         Validate.validState(this.state == ServerLoginPacketListenerImpl.State.PROTOCOL_SWITCHING, "Unexpected login acknowledgement packet");
--        this.connection.setupOutboundProtocol(ConfigurationProtocols.CLIENTBOUND);
-+        // this.connection.setupOutboundProtocol(ConfigurationProtocols.CLIENTBOUND); // Leaf - Async switch connection state
-         CommonListenerCookie commonListenerCookie = CommonListenerCookie.createInitial(Objects.requireNonNull(this.authenticatedProfile), this.transferred);
-         ServerConfigurationPacketListenerImpl serverConfigurationPacketListenerImpl = new ServerConfigurationPacketListenerImpl(
-             this.server, this.connection, commonListenerCookie

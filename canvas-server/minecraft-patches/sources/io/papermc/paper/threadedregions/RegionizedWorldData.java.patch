@@ -160,23 +160,7 @@
      }
  
      public NearbyPlayers getNearbyPlayers() {
-@@ -492,24 +_,51 @@
-     private static void cleanUpConnection(final Connection conn) {
-         // note: ALL connections HERE have a player
-         final ServerPlayer player = conn.getPlayer();
-+        // Canvas start - region threading
-+        ChunkPos disconnectPos = player.connection.disconnectPos;
-+        if (disconnectPos == null) {
-+            // position wasn't set for some dumbass reason.
-+            disconnectPos = player.chunkPosition();
-+        }
-+        // Canvas end - region threading
-         // now that the connection is removed, we can allow this region to die
-         player.level().moonrise$getChunkTaskScheduler().chunkHolderManager.removeTicketAtLevel(
--            ServerGamePacketListenerImpl.DISCONNECT_TICKET, player.connection.disconnectPos,
-+            ServerGamePacketListenerImpl.DISCONNECT_TICKET, disconnectPos, // Canvas - region threading
-             ChunkHolderManager.MAX_TICKET_LEVEL,
-             player.connection.disconnectTicketId
+@@ -500,16 +_,36 @@
          );
      }
  

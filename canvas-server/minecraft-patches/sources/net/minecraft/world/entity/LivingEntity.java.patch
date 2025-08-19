@@ -141,6 +141,27 @@
                  // this.actuallyHurt(level, damageSource, amount);
                  // CraftBukkit end
                  this.hurtDuration = 10;
+@@ -1879,6 +_,7 @@
+                     this.setHealth((float) deathEvent.getReviveHealth());
+                 }
+                 // Paper end
++                if (damageSource.is(DamageTypes.WITHER_SKULL)) this.isDyingFromWitherRose = true; // Canvas - fix Folia#388
+                     this.createWitherRose(killCredit);
+                 }
+ 
+@@ -1892,10 +_,11 @@
+         }
+     }
+ 
++    protected boolean isDyingFromWitherRose = false; // Canvas - fix Folia#388
+     protected void createWitherRose(@Nullable LivingEntity entitySource) {
+         if (this.level() instanceof ServerLevel serverLevel) {
+             boolean var6 = false;
+-            if (this.dead && entitySource instanceof WitherBoss) { // Paper
++            if (this.dead && (entitySource instanceof WitherBoss || this.isDyingFromWitherRose)) { // Paper // Canvas - fix Folia#388
+                 if (serverLevel.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)) {
+                     BlockPos blockPos = this.blockPosition();
+                     BlockState blockState = Blocks.WITHER_ROSE.defaultBlockState();
 @@ -2138,6 +_,19 @@
      public Optional<BlockPos> getLastClimbablePos() {
          return this.lastClimbablePos;

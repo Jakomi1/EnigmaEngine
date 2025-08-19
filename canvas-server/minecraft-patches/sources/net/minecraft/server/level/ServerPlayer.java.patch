@@ -88,6 +88,14 @@
      }
  
      private void saveParentVehicle(ValueOutput output) {
+@@ -1301,6 +_,7 @@
+         if (killCredit != null) {
+             this.awardStat(Stats.ENTITY_KILLED_BY.get(killCredit.getType()));
+             killCredit.awardKillScore(this, cause);
++            if (cause.is(DamageTypes.WITHER_SKULL)) this.isDyingFromWitherRose = true; // Canvas - fix Folia#388
+             this.createWitherRose(killCredit);
+         }
+ 
 @@ -1528,16 +_,28 @@
       * internally for {@link #respawn(java.util.function.Consumer, org.bukkit.event.player.PlayerRespawnEvent.RespawnReason)}
       */
