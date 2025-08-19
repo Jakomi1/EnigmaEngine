@@ -71,7 +71,7 @@
  
          // queue data
          private final RegionizedTaskQueue.RegionTaskQueueData taskQueueData;
-@@ -166,14 +_,66 @@
+@@ -166,14 +_,58 @@
  
          // async-safe read-only region data
          private final RegionStats regionStats;
@@ -96,44 +96,36 @@
 +            }
 +        }
 +
-+        public boolean drainOnePacket(boolean isBetweenTicks) {
-+            if (!io.canvasmc.canvas.Config.INSTANCE.networking.processPacketsInBetweenTicks) return false;
-+            // only apply hasPackets to between-tick processing
-+            if (isBetweenTicks && !this.hasPackets.get()) {
-+                return false;
-+            }
-+
++        public boolean drainSinglePacket() {
++            // from spottedleaf beta scheduler branch, fixed a few bugs
 +            final RegionizedWorldData worldData = this.world.getCurrentWorldData();
-+            boolean hasPacketsNew = false;
 +
++            boolean hasPackets = false;
 +            for (final net.minecraft.server.level.ServerPlayer player : worldData.getLocalPlayers()) {
 +                if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(player)) {
 +                    continue;
 +                }
 +                if (player.getBukkitEntity().executeOnePacketTask()) {
-+                    hasPacketsNew |= player.getBukkitEntity().hasPackets();
++                    hasPackets |= player.getBukkitEntity().hasPackets();
 +                }
 +            }
 +
-+            if (!hasPacketsNew) {
-+                this.hasPackets.set(false);
-+
++            if (!hasPackets) {
 +                // handle race condition: packet added during packet processing
 +                for (final net.minecraft.server.level.ServerPlayer player : worldData.getLocalPlayers()) {
 +                    if (player.getBukkitEntity().hasPackets()) {
-+                        this.hasPackets.set(true);
-+                        hasPacketsNew = true;
++                        hasPackets = true;
 +                        break;
 +                    }
 +                }
 +            }
-+
-+            return hasPacketsNew;
++            return hasPackets;
 +        }
 +
-+        public void drainPackets(boolean isBetweenTicks) {
++        public void drainAllPackets() {
 +            if (!io.canvasmc.canvas.Config.INSTANCE.networking.processPacketsInBetweenTicks) return;
-+            while (this.drainOnePacket(isBetweenTicks));
++            while (this.drainSinglePacket());
++            this.hasPackets.set(false); // we can fs say we drained all packets
 +        }
 +        // Canvas end - rewrite scheduler
          public RegionStats getRegionStats() {
@@ -258,7 +250,7 @@
 -            } while ((executeChunkTask | executeTickTask) && canContinue.getAsBoolean());
 +                executeTickTask = queue.executeTickTask();
 +                executeChunkTask = queue.executeChunkTask();
-+                executePacketTask = this.region.drainOnePacket(true);
++                executePacketTask = this.region.drainSinglePacket();
 +
 +                processedChunkTask |= executeChunkTask;
 +            } while ((executeChunkTask | executeTickTask | executePacketTask) && canContinue.getAsBoolean());
