@@ -558,6 +558,9 @@ public class Config {
     public List<String> nonTickableEntities = new ArrayList<>();
     public record EntityNonTickableConf(String raw, ResourceLocation parsed) {}
 
+    @Comment("Makes crops ignore sunlight requirements when planting")
+    public boolean cropsIgnoreLightCheck = false;
+
     private static <T extends Config> @NotNull ConfigSerializer<T> buildSerializer(Configuration config, Class<T> configClass) {
         return new Json5Builder<T>()
             .header("""
