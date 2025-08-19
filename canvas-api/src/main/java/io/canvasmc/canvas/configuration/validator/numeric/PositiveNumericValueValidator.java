@@ -28,7 +28,7 @@ public class PositiveNumericValueValidator implements AnnotationValidator<Positi
     }
 
     /**
-     * Must be >0
+     * Must be greater than 0
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.FIELD)

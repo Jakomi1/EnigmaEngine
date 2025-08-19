@@ -28,7 +28,7 @@ public class NegativeNumericValueValidator implements AnnotationValidator<Negati
     }
 
     /**
-     * Must be <0
+     * Must be less than 0
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.FIELD)
