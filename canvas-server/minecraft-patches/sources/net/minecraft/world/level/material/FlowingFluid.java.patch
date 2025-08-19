@@ -1,6 +1,6 @@
 --- a/net/minecraft/world/level/material/FlowingFluid.java
 +++ b/net/minecraft/world/level/material/FlowingFluid.java
-@@ -336,31 +_,123 @@
+@@ -336,43 +_,133 @@
  
      protected abstract void beforeDestroyingBlock(LevelAccessor level, BlockPos pos, BlockState state);
  
@@ -149,3 +149,17 @@
      }
  
      public boolean isWaterHole(BlockGetter level, BlockPos pos, BlockState state, BlockPos belowPos, BlockState belowState) {
+-        return canPassThroughWall(Direction.DOWN, level, pos, state, belowPos, belowState)
+-            && (belowState.getFluidState().getType().isSame(this) || canHoldFluid(level, belowPos, belowState, this.getFlowing()));
++        return (belowState.getFluidState().getType().isSame(this) || canHoldFluid(level, belowPos, belowState, this.getFlowing())) && canPassThroughWall(Direction.DOWN, level, pos, state, belowPos, belowState); // Canvas - cheaper checks first
+     }
+ 
+     public boolean canPassThrough(
+         BlockGetter level, Fluid fluid, BlockPos pos, BlockState state, Direction direction, BlockPos spreadPos, BlockState spreadState, FluidState fluidState
+     ) {
+-        return this.canMaybePassThrough(level, pos, state, direction, spreadPos, spreadState, fluidState)
+-            && canHoldSpecificFluid(level, spreadPos, spreadState, fluid);
++        return canHoldSpecificFluid(level, spreadPos, spreadState, fluid) && this.canMaybePassThrough(level, pos, state, direction, spreadPos, spreadState, fluidState); // Canvas - cheaper checks first
+     }
+ 
+     public boolean canMaybePassThrough(
