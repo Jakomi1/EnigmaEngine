@@ -662,20 +662,6 @@ public class Config {
                 }
                 LOGGER.info("Successfully compiled {} entity non-tickable mappings", i);
             }).build();
-        // return new AnnotationBasedYamlSerializer<>(SerializationBuilder.<T>newBuilder()
-        //     .handler(ConfigHandlers.ExperimentalProcessor::new)
-        //     .handler(ConfigHandlers.CommentProcessor::new)
-        //     .validator(ConfigHandlers.RangeProcessor::new)
-        //     .validator(ConfigHandlers.NegativeProcessor::new)
-        //     .validator(ConfigHandlers.PositiveProcessor::new)
-        //     .validator(ConfigHandlers.NonNegativeProcessor::new)
-        //     .validator(ConfigHandlers.NonPositiveProcessor::new)
-        //     .validator(ConfigHandlers.PatternProcessor::new)
-        //     .post(context -> {
-        //
-        //     })
-        //     .build(config, configClass), changes::add
-        // );
     }
 
     public static Config init() {
