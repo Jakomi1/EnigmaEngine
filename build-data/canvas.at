@@ -10,6 +10,7 @@ public io.papermc.paper.threadedregions.ThreadedRegionizer$ThreadedRegion getDea
 public io.papermc.paper.threadedregions.ThreadedRegionizer$ThreadedRegion hasNoAliveSections()Z
 public io.papermc.paper.threadedregions.ThreadedRegionizer$ThreadedRegion isDead()Z
 public io.papermc.paper.threadedregions.ThreadedRegionizer$ThreadedRegion isTicking()Z
+public io.papermc.paper.threadedregions.TickRegions$TickRegionData getRegionizedData(Lio/papermc/paper/threadedregions/RegionizedData;)Ljava/lang/Object;
 public net.minecraft.core.Direction VALUES
 public net.minecraft.server.ServerTickRateManager finishTickSprint()V
 public net.minecraft.server.level.ServerChunkCache fullChunks
