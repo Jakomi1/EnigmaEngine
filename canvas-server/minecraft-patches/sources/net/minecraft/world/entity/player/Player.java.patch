@@ -65,6 +65,15 @@
                                  float f5 = 1.0F + (float)this.getAttributeValue(Attributes.SWEEPING_DAMAGE_RATIO) * f;
  
                                  for (LivingEntity livingEntity2 : this.level()
+@@ -1376,7 +_,7 @@
+                             if (target instanceof LivingEntity) {
+                                 float f7 = f3 - ((LivingEntity)target).getHealth();
+                                 this.awardStat(Stats.DAMAGE_DEALT, Math.round(f7 * 10.0F));
+-                                if (this.level() instanceof ServerLevel && f7 > 2.0F) {
++                                if (!io.canvasmc.canvas.Config.INSTANCE.particles.disableNewCombatParticles && this.level() instanceof ServerLevel && f7 > 2.0F) { // Canvas - particles config
+                                     int i = (int)(f7 * 0.5);
+                                     ((ServerLevel)this.level())
+                                         .sendParticles(ParticleTypes.DAMAGE_INDICATOR, target.getX(), target.getY(0.5), target.getZ(), i, 0.1, 0.0, 0.1, 0.2);
 @@ -2088,10 +_,12 @@
      }
  

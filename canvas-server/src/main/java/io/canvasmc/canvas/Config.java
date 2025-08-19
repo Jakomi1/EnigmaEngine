@@ -561,6 +561,37 @@ public class Config {
     @Comment("Makes crops ignore sunlight requirements when planting")
     public boolean cropsIgnoreLightCheck = false;
 
+    @Comment("It is recommended to enable these options, as the client displays most of these particles already, so the server-side particle logic is not needed")
+    public Particles particles = new Particles();
+    public static class Particles {
+        @Comment("Disables entity sprinting particles")
+        public boolean disableSprintParticles = false;
+
+        @Comment({
+            "Disables entity fall particles",
+            "This is handled on the server-side, not the client, so this will cause visual deviations from Vanilla"
+        })
+        public boolean disableFallParticles = false;
+
+        @Comment("Disables entity death particles")
+        public boolean disableDeathParticles = false;
+
+        @Comment("Disables effect particles")
+        public boolean disableEffectParticles = false;
+
+        @Comment("Disables entity water splash particles")
+        public boolean disableWaterSplashParticles = false;
+
+        @Comment("Disables bubble columns particles")
+        public boolean disableBubbleColumnParticles = false;
+
+        @Comment({
+            "Disables new combat particles",
+            "This is handled on the server-side, not the client, so this will cause visual deviations from Vanilla"
+        })
+        public boolean disableNewCombatParticles = false;
+    }
+
     private static <T extends Config> @NotNull ConfigSerializer<T> buildSerializer(Configuration config, Class<T> configClass) {
         return new Json5Builder<T>()
             .header("""

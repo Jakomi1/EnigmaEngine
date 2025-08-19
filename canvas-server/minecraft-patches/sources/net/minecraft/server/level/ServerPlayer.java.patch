@@ -311,6 +311,15 @@
              return true;
          } else {
              return super.endPortalLogicAsync(portalPos);
+@@ -2140,7 +_,7 @@
+         if (this.spawnExtraParticlesOnFall && onGround && this.fallDistance > 0.0) {
+             Vec3 vec3 = pos.getCenter().add(0.0, 0.5, 0.0);
+             int i = (int)Mth.clamp(50.0 * this.fallDistance, 0.0, 200.0);
+-            this.level().sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state), vec3.x, vec3.y, vec3.z, i, 0.3F, 0.3F, 0.3F, 0.15F);
++            if (!io.canvasmc.canvas.Config.INSTANCE.particles.disableFallParticles) this.level().sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state), vec3.x, vec3.y, vec3.z, i, 0.3F, 0.3F, 0.3F, 0.15F); // Canvas - particles config
+             this.spawnExtraParticlesOnFall = false;
+         }
+ 
 @@ -2331,7 +_,7 @@
                      this.awardStat(Stats.SWIM_ONE_CM, rounded);
                      this.causeFoodExhaustion(this.level().spigotConfig.swimMultiplier * (float) rounded * 0.01F, org.bukkit.event.entity.EntityExhaustionEvent.ExhaustionReason.SWIM); // CraftBukkit - EntityExhaustionEvent // Spigot

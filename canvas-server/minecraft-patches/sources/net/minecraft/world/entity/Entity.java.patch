@@ -31,7 +31,7 @@
  
          //if (this instanceof ServerPlayer) this.handlePortal(); // CraftBukkit - Moved up to postTick // Folia - region threading - ONLY allow in postTick()
 -        if (this.canSpawnSprintParticle()) {
-+        if (false && this.canSpawnSprintParticle()) { // Canvas - why tf are we doing this? this is handled on the client
++        if (!io.canvasmc.canvas.Config.INSTANCE.particles.disableSprintParticles && this.canSpawnSprintParticle()) { // Canvas - particles config
              this.spawnSprintParticle();
          }
  
@@ -147,6 +147,22 @@
  
      protected void doWaterSplashEffect() {
          Entity entity = Objects.requireNonNullElse(this.getControllingPassenger(), this);
+@@ -1990,6 +_,7 @@
+ 
+         float f1 = Mth.floor(this.getY());
+ 
++        if (!io.canvasmc.canvas.Config.INSTANCE.particles.disableWaterSplashParticles) { // Canvas - particles config
+         for (int i = 0; i < 1.0F + this.dimensions.width() * 20.0F; i++) {
+             double d = (this.random.nextDouble() * 2.0 - 1.0) * this.dimensions.width();
+             double d1 = (this.random.nextDouble() * 2.0 - 1.0) * this.dimensions.width();
+@@ -2010,6 +_,7 @@
+             double d1 = (this.random.nextDouble() * 2.0 - 1.0) * this.dimensions.width();
+             this.level().addParticle(ParticleTypes.SPLASH, this.getX() + d, f1 + 1.0F, this.getZ() + d1, deltaMovement.x, deltaMovement.y, deltaMovement.z);
+         }
++        } // Canvas - particles config
+ 
+         this.gameEvent(GameEvent.SPLASH);
+     }
 @@ -2051,11 +_,32 @@
      }
  
@@ -209,6 +225,14 @@
                  if (this.repositionEntityAfterLoad()) {
                      this.reapplyPosition();
                  }
+@@ -3690,6 +_,7 @@
+     }
+ 
+     protected static void sendBubbleColumnParticles(Level level, BlockPos pos) {
++        if (io.canvasmc.canvas.Config.INSTANCE.particles.disableBubbleColumnParticles) return; // Canvas - particles config
+         if (level instanceof ServerLevel serverLevel) {
+             for (int i = 0; i < 2; i++) {
+                 serverLevel.sendParticles(
 @@ -3852,7 +_,7 @@
              );
      }

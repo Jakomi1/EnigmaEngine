@@ -26,6 +26,20 @@
                  double x = this.getX();
                  double y1 = this.getY();
                  double z = this.getZ();
+@@ -408,11 +_,13 @@
+                 double d1 = Math.min(0.2F + d / 15.0, 2.5);
+                 int i = (int)(150.0 * d1);
+                 // CraftBukkit start - visibility api
++                if (!io.canvasmc.canvas.Config.INSTANCE.particles.disableFallParticles) { // Canvas - particles config
+                 if (this instanceof ServerPlayer) {
+                     serverLevel.sendParticlesSource((ServerPlayer) this, new BlockParticleOption(ParticleTypes.BLOCK, state), false, false, x, y1, z, i, 0.0, 0.0, 0.0, 0.15F);
+                 } else {
+                     serverLevel.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state), x, y1, z, i, 0.0, 0.0, 0.0, 0.15F);
+                 }
++                } // Canvas - particles config
+                 // CraftBukkit end
+             }
+         }
 @@ -453,7 +_,7 @@
  
          if (this.isAlive() && this.level() instanceof ServerLevel serverLevel1) {
@@ -97,6 +111,15 @@
          if (this.deathTime >= 20 && !this.level().isClientSide() && !this.isRemoved()) {
              this.level().broadcastEntityEvent(this, (byte)60);
              this.broadcastedDeath = true; // Folia - region threading - death has been broadcasted
+@@ -1000,7 +_,7 @@
+             }
+ 
+             List<ParticleOptions> list = this.entityData.get(DATA_EFFECT_PARTICLES);
+-            if (!list.isEmpty()) {
++            if (!list.isEmpty() && !io.canvasmc.canvas.Config.INSTANCE.particles.disableEffectParticles) { // Canvas - particles config
+                 boolean flag = this.entityData.get(DATA_EFFECT_AMBIENCE_ID);
+                 int i = this.isInvisible() ? 15 : 4;
+                 int i1 = flag ? 5 : 1;
 @@ -1022,14 +_,18 @@
      }
  
@@ -200,6 +223,15 @@
          this.hurtDuration = 10;
          this.hurtTime = this.hurtDuration;
          SoundEvent hurtSound = this.getHurtSound(damageSource);
+@@ -2666,7 +_,7 @@
+                 this.swapHandItems();
+                 break;
+             case 60:
+-                this.makePoofParticles();
++                if (!io.canvasmc.canvas.Config.INSTANCE.particles.disableDeathParticles) this.makePoofParticles(); // Canvas - particles config
+                 break;
+             case 65:
+                 this.breakItem(this.getItemBySlot(EquipmentSlot.BODY));
 @@ -2717,6 +_,7 @@
      }
  
