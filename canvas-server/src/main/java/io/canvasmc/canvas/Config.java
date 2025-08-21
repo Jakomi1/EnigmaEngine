@@ -89,16 +89,6 @@ public class Config {
         @Comment("Whether to enable optimizations to the noise based chunk generator")
         public boolean optimizeNoiseGeneration = false;
 
-        public BiomeCache biomeCache = new BiomeCache();
-        public static class BiomeCache {
-            @Comment("Enables biome caching, which makes a biome lookup caching layer to reduce expensive biome calculations and queries")
-            public boolean enabled = false;
-            @Comment("Enables advancement-related biome checks for biome caching")
-            public boolean advancement = false;
-            @Comment("Enables biome caching for mob spawning biome lookups")
-            public boolean mobSpawn = false;
-        }
-
         @Comment({
             "Once one task is completed then the next task starts immediately, to prevent blocking threads while waiting to complete all tasks",
             "WARNING: May cause the sequence of future compose disorder"

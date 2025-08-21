@@ -87,15 +87,6 @@
      private boolean tickingBlockEntities;
  
      // time
-@@ -384,6 +_,8 @@
-     private final ReferenceList<LevelChunk> entityTickingChunks = new ReferenceList<>(EMPTY_CHUNK_ARRAY);
-     private final ReferenceList<LevelChunk> tickingChunks = new ReferenceList<>(EMPTY_CHUNK_ARRAY);
-     private final ReferenceList<LevelChunk> chunks = new ReferenceList<>(EMPTY_CHUNK_ARRAY);
-+    public final io.canvasmc.canvas.chunk.DynamicChunkPosLongSet longBasedEntityTickingChunks = new io.canvasmc.canvas.chunk.DynamicChunkPosLongSet(); // Canvas - optimize entity ticking chunk checks
-+    public final io.canvasmc.canvas.chunk.DynamicChunkPosLongSet longBasedBlockTickingChunks = new io.canvasmc.canvas.chunk.DynamicChunkPosLongSet(); // Canvas - optimize block ticking chunk checks
- 
-     // Paper/CB api hook misc
-     // don't bother to merge/split these, no point
 @@ -394,6 +_,7 @@
      public boolean skipPullModeEventFire = false;
      public boolean skipPushModeEventFire = false;
@@ -133,7 +124,7 @@
  
      // Mob spawning
      public final ca.spottedleaf.moonrise.common.misc.PositionCountingAreaMap<ServerPlayer> spawnChunkTracker = new ca.spottedleaf.moonrise.common.misc.PositionCountingAreaMap<>();
-@@ -447,14 +_,32 @@
+@@ -447,7 +_,15 @@
      public final alternate.current.wire.WireHandler wireHandler;
      public final io.papermc.paper.redstone.RedstoneWireTurbo turbo;
  
@@ -148,19 +139,9 @@
 +
 +    public RegionizedWorldData(final ServerLevel world, final io.papermc.paper.threadedregions.TickRegions.TickRegionData regionData) { // Canvas - rewrite scheduler
          this.world = world;
--        this.blockLevelTicks = new LevelTicks<>(world::isPositionTickingWithEntitiesLoaded, world, true);
--        this.fluidLevelTicks = new LevelTicks<>(world::isPositionTickingWithEntitiesLoaded, world, false);
-+        // Canvas start - optimize block/entity chunk ticking lookups
-+        this.blockLevelTicks = new LevelTicks<>(
-+            this.longBasedEntityTickingChunks::containsLong, world, true
-+        );
-+        this.fluidLevelTicks = new LevelTicks<>(
-+            this.longBasedEntityTickingChunks::containsLong, world, false
-+        );
-+        // this.blockLevelTicks = new LevelTicks<>(world::isPositionTickingWithEntitiesLoaded, world, true);
-+        // this.fluidLevelTicks = new LevelTicks<>(world::isPositionTickingWithEntitiesLoaded, world, false);
-+        // Canvas end - optimize block/entity chunk ticking lookups
-         this.neighborUpdater = new CollectingNeighborUpdater(world, world.neighbourUpdateMax);
+         this.blockLevelTicks = new LevelTicks<>(world::isPositionTickingWithEntitiesLoaded, world, true);
+         this.fluidLevelTicks = new LevelTicks<>(world::isPositionTickingWithEntitiesLoaded, world, false);
+@@ -455,6 +_,8 @@
          this.nearbyPlayers = new NearbyPlayers(world);
          this.wireHandler = new alternate.current.wire.WireHandler(world);
          this.turbo = new io.papermc.paper.redstone.RedstoneWireTurbo((RedStoneWireBlock)Blocks.REDSTONE_WIRE);
@@ -237,34 +218,6 @@
              }
              TickRegions.RegionStats.updateCurrentRegion();
          }
-@@ -721,11 +_,13 @@
-     // ticking chunks
-     public void addEntityTickingChunk(final LevelChunk chunk) {
-         this.entityTickingChunks.add(chunk);
-+        this.longBasedEntityTickingChunks.add(chunk.coordinateKey); // Canvas - optimize entity ticking chunk checks
-         TickRegions.RegionStats.updateCurrentRegion();
-     }
- 
-     public void removeEntityTickingChunk(final LevelChunk chunk) {
-         this.entityTickingChunks.remove(chunk);
-+        this.longBasedEntityTickingChunks.remove(chunk.coordinateKey); // Canvas - optimize entity ticking chunk checks
-         TickRegions.RegionStats.updateCurrentRegion();
-     }
- 
-@@ -735,11 +_,13 @@
- 
-     public void addTickingChunk(final LevelChunk chunk) {
-         this.tickingChunks.add(chunk);
-+        this.longBasedBlockTickingChunks.add(chunk.coordinateKey); // Canvas - optimize block ticking chunk checks
-         TickRegions.RegionStats.updateCurrentRegion();
-     }
- 
-     public void removeTickingChunk(final LevelChunk chunk) {
-         this.tickingChunks.remove(chunk);
-+        this.longBasedBlockTickingChunks.remove(chunk.coordinateKey); // Canvas - optimize block ticking chunk checks
-         TickRegions.RegionStats.updateCurrentRegion();
-     }
- 
 @@ -768,4 +_,72 @@
      public int getChunkCount() {
          return this.chunks.size();
