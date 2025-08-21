@@ -27,7 +27,7 @@
              }
              // Paper end - PlayerNaturallySpawnCreaturesEvent
              boolean flag = this.level.ticksPerSpawnCategory.getLong(org.bukkit.entity.SpawnCategory.ANIMAL) != 0L && this.level.getRedstoneGameTime() % this.level.ticksPerSpawnCategory.getLong(org.bukkit.entity.SpawnCategory.ANIMAL) == 0L; // CraftBukkit // Folia - region threading
-@@ -571,20 +_,31 @@
+@@ -571,26 +_,37 @@
          List<LevelChunk> list = regionizedWorldData.temporaryChunkTickList; // Folia - region threading
  
          try {
@@ -45,7 +45,8 @@
              // Paper end - chunk tick iteration optimisation
  
              for (LevelChunk levelChunk : list) {
-                 this.tickSpawningChunk(levelChunk, timeInhabited, filteredSpawningCategories, spawnState);
+-                this.tickSpawningChunk(levelChunk, timeInhabited, filteredSpawningCategories, spawnState);
++                this.tickSpawningChunk(levelChunk, timeInhabited, filteredSpawningCategories, spawnState, regionizedWorldData); // Canvas - optimize natural spawning
              }
          } finally {
 +            regionizedWorldData.natureSpawnChunkMap.clear(); // Canvas - optimize collect spawning chunks
@@ -63,6 +64,22 @@
          if (_boolean) {
              this.level.tickCustomSpawners(this.spawnEnemies, this.spawnFriendlies);
          }
+     }
+ 
+-    private void tickSpawningChunk(LevelChunk chunk, long timeInhabited, List<MobCategory> spawnCategories, NaturalSpawner.SpawnState spawnState) {
++    private void tickSpawningChunk(LevelChunk chunk, long timeInhabited, List<MobCategory> spawnCategories, NaturalSpawner.SpawnState spawnState, io.papermc.paper.threadedregions.RegionizedWorldData worldData) { // Canvas - optimize natural spawning
+         ChunkPos pos = chunk.getPos();
+         chunk.incrementInhabitedTime(timeInhabited);
+         if (true) { // Paper - rewrite chunk system
+@@ -599,7 +_,7 @@
+ 
+         if (!spawnCategories.isEmpty()) {
+             if (this.level.getWorldBorder().isWithinBounds(pos)) { // Paper - rewrite chunk system
+-                NaturalSpawner.spawnForChunk(this.level, chunk, spawnState, spawnCategories);
++                NaturalSpawner.spawnForChunk(this.level, chunk, spawnState, spawnCategories, worldData); // Canvas - optimize natural spawning
+             }
+         }
+     }
 @@ -858,6 +_,7 @@
  
          @Override

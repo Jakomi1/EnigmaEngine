@@ -61,6 +61,30 @@
              this.setBlockEntity(blockEntity);
          }
  
+@@ -272,12 +_,18 @@
+ 
+     public BlockState getBlockStateFinal(final int x, final int y, final int z) {
+         // Copied and modified from below
+-        final int sectionIndex = this.getSectionIndex(y);
+-        if (sectionIndex < 0 || sectionIndex >= this.sections.length
+-            || this.sections[sectionIndex].nonEmptyBlockCount == 0) {
+-            return Blocks.AIR.defaultBlockState();
++        // Leaf start - optimize LevelChunk#getBlockStateFinal
++        final int sectionIndex = (y >> 4) - this.minSection;
++        if (sectionIndex < 0 || sectionIndex >= this.sections.length) {
++            return AIR_BLOCKSTATE;
++        } else {
++            LevelChunkSection section = this.sections[sectionIndex];
++            if (section.nonEmptyBlockCount == 0) {
++                return AIR_BLOCKSTATE;
++            }
++            return section.states.get((y & 15) << 8 | (z & 15) << 4 | x & 15);
+         }
+-        return this.sections[sectionIndex].states.get((y & 15) << 8 | (z & 15) << 4 | x & 15);
++        // Leaf end - optimize LevelChunk#getBlockStateFinal
+     }
+ 
+     @Override
 @@ -375,6 +_,11 @@
              if (blockState == state) {
                  return null;
