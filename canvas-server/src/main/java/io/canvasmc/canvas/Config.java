@@ -204,6 +204,9 @@ public class Config {
     @Comment("Disables Minecraft Chat Signing to prevent player reporting")
     public boolean enableNoChatReports = false;
 
+    @Comment("Disables Minecraft chat verification ordering")
+    public boolean disableChatVerificationOrder = false;
+
     @Comment("Restores vanilla loading and unloading behavior broken by Folia")
     public boolean restoreVanillaEnderPearlBehavior = false;
 
@@ -215,7 +218,6 @@ public class Config {
 
     @Comment({
         "The entity collision mode for the server",
-        "",
         "Acceptable values:",
         " - VANILLA - default, all entities have collisions",
         " - ONLY_PUSHABLE_PLAYERS_LARGE - only players are pushable by entities, we search in a large radius(8 chunks)",

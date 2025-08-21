@@ -21,15 +21,15 @@ public final class ScheduledTaskThreadPool {
     private final long taskTimeSliceNS;
 
     private final COWArrayList<TickThreadRunner> coreThreads = new COWArrayList<>(TickThreadRunner.class);
-    private final COWArrayList<TickThreadRunner> aliveThreads = new COWArrayList<>(TickThreadRunner.class);
+    public final COWArrayList<TickThreadRunner> aliveThreads = new COWArrayList<>(TickThreadRunner.class);
 
     private long runnerIdGenerator;
     private boolean shutdown;
 
-    private final ConcurrentSkipListMap<WaitState, WaitState> waitingOrIdleRunners = new ConcurrentSkipListMap<>(WaitState.OLDEST_FIRST);
+    public final ConcurrentSkipListMap<WaitState, WaitState> waitingOrIdleRunners = new ConcurrentSkipListMap<>(WaitState.OLDEST_FIRST);
 
-    private final ConcurrentSkipListMap<ScheduledTickTask, ScheduledTickTask> unwatchedScheduledTicks = new ConcurrentSkipListMap<>(ScheduledTickTask.TICK_COMPARATOR);
-    private final ConcurrentSkipListMap<ScheduledTickTask, ScheduledTickTask> scheduledTasks = new ConcurrentSkipListMap<>(ScheduledTickTask.TASK_COMPARATOR);
+    public final ConcurrentSkipListMap<ScheduledTickTask, ScheduledTickTask> unwatchedScheduledTicks = new ConcurrentSkipListMap<>(ScheduledTickTask.TICK_COMPARATOR);
+    public final ConcurrentSkipListMap<ScheduledTickTask, ScheduledTickTask> scheduledTasks = new ConcurrentSkipListMap<>(ScheduledTickTask.TASK_COMPARATOR);
 
     public ScheduledTaskThreadPool(final ThreadFactory threadFactory, final long stealThresholdNS,
                                    final long taskTimeSliceNS) {
@@ -685,7 +685,7 @@ public final class ScheduledTaskThreadPool {
         }
     }
 
-    private static final class TickThreadRunner implements Runnable {
+    public static final class TickThreadRunner implements Runnable {
 
         private final ScheduledTaskThreadPool scheduler;
         private final long id;

@@ -6,6 +6,7 @@ import java.util.Objects;
 import io.canvasmc.canvas.event.WorldPreLoadEvent;
 import net.kyori.adventure.util.TriState;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
@@ -22,6 +23,7 @@ import org.bukkit.block.Biome;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.defaults.BukkitCommand;
+import org.bukkit.craftbukkit.CraftWorld;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -55,6 +57,24 @@ public class TestPlugin extends JavaPlugin implements Listener {
                     return true;
                 }
                 return false;
+            }
+        });
+        getServer().getCommandMap().register("forceloadrandom", new BukkitCommand("forceloadrandom") {
+            @Override
+            public boolean execute(@NotNull final CommandSender sender, @NotNull final String commandLabel, final @NotNull String @NotNull [] args) {
+                RandomSource randomSource = RandomSource.create();
+                for (int i = 0; i < 50; i++) {
+                    boolean nA = randomSource.nextBoolean();
+                    boolean nB = randomSource.nextBoolean();
+                    int posX = randomSource.nextInt(10_000_000) * (nA ? -1 : 1);
+                    int posZ = randomSource.nextInt(10_000_000) * (nB ? -1 : 1);
+                    if (sender instanceof Player player) {
+                        ServerLevel level = ((CraftWorld) player.getWorld()).getHandle();
+                        level.setChunkForced(posX >> 4, posZ >> 4, true);
+                    }
+                }
+                MinecraftServer.LOGGER.info("Force loaded 50 random chunks");
+                return true;
             }
         });
         getServer().getCommandMap().register("blockentitytest", new BukkitCommand("blockentitytest") {
