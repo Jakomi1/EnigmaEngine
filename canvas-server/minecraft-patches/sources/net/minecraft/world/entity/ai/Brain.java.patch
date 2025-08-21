@@ -1,6 +1,6 @@
 --- a/net/minecraft/world/entity/ai/Brain.java
 +++ b/net/minecraft/world/entity/ai/Brain.java
-@@ -45,14 +_,21 @@
+@@ -45,16 +_,24 @@
      static final Logger LOGGER = LogUtils.getLogger();
      private final Supplier<Codec<Brain<E>>> codec;
      private static final int SCHEDULE_UPDATE_DELAY = 20;
@@ -28,7 +28,10 @@
 +    // Leaf end - Replace brain maps with optimized collection
      private Activity defaultActivity = Activity.IDLE;
      private long lastScheduleUpdate = -9999L;
++    private long memoryModCount = 1; // Canvas - optimize brain
  
+     public static <E extends LivingEntity> Brain.Provider<E> provider(
+         Collection<? extends MemoryModuleType<?>> memoryTypes, Collection<? extends SensorType<? extends Sensor<? super E>>> sensorTypes
 @@ -70,13 +_,22 @@
              (new MapCodec<Brain<E>>() {
                      @Override
@@ -92,6 +95,29 @@
      }
  
      public <U> void eraseMemory(MemoryModuleType<U> type) {
+@@ -185,10 +_,21 @@
+             if (memory.isPresent() && this.isEmptyCollection(memory.get().getValue())) {
+                 this.eraseMemory(memoryType);
+             } else {
+-                this.memories.put(memoryType, memory);
++                // Canvas start - optimize brain
++                Optional<?> oldValue = this.memories.put(memoryType, memory);
++                if (oldValue == null || oldValue.isPresent() != memory.isPresent()) {
++                    this.memoryModCount++;
++                }
++                // Canvas end - optimize brain
+             }
+         }
+     }
++    // Canvas start - optimize brain
++
++    public long getModCount() {
++        return memoryModCount;
++    }
++    // Canvas end - optimize brain
+ 
+     public <U> Optional<U> getMemory(MemoryModuleType<U> type) {
+         Optional<? extends ExpirableValue<?>> optional = this.memories.get(type);
 @@ -346,7 +_,7 @@
      }
  
@@ -122,6 +148,14 @@
      }
  
      public boolean isActive(Activity activity) {
+@@ -404,6 +_,7 @@
+             }
+         }
+ 
++        brain.memoryModCount = this.memoryModCount + 1; // Canvas - optimize brain
+         return brain;
+     }
+ 
 @@ -421,16 +_,33 @@
      }
  
