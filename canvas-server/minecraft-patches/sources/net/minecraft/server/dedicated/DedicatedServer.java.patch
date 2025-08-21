@@ -1,6 +1,6 @@
 --- a/net/minecraft/server/dedicated/DedicatedServer.java
 +++ b/net/minecraft/server/dedicated/DedicatedServer.java
-@@ -170,6 +_,35 @@
+@@ -170,6 +_,36 @@
          // Paper start - initialize global and world-defaults configuration
          this.paperConfigurations.initializeGlobalConfiguration(this.registryAccess());
          this.paperConfigurations.initializeWorldDefaultsConfiguration(this.registryAccess());
@@ -32,6 +32,7 @@
 +            recipe.setCategory(org.bukkit.inventory.recipe.CraftingBookCategory.EQUIPMENT);
 +            this.server.addRecipe(recipe);
 +        }
++        net.minecraft.world.level.block.state.BlockBehaviour.BlockStateBase.initPathTypeCache();
 +        // Canvas end - pre start server config hook
          // Paper end - initialize global and world-defaults configuration
          this.server.spark.enableEarlyIfRequested(); // Paper - spark
