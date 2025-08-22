@@ -1,6 +1,6 @@
 --- a/net/minecraft/world/level/NaturalSpawner.java
 +++ b/net/minecraft/world/level/NaturalSpawner.java
-@@ -149,7 +_,20 @@
+@@ -149,7 +_,19 @@
          return list;
      }
  
@@ -12,7 +12,6 @@
 +                - Reduce the amount of times we try and access regionized world data, this is slow when used in hot-code
 +                - Reduce the amount of times we call getPlayers, we only really need to call once
 +                - Use optimized random source for getting the random pos between through thread-unsafe randoms in regionized data
-+                - Replacement of the ChunkAccess#heightmaps field value with an it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap
 +                - Use optimized random source for generalized usage of randoms
 +                - Reduce chunk lookups
 +         */
