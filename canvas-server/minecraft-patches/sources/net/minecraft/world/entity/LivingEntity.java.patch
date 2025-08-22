@@ -258,6 +258,15 @@
                  this.setDeltaMovement(this.getDeltaMovement().multiply(0.5, 0.8F, 0.5));
                  Vec3 fluidFallingAdjustedMovement = this.getFluidFallingAdjustedMovement(effectiveGravity, flag, this.getDeltaMovement());
                  this.setDeltaMovement(fluidFallingAdjustedMovement);
+@@ -3370,7 +_,7 @@
+                 }
+                 // Paper end - EntityEquipmentChangedEvent, PlayerArmorChangeEvent
+                 if (map == null) {
+-                    map = Maps.newEnumMap(EquipmentSlot.class);
++                    map = new it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap<>(); // Canvas - replace map with optimized collection
+                     equipmentChanges = Maps.newEnumMap(org.bukkit.inventory.EquipmentSlot.class); // Paper - EntityEquipmentChangedEvent
+                 }
+ 
 @@ -3503,9 +_,9 @@
          if (this.jumping && this.isAffectedByFluids()) {
              double fluidHeight;

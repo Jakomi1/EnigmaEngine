@@ -22,6 +22,7 @@ public net.minecraft.world.entity.Entity blockPosition
 public net.minecraft.world.entity.Entity position
 public net.minecraft.world.entity.Entity updateInWaterStateAndDoWaterCurrentPushing()V
 public net.minecraft.world.entity.LivingEntity canGlide()Z
+public net.minecraft.world.entity.ai.goal.WrappedGoal goal
 public net.minecraft.world.entity.ai.memory.NearestVisibleLivingEntities lineOfSightTest
 public net.minecraft.world.entity.ai.memory.NearestVisibleLivingEntities nearbyEntities
 public net.minecraft.world.entity.decoration.ArmorStand noTickEquipmentDirty
@@ -40,6 +41,8 @@ public net.minecraft.world.level.chunk.storage.RegionFile isOversized(II)Z
 public net.minecraft.world.level.chunk.storage.RegionFile recalculateHeader()Z
 public net.minecraft.world.level.chunk.storage.RegionFile setOversized(IIZ)V
 public net.minecraft.world.level.chunk.storage.RegionFile write(Lnet/minecraft/world/level/ChunkPos;Ljava/nio/ByteBuffer;)V
+public net.minecraft.world.level.levelgen.Heightmap isOpaque
+public net.minecraft.world.level.levelgen.Heightmap setHeight(III)V
 public net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece LOGGER
 public net.minecraft.world.level.material.FlowingFluid canHoldAnyFluid(Lnet/minecraft/world/level/block/state/BlockState;)Z
 public net.minecraft.world.level.material.FlowingFluid canHoldSpecificFluid(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/material/Fluid;)Z
@@ -68,4 +71,3 @@ public-f net.minecraft.world.level.levelgen.Xoroshiro128PlusPlus seedLo
 public-f net.minecraft.world.level.levelgen.XoroshiroRandomSource randomNumberGenerator
 public-f net.minecraft.world.level.levelgen.XoroshiroRandomSource$XoroshiroPositionalRandomFactory seedHi
 public-f net.minecraft.world.level.levelgen.XoroshiroRandomSource$XoroshiroPositionalRandomFactory seedLo
-public net.minecraft.world.entity.ai.goal.WrappedGoal goal

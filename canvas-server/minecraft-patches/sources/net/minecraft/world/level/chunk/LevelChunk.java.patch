@@ -85,7 +85,7 @@
      }
  
      @Override
-@@ -375,6 +_,11 @@
+@@ -375,11 +_,25 @@
              if (blockState == state) {
                  return null;
              } else {
@@ -95,8 +95,24 @@
 +                }
 +                // Leaf end - optimize random tick
                  Block block = state.getBlock();
-                 this.heightmaps.get(Heightmap.Types.MOTION_BLOCKING).update(i, y, i2, state);
+-                this.heightmaps.get(Heightmap.Types.MOTION_BLOCKING).update(i, y, i2, state);
++                // Canvas start - optimize heightmap
++                // LevelChunkMixin -- skipGetHeightmap && skipHeightmapUpdate essentially just
++                // make the following code do nothing, so just comment it out
++                /* this.heightmaps.get(Heightmap.Types.MOTION_BLOCKING).update(i, y, i2, state);
                  this.heightmaps.get(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES).update(i, y, i2, state);
+                 this.heightmaps.get(Heightmap.Types.OCEAN_FLOOR).update(i, y, i2, state);
+-                this.heightmaps.get(Heightmap.Types.WORLD_SURFACE).update(i, y, i2, state);
++                this.heightmaps.get(Heightmap.Types.WORLD_SURFACE).update(i, y, i2, state); */
++                Heightmap heightmap0 = this.heightmaps.get(Heightmap.Types.MOTION_BLOCKING);
++                Heightmap heightmap1 = this.heightmaps.get(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES);
++                Heightmap heightmap2 = this.heightmaps.get(Heightmap.Types.OCEAN_FLOOR);
++                Heightmap heightmap3 = this.heightmaps.get(Heightmap.Types.WORLD_SURFACE);
++                io.canvasmc.canvas.chunk.CombinedHeightmapUpdate.updateHeightmaps(heightmap0, heightmap1, heightmap2, heightmap3, this, i, y, i2, state);
++                // Canvas end - optimize heightmap
+                 boolean hasOnlyAir1 = section.hasOnlyAir();
+                 if (hasOnlyAir != hasOnlyAir1) {
+                     this.level.getChunkSource().getLightEngine().updateSectionStatus(pos, hasOnlyAir1);
 @@ -469,7 +_,7 @@
          // CraftBukkit start
          BlockEntity blockEntity = this.level.getCurrentWorldData().capturedTileEntities.get(pos); // Folia - region threading
