@@ -8,7 +8,7 @@
 
 **CanvasMC** is a fork of the Folia Minecraft server software that fixes gameplay inconsistencies, bugs, and introduces further performance enhancements to the dedicated server.
 
-Canvas pulls some patches from [Leaf](https://github.com/Winds-Studio/Leaf) to assist in single-threaded performance, along with a ton of our own performance patches
+Canvas pulls some patches from [Leaf](https://github.com/Winds-Studio/Leaf) and [Lithium](https://github.com/CaffeineMC/lithium/) to assist in performance, along with a ton of our own performance patches
 </div>
 
 ---
