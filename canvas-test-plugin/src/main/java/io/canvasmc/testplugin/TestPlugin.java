@@ -31,6 +31,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityTeleportEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.generator.BiomeProvider;
 import org.bukkit.generator.WorldInfo;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -41,7 +42,7 @@ public class TestPlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         getLogger().info("Enabling test plugin for Canvas");
-        getServer().getPluginManager().registerEvents(this, this);
+        // getServer().getPluginManager().registerEvents(this, this); // uncomment when testing events
         getServer().getCommandMap().register("rtp", new BukkitCommand("rtp") {
             @Override
             public boolean execute(@NotNull final CommandSender sender, @NotNull final String commandLabel, final @NotNull String @NotNull [] args) {
@@ -129,35 +130,37 @@ public class TestPlugin extends JavaPlugin implements Listener {
                 return false;
             }
         });
-        getServer().createWorld(
-            // safe blank world to test hoppers
-            new WorldCreator("hoppers")
-                .environment(World.Environment.NORMAL)
-                .bonusChest(false)
-                .generateStructures(false)
-                .biomeProvider(new BiomeProvider() {
-                    @Override
-                    public @NotNull Biome getBiome(@NotNull final WorldInfo worldInfo, final int x, final int y, final int z) {
-                        return Biome.THE_VOID;
-                    }
+        getServer().getGlobalRegionScheduler().run(this, (task) -> {
+            getServer().createWorld(
+                // safe blank world to test hoppers
+                new WorldCreator("hoppers")
+                    .environment(World.Environment.NORMAL)
+                    .bonusChest(false)
+                    .generateStructures(false)
+                    .biomeProvider(new BiomeProvider() {
+                        @Override
+                        public @NotNull Biome getBiome(@NotNull final WorldInfo worldInfo, final int x, final int y, final int z) {
+                            return Biome.THE_VOID;
+                        }
 
-                    @Override
-                    public @NotNull List<Biome> getBiomes(@NotNull final WorldInfo worldInfo) {
-                        return List.of(Biome.THE_VOID);
-                    }
-                })
-                .hardcore(false)
-                .keepSpawnLoaded(TriState.FALSE)
-                .type(WorldType.FLAT)
-        );
-        getServer().createWorld(
-            // safe blank world to test hoppers
-            new WorldCreator("world_api_test")
-                .environment(World.Environment.NORMAL)
-                .bonusChest(false)
-                .hardcore(false)
-                .type(WorldType.AMPLIFIED)
-        );
+                        @Override
+                        public @NotNull List<Biome> getBiomes(@NotNull final WorldInfo worldInfo) {
+                            return List.of(Biome.THE_VOID);
+                        }
+                    })
+                    .hardcore(false)
+                    .keepSpawnLoaded(TriState.FALSE)
+                    .type(WorldType.FLAT)
+            );
+            getServer().createWorld(
+                // safe blank world to test hoppers
+                new WorldCreator("world_api_test")
+                    .environment(World.Environment.NORMAL)
+                    .bonusChest(false)
+                    .hardcore(false)
+                    .type(WorldType.AMPLIFIED)
+            );
+        });
         getServer().getGlobalRegionScheduler().runDelayed(this, (task) -> {
             World apiTest = Bukkit.getWorld("world_api_test");
             Bukkit.unloadWorldAsync(Objects.requireNonNull(apiTest, "World cannot be null"), true).thenAccept((success) -> {
@@ -209,5 +212,10 @@ public class TestPlugin extends JavaPlugin implements Listener {
     @EventHandler
     public void onWorldPreLoad(@NotNull WorldPreLoadEvent worldPreLoadEvent) {
         getLogger().info("WorldPreLoadEvent called with stage " + worldPreLoadEvent.getStage() + "!");
+    }
+
+    @EventHandler
+    public void onWorldLoad(WorldLoadEvent loadEvent) {
+        getLogger().info("Hi " + loadEvent.getWorld().getName());
     }
 }
