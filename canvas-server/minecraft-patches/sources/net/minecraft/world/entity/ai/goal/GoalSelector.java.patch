@@ -41,7 +41,7 @@
              if (wrappedGoal.getGoal() == goal && wrappedGoal.isRunning()) {
                  wrappedGoal.stop();
              }
-@@ -80,37 +_,79 @@
+@@ -80,37 +_,81 @@
      }
  
      public void tick() {
@@ -65,6 +65,7 @@
 -                    WrappedGoal wrappedGoal1 = this.lockedFlags.getOrDefault(flag, NO_GOAL);
 -                    wrappedGoal1.stop();
 -                    this.lockedFlags.put(flag, wrappedGoalx);
++        // Canvas start - Leaf - optimize goal selector
 +        final io.canvasmc.canvas.util.map.BinaryGoalSet availableGoals = this.availableGoals;
 +        final WrappedGoal[] elements = availableGoals.elements();
 +        final long disabled = this.goalTypes.getBackingSet();
@@ -131,6 +132,7 @@
          }
  
          this.tickRunningGoals(true);
++        // Canvas end - Leaf - optimize goal selector
      }
  
      public void tickRunningGoals(boolean tickAllRunning) {
