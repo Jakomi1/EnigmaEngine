@@ -8,3 +8,20 @@
                  } catch (final Throwable thr) {
                      LOGGER.error("Failed to close player inventory for player: " + player, thr);
                  }
+@@ -148,9 +_,16 @@
+             this.shuttingDown = null;
+         }
+     }
++    // Canvas start - region threading
++    private static volatile boolean isShutdown = false;
++    public static boolean isShutdown() {
++        return isShutdown;
++    }
++    // Canvas end - region threading
+ 
+     @Override
+     public final void run() {
++        isShutdown = true; // Canvas - region threading
+         // await scheduler termination
+         LOGGER.info("Awaiting scheduler termination for 60s...");
+         if (TickRegions.getScheduler().halt(true, TimeUnit.SECONDS.toNanos(60L))) {

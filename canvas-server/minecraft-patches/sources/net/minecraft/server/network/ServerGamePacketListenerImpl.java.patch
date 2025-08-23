@@ -23,6 +23,15 @@
      // Paper end - AsyncTabCompleteEvent
  
      @Override
+@@ -2293,7 +_,7 @@
+     public void handleChat(ServerboundChatPacket packet) {
+         // CraftBukkit start - async chat
+         // SPIGOT-3638
+-        if (this.server.isStopped()) {
++        if (io.papermc.paper.threadedregions.RegionShutdownThread.isShutdown()) { // Canvas - region threading
+             return;
+         }
+         // CraftBukkit end
 @@ -2348,7 +_,7 @@
          command = event.getMessage().substring(1);
          // CraftBukkit end
