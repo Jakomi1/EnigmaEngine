@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Dueris <jedimastertoothless@hotmail.com>
 Date: Mon, 7 Jul 2025 14:35:26 -0700
-Subject: [PATCH] Remove Folia Profiler
+Subject: [PATCH] PaperServer Remove Folia Profiler
 
 
 diff --git a/src/main/java/io/papermc/paper/command/PaperCommands.java b/src/main/java/io/papermc/paper/command/PaperCommands.java
@@ -13,7 +13,7 @@ index 3deca0b4e95609dc95376a86b5cbd525729a1031..5f9e8158ea7b16c8e210b0f8affaefde
          COMMANDS.put("mspt", new MSPTCommand("mspt"));
          COMMANDS.put("tps", new io.papermc.paper.threadedregions.commands.CommandServerHealth()); // Folia - region threading
 -        COMMANDS.put("profiler", new io.papermc.paper.threadedregions.commands.CommandProfiler()); // Folia - region threading - profiler
-+//        COMMANDS.put("profiler", new io.papermc.paper.threadedregions.commands.CommandProfiler()); // Folia - region threading - profiler // Canvas - remove vanilla profiler
++//        COMMANDS.put("profiler", new io.papermc.paper.threadedregions.commands.CommandProfiler()); // Folia - region threading - profiler
  
          COMMANDS.forEach((s, command) -> {
              server.server.getCommandMap().register(s, "Paper", command);
