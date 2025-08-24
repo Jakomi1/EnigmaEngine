@@ -1,6 +1,6 @@
 --- a/net/minecraft/world/level/chunk/LevelChunkSection.java
 +++ b/net/minecraft/world/level/chunk/LevelChunkSection.java
-@@ -18,11 +_,14 @@
+@@ -18,11 +_,13 @@
      public static final int SECTION_HEIGHT = 16;
      public static final int SECTION_SIZE = 4096;
      public static final int BIOME_CONTAINER_BITS = 2;
@@ -10,7 +10,6 @@
      public short tickingFluidCount;
      public final PalettedContainer<BlockState> states;
      private PalettedContainer<Holder<Biome>> biomes; // CraftBukkit - read/write
-+    private boolean modified = false; // Leaf - optimize chunk unload
 +    public short waterCount; // Canvas - optimize fluid pushing
 +    public short lavaCount; // Canvas - optimize fluid pushing
  
@@ -25,14 +24,6 @@
          this.states = section.states.copy();
          this.biomes = section.biomes.copy();
      }
-@@ -133,6 +_,7 @@
-     // Paper end - block counting
- 
-     public BlockState setBlockState(int x, int y, int z, BlockState state, boolean useLocks) {
-+        this.modified = true; // Leaf - optimize chunk unload
-         BlockState blockState;
-         if (useLocks) {
-             blockState = this.states.getAndSet(x, y, z, state);
 @@ -159,6 +_,20 @@
                  this.tickingBlockCount++;
              }
@@ -78,39 +69,3 @@
                  }
              }
          }
-@@ -323,7 +_,35 @@
-         this.biomes = palettedContainer;
-     }
- 
-+    // Leaf start - optimize chunk unload
-+    private LevelChunkSection(short nonEmptyBlockCount, short tickingBlockCount, short tickingFluidCount, short waterCount, short lavaCount, // Canvas - optimize fluid pushing
-+                              PalettedContainer<BlockState> states, PalettedContainer<Holder<Biome>> biomes) {
-+        this.nonEmptyBlockCount = nonEmptyBlockCount;
-+        this.tickingBlockCount = tickingBlockCount;
-+        this.tickingFluidCount = tickingFluidCount;
-+        this.waterCount = waterCount; // Canvas - optimize fluid pushing
-+        this.lavaCount = lavaCount; // Canvas - optimize fluid pushing
-+        this.states = states;
-+        this.biomes = biomes;
-+    }
-+
-+    // Leaf end - optimize chunk unload
-     public LevelChunkSection copy() {
-+        // Leaf start - optimize chunk unload
-+        // If the section hasn't been modified and no random ticking blocks/fluids,
-+        // return a lightweight copy that shares palette data
-+        if (!this.modified && this.tickingBlockCount == 0 && this.tickingFluidCount == 0) {
-+            return new LevelChunkSection(
-+                this.nonEmptyBlockCount,
-+                this.tickingBlockCount,
-+                this.tickingFluidCount,
-+                this.waterCount, // Canvas - optimize fluid pushing
-+                this.lavaCount, // Canvas - optimize fluid pushing
-+                this.states, // Share reference instead of copying
-+                this.biomes  // Share reference instead of copying
-+            );
-+        }
-+        // Leaf end - optimize chunk unload
-         return new LevelChunkSection(this);
-     }
- }

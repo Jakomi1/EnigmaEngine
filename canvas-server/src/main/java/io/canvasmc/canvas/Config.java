@@ -103,6 +103,26 @@ public class Config {
 
         @Comment("Whether to use a rewritten random tick system to optimize the server")
         public boolean optimizeRandomTick = false;
+
+        public Structures structures = new Structures();
+        public static class Structures {
+            @Comment({
+                "Whether to use an alternative strategy to make structure layouts generate slightly faster than",
+                "the default optimization the 'optimizeStructureGen' option has for template pool weights. This alternative strategy works by",
+                "changing the list of pieces that structures collect from the template pool to not have duplicate entries.",
+                "",
+                "This will not break the structure generation, but it will make the structure layout different than",
+                "if this config was off (breaking vanilla seed parity). The cost of speed may be worth it in large",
+                "servers where many structure or custom gen plugins are using very high weight values in their template pools.",
+                "",
+                "Pros: Get a bit more performance from high weight Template Pool Structures.",
+                "Cons: Loses parity with vanilla seeds on the layout of the structure. (Structure layout is not broken, just different)"
+            })
+            public boolean deduplicateShuffledTemplatePoolElementList = false;
+
+            @Comment("Enables a port of the mod StructureLayoutOptimizer, which optimizes generation of Jigsaw Structures and NBT pieces")
+            public boolean optimizeStructureGen = false;
+        }
     }
 
     public Networking networking = new Networking();
