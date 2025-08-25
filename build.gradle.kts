@@ -5,7 +5,7 @@ import io.papermc.paperweight.tasks.RebuildBaseGitPatches
 
 plugins {
     java
-    id("io.canvasmc.weaver.patcher") version "2.3.1-SNAPSHOT"
+    id("io.canvasmc.weaver.patcher") version "2.3.2-SNAPSHOT"
 }
 
 val paperMavenPublicUrl = "https://repo.papermc.io/repository/maven-public/"
@@ -36,29 +36,19 @@ paperweight {
         repo = github("PaperMC", "Folia")
         ref = providers.gradleProperty("foliaCommit")
 
-        /* make sure to reflect any changes in the build files
         sourceGeneration {
-            serverSourceOutput.set(file("canvas-server/src/generated/main/java"))
-            serverTestSourceOutput.set(file("canvas-server/src/generated/test/java"))
-            serverResourcesOutput.set(file("canvas-server/src/generated/main/resources"))
-            serverTestResourcesOutput.set(file("canvas-server/src/generated/test/resources"))
-            apiSourceOutput.set(file("canvas-api/src/generated/main/java"))
-            apiTestSourceOutput.set(file("canvas-api/src/generated/test/java"))
-            apiResourcesOutput.set(file("canvas-api/src/generated/main/resources"))
-            apiTestResourcesOutput.set(file("canvas-api/src/generated/test/resources"))
+            generationConfig.register("folia-api")
+            generationConfig.register("folia-server")
         }
-        */
 
         patchGeneration {
             patchesDirOutput = true
             outputDir.set(file("generated-patches")) // only used when patchesDirOutput is disabled
 
             inputConfig.register("paper-api")
-
             inputConfig.register("paper-server") {
                 additionalPatch.set(file("build-data/patch-gen/0001-PaperServer-Remove-Folia-Profiler.patch"))
             }
-
             inputConfig.register("minecraft") {
                 additionalAts.set(file("build-data/folia.at"))
                 additionalPatch.set(file("build-data/patch-gen/0001-Remove-Folia-Profiler.patch"))
