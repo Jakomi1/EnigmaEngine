@@ -71,12 +71,7 @@
  
          // queue data
          private final RegionizedTaskQueue.RegionTaskQueueData taskQueueData;
-@@ -166,14 +_,66 @@
- 
-         // async-safe read-only region data
-         private final RegionStats regionStats;
-+        private final java.util.concurrent.atomic.AtomicBoolean hasPackets = new java.util.concurrent.atomic.AtomicBoolean(false); // Canvas - rewrite scheduler
- 
+@@ -170,10 +_,16 @@
          private TickRegionData(final ThreadedRegionizer.ThreadedRegion<TickRegionData, TickRegionSectionData> region) {
              this.region = region;
              this.world = region.regioniser.world;
@@ -90,51 +85,6 @@
 +            TickRegions.getScheduler().setHasTasks(this.tickHandle);
 +        }
 +
-+        public void setHasPackets() {
-+            if (!this.hasPackets.get() && !this.hasPackets.compareAndExchange(false, true)) {
-+                this.setHasTasks();
-+            }
-+        }
-+
-+        public boolean drainOnePacket(boolean isBetweenTicks) {
-+            if (!io.canvasmc.canvas.Config.INSTANCE.networking.processPacketsInBetweenTicks) return false;
-+            // only apply hasPackets to between-tick processing
-+            if (isBetweenTicks && !this.hasPackets.get()) {
-+                return false;
-+            }
-+
-+            final RegionizedWorldData worldData = this.world.getCurrentWorldData();
-+            boolean hasPacketsNew = false;
-+
-+            for (final net.minecraft.server.level.ServerPlayer player : worldData.getLocalPlayers()) {
-+                if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(player)) {
-+                    continue;
-+                }
-+                if (player.getBukkitEntity().executeOnePacketTask()) {
-+                    hasPacketsNew |= player.getBukkitEntity().hasPackets();
-+                }
-+            }
-+
-+            if (!hasPacketsNew) {
-+                this.hasPackets.set(false);
-+
-+                // handle race condition: packet added during packet processing
-+                for (final net.minecraft.server.level.ServerPlayer player : worldData.getLocalPlayers()) {
-+                    if (player.getBukkitEntity().hasPackets()) {
-+                        this.hasPackets.set(true);
-+                        hasPacketsNew = true;
-+                        break;
-+                    }
-+                }
-+            }
-+
-+            return hasPacketsNew;
-+        }
-+
-+        public void drainPackets(boolean isBetweenTicks) {
-+            if (!io.canvasmc.canvas.Config.INSTANCE.networking.processPacketsInBetweenTicks) return;
-+            while (this.drainOnePacket(isBetweenTicks));
-+        }
 +        // Canvas end - rewrite scheduler
          public RegionStats getRegionStats() {
              return this.regionStats;
@@ -148,32 +98,6 @@
              this.regionizedData.put(regionizedData, ret);
  
              return ret;
-@@ -225,6 +_,12 @@
-             for (final ThreadedRegionizer.ThreadedRegion<TickRegionData, TickRegionSectionData> region : regions) {
-                 final TickRegionData data = region.getData();
-                 data.tickHandle.copyDeadlineAndTickCount(this.tickHandle);
-+                // Canvas start - rewrite scheduler
-+                // just be lazy about this one, it's not very important
-+                if (this.hasPackets.getOpaque()) {
-+                    data.hasPackets.setOpaque(true);
-+                }
-+                // Canvas end - rewrite scheduler
-             }
- 
-             // generic regionised data
-@@ -292,6 +_,12 @@
-             // there's not really a great solution to the tick problem, no matter what it'll be messed up
-             // we will pick the greatest time delay so that tps will not exceed TICK_RATE
-             data.tickHandle.updateSchedulingToMax(this.tickHandle);
-+            // Canvas start - rewrite scheduler
-+            // just be lazy about this one, it's not very important
-+            if (this.hasPackets.getOpaque()) {
-+                data.hasPackets.setOpaque(true);
-+            }
-+            // Canvas end - rewrite scheduler
- 
-             // generic regionised data
-             final long fromTickOffset = currentTickTo - currentTickFrom; // see merge jd
 @@ -311,6 +_,14 @@
              // task queue
              this.taskQueueData.mergeInto(data.taskQueueData);
@@ -223,7 +147,7 @@
              }
          }
  
-@@ -378,32 +_,34 @@
+@@ -378,27 +_,27 @@
          }
  
          @Override
@@ -238,7 +162,6 @@
 +            // Canvas start - rewrite scheduler
 +            boolean executeChunkTask;
 +            boolean executeTickTask;
-+            boolean executePacketTask;
              do {
 -                if (executeTickTask) {
 -                    executeTickTask = queue.executeTickTask();
@@ -246,13 +169,11 @@
 -                if (executeChunkTask) {
 -                    processedChunkTask |= (executeChunkTask = queue.executeChunkTask());
 -                }
--            } while ((executeChunkTask | executeTickTask) && canContinue.getAsBoolean());
 +                executeTickTask = queue.executeTickTask();
 +                executeChunkTask = queue.executeChunkTask();
-+                executePacketTask = this.region.drainOnePacket(true);
 +
 +                processedChunkTask |= executeChunkTask;
-+            } while ((executeChunkTask | executeTickTask | executePacketTask) && canContinue.getAsBoolean());
+             } while ((executeChunkTask | executeTickTask) && canContinue.getAsBoolean());
 +            // Canvas end - rewrite scheduler
  
              if (processedChunkTask) {
@@ -264,9 +185,3 @@
          }
  
          @Override
-         protected boolean hasIntermediateTasks() {
--            return this.region.taskQueueData.hasTasks();
-+            return this.region.taskQueueData.hasTasks() || this.region.hasPackets.get(); // Canvas - rewrite scheduler
-         }
-     }
- 

@@ -25,14 +25,6 @@
                      LOGGER.info("Initialised world '" + region.world.getWorld().getName() + "'");
                  } // else: must be checked
              }
-@@ -1607,6 +_,7 @@
-             region.getTaskQueueData().drainTasks();
-             ((io.papermc.paper.threadedregions.scheduler.FoliaRegionScheduler)org.bukkit.Bukkit.getRegionScheduler()).tick();
-             // now run all the entity schedulers
-+            region.drainPackets(false); // Canvas - rewrite scheduler
-             for (io.papermc.paper.threadedregions.EntityScheduler scheduler : region.world.getCurrentWorldData().entitySchedulerTickList.getAllSchedulers()) {
-                 net.minecraft.world.entity.Entity handle = scheduler.entity.getHandleRaw();
-                 if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(handle) || scheduler.isRetired()) {
 @@ -1619,6 +_,7 @@
          // Folia end - region threading
          //this.tickCount++; // Folia - region threading

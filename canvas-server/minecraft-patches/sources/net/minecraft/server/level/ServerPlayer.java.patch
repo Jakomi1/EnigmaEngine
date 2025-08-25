@@ -59,19 +59,6 @@
      }
  
      // Folia start - region threading
-@@ -612,6 +_,12 @@
-     }
- 
-     public void queuePacketTask(Runnable run) {
-+        // Canvas start - rewrite scheduler
-+        if (io.canvasmc.canvas.Config.INSTANCE.networking.processPacketsInBetweenTicks) {
-+            this.getBukkitEntity().pushPacket(run);
-+            return;
-+        }
-+        // Canvas end - rewrite scheduler
-         this.getBukkitEntity().taskScheduler.schedule((ServerPlayer player) -> {
-             run.run();
-         }, null, 1L);
 @@ -707,6 +_,7 @@
          this.respawnConfig = input.read("respawn", ServerPlayer.RespawnConfig.CODEC).orElse(null);
          this.spawnExtraParticlesOnFall = input.getBooleanOr("spawn_extra_particles_on_fall", false);
