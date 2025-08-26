@@ -9,49 +9,12 @@
      private final Set<UUID> unlistedEntities = new HashSet<>(); // Paper - Add Listing API for Player
      private static final WeakHashMap<Plugin, WeakReference<Plugin>> pluginWeakReferences = new WeakHashMap<>();
      private int hash = 0;
-@@ -230,6 +_,56 @@
+@@ -230,6 +_,19 @@
      private CraftWorldBorder clientWorldBorder = null;
      private BorderChangeListener clientWorldBorderListener = this.createWorldBorderListener();
      private long lastSaveTime; // Paper - getLastPlayed replacement API
 +    // Canvas start - rewrite scheduler
-+    private final ca.spottedleaf.concurrentutil.collection.MultiThreadedQueue<Runnable> packetTaskQueue = new ca.spottedleaf.concurrentutil.collection.MultiThreadedQueue<>();
 +    private io.papermc.paper.threadedregions.RegionizedWorldData worldDataRef = null;
-+
-+    /**
-+     * Executes a task from the packet processing queue
-+     * @return true if the queue has more tasks, false otherwise
-+     */
-+    public boolean executeOnePacketTask() {
-+        Runnable task = packetTaskQueue.poll();
-+        if (task == null) {
-+            return false;
-+        }
-+        task.run();
-+        return true;
-+    }
-+
-+    /**
-+     * Pushes a task to the packet queue
-+     * @param task the packet
-+     */
-+    public void pushPacket(Runnable task) {
-+        if (!this.packetTaskQueue.add(task)) return;
-+        if (worldDataRef != null) {
-+            // really shouldn't be null, but we check anyway just in the case it is
-+            // we also drain packets right before entity scheduler tick, so no
-+            // point in trying to send to the entity scheduler if the region is null,
-+            // since it makes no fucking sense since it will do literally the same thing
-+            worldDataRef.regionData.setHasPackets();
-+        }
-+    }
-+
-+    /**
-+     * Returns if the player has tasks or not
-+     * @return if the task queue has packets
-+     */
-+    public boolean hasPackets() {
-+        return !this.packetTaskQueue.isEmpty();
-+    }
 +
 +    /**
 +     * Realistically, this isn't crucial. This *can* be null safely, as worst case senario
