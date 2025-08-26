@@ -1,5 +1,14 @@
 --- a/io/papermc/paper/threadedregions/RegionizedWorldData.java
 +++ b/io/papermc/paper/threadedregions/RegionizedWorldData.java
+@@ -66,7 +_,7 @@
+ 
+ public final class RegionizedWorldData {
+ 
+-    private static final Logger LOGGER = LogUtils.getLogger();
++    private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger("RegionizedWorldData"); // Canvas - rewrite scheduler
+ 
+     private static final Entity[] EMPTY_ENTITY_ARRAY = new Entity[0];
+ 
 @@ -82,7 +_,9 @@
              // entities
              for (final ServerPlayer player : from.localPlayers) {
@@ -160,7 +169,7 @@
      }
  
      public NearbyPlayers getNearbyPlayers() {
-@@ -500,17 +_,45 @@
+@@ -500,17 +_,54 @@
          );
      }
  
@@ -199,13 +208,22 @@
 -                cleanUpConnection(conn);
 +                // Canvas start - rewrite scheduler
 +                try {
-+                    conn.handleDisconnection();
-+                    // global tick thread will not remove connections not owned by it, so we need to
-+                    RegionizedServer.getInstance().removeConnection(conn);
-+                    this.removeConnection(conn, conn.getPlayer());
-+                    cleanUpConnection(conn);
++                    ServerPlayer player = conn.getPlayer();
++                    this.removeConnection(conn, player);
++                    RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
++                        player.level(),
++                        player.chunkPosition().x,
++                        player.chunkPosition().z,
++                        () -> {
++                            conn.handleDisconnection();
++                            // global tick thread will not remove connections not owned by it, so we need to
++                            RegionizedServer.getInstance().removeConnection(conn);
++                            cleanUpConnection(conn);
++                            LOGGER.info("Completed removal of player '{}' successfully.", player.getName().getString());
++                        }
++                    );
 +                } catch (Exception e) {
-+                    LOGGER.info("Unable to connection removal for conn[{}]", conn.getPlayer().getName().getString());
++                    LOGGER.info("Unable to execute connection removal for conn[{}]", conn.getPlayer().getName().getString());
 +                    LOGGER.info("Disconnect details: {}", conn.getDisconnectionDetails());
 +                    throw new RuntimeException(e);
 +                }
