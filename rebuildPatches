@@ -74,7 +74,7 @@ if $force_run || ! git diff --quiet "./canvas-api/build.gradle.kts" || ! git dif
 fi
 
 if $gradle_rebuild_task || $gradle_run; then
-  gradle_tasks["rebuildFoliaSingleFilePatches"]="true"
+  gradle_tasks["rebuildPaperSingleFilePatches"]="true"
 fi
 
 echo "Running fixup tasks..."
@@ -90,4 +90,4 @@ run_gradle_task "rebuildPaperApiFilePatches"
 run_gradle_task "rebuildFoliaServerFilePatches"
 run_gradle_task "rebuildPaperServerFilePatches"
 run_gradle_task "rebuildMinecraftFilePatches"
-run_gradle_task "rebuildFoliaSingleFilePatches"
+run_gradle_task "rebuildPaperSingleFilePatches"

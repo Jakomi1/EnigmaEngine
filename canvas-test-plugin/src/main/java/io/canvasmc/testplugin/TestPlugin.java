@@ -14,6 +14,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -29,6 +30,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityTeleportEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.world.WorldLoadEvent;
@@ -42,7 +44,7 @@ public class TestPlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         getLogger().info("Enabling test plugin for Canvas");
-        // getServer().getPluginManager().registerEvents(this, this); // uncomment when testing events
+        getServer().getPluginManager().registerEvents(this, this); // uncomment when testing events
         getServer().getCommandMap().register("rtp", new BukkitCommand("rtp") {
             @Override
             public boolean execute(@NotNull final CommandSender sender, @NotNull final String commandLabel, final @NotNull String @NotNull [] args) {
@@ -184,32 +186,6 @@ public class TestPlugin extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onRespawn(PlayerRespawnEvent playerRespawnEvent) {
-        getLogger().info("PlayerRespawnEvent called!");
-        // uncomment when testing respawn location modification
-        // playerRespawnEvent.setRespawnLocation(new Location(
-        //     Bukkit.getWorld("world"), 0, 9000, 0
-        // ));
-        // uncomment when testing player kicking during respawn
-        // playerRespawnEvent.getPlayer().kick(Component.text("Bye bye"));
-    }
-
-    @EventHandler
-    public void onTeleportPlayer(PlayerTeleportEvent playerTeleportEvent) {
-        getLogger().info("PlayerTeleportEvent called!");
-    }
-
-    @EventHandler
-    public void onTeleportEntity(EntityTeleportEvent playerTeleportEvent) {
-        getLogger().info("EntityTeleportEvent called!");
-    }
-
-    @EventHandler
-    public void onTeleportEndGateway(PlayerTeleportEndGatewayEvent playerTeleportEndGatewayEvent) {
-        getLogger().info("PlayerTeleportEndGatewayEvent called!");
-    }
-
-    @EventHandler
     public void onWorldPreLoad(@NotNull WorldPreLoadEvent worldPreLoadEvent) {
         getLogger().info("WorldPreLoadEvent called with stage " + worldPreLoadEvent.getStage() + "!");
     }
@@ -217,5 +193,21 @@ public class TestPlugin extends JavaPlugin implements Listener {
     @EventHandler
     public void onWorldLoad(WorldLoadEvent loadEvent) {
         getLogger().info("Hi " + loadEvent.getWorld().getName());
+    }
+
+    @EventHandler
+    public void join(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        RandomSource randomSource = RandomSource.create();
+        int blockX = build(randomSource);
+        int blockZ = build(randomSource);
+        player.getScheduler().run(this, (task) -> {
+            player.teleportAsync(
+                new Location(
+                    player.getWorld(), blockX, 90, blockZ, player.getYaw(), player.getPitch()
+                )
+            );
+            player.setGameMode(GameMode.CREATIVE);
+        }, null);
     }
 }

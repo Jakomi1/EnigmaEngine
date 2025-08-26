@@ -160,7 +160,7 @@
      }
  
      public NearbyPlayers getNearbyPlayers() {
-@@ -500,16 +_,36 @@
+@@ -500,17 +_,45 @@
          );
      }
  
@@ -192,14 +192,27 @@
 +        shuffle(connections, this.simpleUnsafeLocalRandom); // Canvas - optimized collection
          for (final Connection conn : connections) {
              if (!conn.isConnected()) {
-                 conn.handleDisconnection();
-                 // global tick thread will not remove connections not owned by it, so we need to
-                 RegionizedServer.getInstance().removeConnection(conn);
+-                conn.handleDisconnection();
+-                // global tick thread will not remove connections not owned by it, so we need to
+-                RegionizedServer.getInstance().removeConnection(conn);
 -                this.connections.remove(conn);
-+                this.removeConnection(conn, conn.getPlayer()); // Canvas - rewrite tick scheduler
-                 cleanUpConnection(conn);
+-                cleanUpConnection(conn);
++                // Canvas start - rewrite scheduler
++                try {
++                    conn.handleDisconnection();
++                    // global tick thread will not remove connections not owned by it, so we need to
++                    RegionizedServer.getInstance().removeConnection(conn);
++                    this.removeConnection(conn, conn.getPlayer());
++                    cleanUpConnection(conn);
++                } catch (Exception e) {
++                    LOGGER.info("Unable to connection removal for conn[{}]", conn.getPlayer().getName().getString());
++                    LOGGER.info("Disconnect details: {}", conn.getDisconnectionDetails());
++                    throw new RuntimeException(e);
++                }
++                // Canvas end - rewrite scheduler
                  continue;
              }
+             if (!this.connections.contains(conn)) {
 @@ -612,6 +_,8 @@
          if (this.allEntities.add(entity)) {
              if (entity instanceof ServerPlayer player) {

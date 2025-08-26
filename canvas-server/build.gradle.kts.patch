@@ -86,7 +86,7 @@
          isTransitive = false
      }
 -    implementation("io.netty:netty-codec-haproxy:4.1.118.Final") // Add support for proxy protocol
-+    implementation("io.netty:netty-codec-haproxy:4.1.123.Final") // Add support for proxy protocol // bump depend
++    implementation("io.netty:netty-codec-haproxy:4.1.118.Final") // Add support for proxy protocol // bump depend
      implementation("org.apache.logging.log4j:log4j-iostreams:2.24.1")
      implementation("org.ow2.asm:asm-commons:9.8")
      implementation("org.spongepowered:configurate-yaml:4.2.0")
