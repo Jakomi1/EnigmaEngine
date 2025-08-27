@@ -169,7 +169,7 @@
      }
  
      public NearbyPlayers getNearbyPlayers() {
-@@ -500,17 +_,54 @@
+@@ -500,17 +_,57 @@
          );
      }
  
@@ -210,18 +210,21 @@
 +                try {
 +                    ServerPlayer player = conn.getPlayer();
 +                    this.removeConnection(conn, player);
-+                    RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
-+                        player.level(),
-+                        player.chunkPosition().x,
-+                        player.chunkPosition().z,
-+                        () -> {
-+                            conn.handleDisconnection();
-+                            // global tick thread will not remove connections not owned by it, so we need to
-+                            RegionizedServer.getInstance().removeConnection(conn);
-+                            cleanUpConnection(conn);
-+                            LOGGER.info("Completed removal of player '{}' successfully.", player.getName().getString());
-+                        }
-+                    );
++                    // ensure we don't run into ownership issues with the bounding box exceeding the region
++                    player.level().loadChunksForMoveAsync(player.getBoundingBox().inflate(2), ca.spottedleaf.concurrentutil.util.Priority.HIGH, (chunks) -> {
++                        RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
++                            player.level(),
++                            player.chunkPosition().x,
++                            player.chunkPosition().z,
++                            () -> {
++                                conn.handleDisconnection();
++                                // global tick thread will not remove connections not owned by it, so we need to
++                                RegionizedServer.getInstance().removeConnection(conn);
++                                cleanUpConnection(conn);
++                                LOGGER.info("Completed removal of player '{}' successfully.", player.getName().getString());
++                            }
++                        );
++                    });
 +                } catch (Exception e) {
 +                    LOGGER.info("Unable to execute connection removal for conn[{}]", conn.getPlayer().getName().getString());
 +                    LOGGER.info("Disconnect details: {}", conn.getDisconnectionDetails());
