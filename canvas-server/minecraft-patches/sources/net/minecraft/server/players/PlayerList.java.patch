@@ -14,15 +14,6 @@
      private final Map<UUID, ServerPlayer> playersByUUID = new java.util.concurrent.ConcurrentHashMap<>(); // Folia - region threading - change to CHM - Note: we do NOT expect concurrency PER KEY!
      private final UserBanList bans = new UserBanList(USERBANLIST_FILE);
      private final IpBanList ipBans = new IpBanList(IPBANLIST_FILE);
-@@ -340,7 +_,7 @@
-             ServerGamePacketListenerImpl serverGamePacketListenerImpl = new ServerGamePacketListenerImpl(this.server, connection, player, cookie);
-             // Folia start - rewrite login process
-             // only after setting the connection listener to game type, add the connection to this regions list
--            serverLevel.getCurrentWorldData().connections.add(connection);
-+            serverLevel.getCurrentWorldData().addConnection(connection, player); // Canvas - rewrite tick scheduler
-             // Folia end - rewrite login process
-             connection.setupInboundProtocol(
-                 GameProtocols.SERVERBOUND_TEMPLATE.bind(RegistryFriendlyByteBuf.decorator(this.server.registryAccess()), serverGamePacketListenerImpl),
 @@ -396,6 +_,7 @@
  
              // player.connection.send(ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(this.players)); // CraftBukkit - replaced with loop below

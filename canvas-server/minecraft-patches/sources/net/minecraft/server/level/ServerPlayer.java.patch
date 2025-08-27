@@ -114,15 +114,7 @@
          }, org.bukkit.event.player.PlayerRespawnEvent.RespawnReason.END_PORTAL, true);
      }
  
-@@ -1577,19 +_,34 @@
-             ServerPlayer.this.reset();
-         }
-         // must be manually removed from connections, delay until after reset() so that we do not trip any thread checks
--        this.level().getCurrentWorldData().connections.remove(this.connection.connection);
-+        this.level().getCurrentWorldData().removeConnection(this.connection.connection, this); // Canvas - rewrite tick scheduler
- 
-         ca.spottedleaf.concurrentutil.completable.CallbackCompletable<org.bukkit.Location> spawnPosComplete =
-             new ca.spottedleaf.concurrentutil.completable.CallbackCompletable<>();
+@@ -1584,12 +_,27 @@
          boolean[] usedRespawnAnchor = new boolean[1];
  
          // set up post spawn location logic
@@ -235,33 +227,6 @@
      }
  
      @Override
-@@ -1688,7 +_,7 @@
-     @Override
-     protected ServerPlayer transformForAsyncTeleport(ServerLevel destination, Vec3 pos, Float yaw, Float pitch, Vec3 velocity) {
-         // must be manually removed from connections
--        this.level().getCurrentWorldData().connections.remove(this.connection.connection);
-+        this.level().getCurrentWorldData().removeConnection(this.connection.connection, this); // Canvas - rewrite tick scheduler
-         this.level().removePlayerImmediately(this, Entity.RemovalReason.CHANGED_DIMENSION);
- 
-         this.spawnIn(destination);
-@@ -1710,7 +_,7 @@
-             destination.addDuringTeleport(this);
- 
-             // must be manually added to connections
--            this.level().getCurrentWorldData().connections.add(this.connection.connection);
-+            this.level().getCurrentWorldData().addConnection(this.connection.connection, this); // Canvas - rewrite tick scheduler
- 
-             // required to set up the pending teleport stuff to the client, and to actually update
-             // the player's position clientside
-@@ -1763,7 +_,7 @@
-             destination.addDuringTeleport(this);
- 
-             // must be manually added to connections
--            this.level().getCurrentWorldData().connections.add(this.connection.connection);
-+            this.level().getCurrentWorldData().addConnection(this.connection.connection, this); // Canvas - rewrite tick scheduler
- 
-             // required to set up the pending teleport stuff to the client, and to actually update
-             // the player's position clientside
 @@ -1809,12 +_,26 @@
                  return false;
              }

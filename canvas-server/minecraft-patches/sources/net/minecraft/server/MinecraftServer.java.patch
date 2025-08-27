@@ -9,6 +9,15 @@
  
      @Override
      public <V> CompletableFuture<V> submit(java.util.function.Supplier<V> task) {
+@@ -336,7 +_,7 @@
+         thread.setUncaughtExceptionHandler((thread1, exception) -> LOGGER.error("Uncaught exception in server thread", exception));
+         thread.setPriority(Thread.NORM_PRIORITY+2); // Paper - Perf: Boost priority
+         if (Runtime.getRuntime().availableProcessors() > 4) {
+-            thread.setPriority(8);
++            thread.setPriority(10); // Canvas - bump priority
+         }
+ 
+         S minecraftServer = (S)threadFunction.apply(thread);
 @@ -733,6 +_,7 @@
                      );
                  }
@@ -17,6 +26,28 @@
              // Folia end - region threading
  
              // Paper - Put world into worldlist before initing the world; move up
+@@ -1236,11 +_,7 @@
+                 io.papermc.paper.threadedregions.RegionizedServer.getInstance().init(); // Folia - region threading - only after loading worlds
+                 final long actualDoneTimeMs = System.currentTimeMillis() - org.bukkit.craftbukkit.Main.BOOT_TIME.toEpochMilli(); // Paper - Improve startup message
+                 LOGGER.info("Done ({})! For help, type \"help\"", String.format(java.util.Locale.ROOT, "%.3fs", actualDoneTimeMs / 1000.00D)); // Paper - Improve startup message
+-                for (;;) {
+-                    try {
+-                        Thread.sleep(Long.MAX_VALUE);
+-                    } catch (final InterruptedException ex) {}
+-                }
++                return; // Canvas - region threading
+             }
+             // Folia end - region threading
+             // Spigot start
+@@ -1350,7 +_,7 @@
+             }
+ 
+             this.onServerCrash(crashReport);
+-        } finally {
++        } { // Canvas - region threading
+             try {
+                 this.stopped = true;
+                 this.stopServer();
 @@ -1591,6 +_,7 @@
                      LOGGER.info("Initialising world '" + region.world.getWorld().getName() + "' before it can be ticked...");
                      this.initWorld(region.world, region.world.serverLevelData, worldData, region.world.serverLevelData.worldGenOptions()); // Folia - delayed until first tick of world

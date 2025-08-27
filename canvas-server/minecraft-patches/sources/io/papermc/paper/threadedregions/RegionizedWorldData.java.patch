@@ -75,16 +75,6 @@
  
      // misc. fields
      private boolean isHandlingTick;
-@@ -348,7 +_,8 @@
-     }
- 
-     // entities
--    private final List<ServerPlayer> localPlayers = new ArrayList<>();
-+    // this is copy on write to allow packet processing to iterate safely
-+    private final java.util.concurrent.CopyOnWriteArrayList<ServerPlayer> localPlayers = new java.util.concurrent.CopyOnWriteArrayList<>(); // Canvas - rewrite scheduler
-     private final NearbyPlayers nearbyPlayers;
-     public final io.papermc.paper.threadedregions.EntityScheduler.EntitySchedulerTickList entitySchedulerTickList = new io.papermc.paper.threadedregions.EntityScheduler.EntitySchedulerTickList();
-     private final ReferenceList<Entity> allEntities = new ReferenceList<>(EMPTY_ENTITY_ARRAY);
 @@ -364,8 +_,8 @@
      private final LevelTicks<Fluid> fluidLevelTicks;
  
@@ -169,19 +159,11 @@
      }
  
      public NearbyPlayers getNearbyPlayers() {
-@@ -500,17 +_,57 @@
+@@ -500,17 +_,50 @@
          );
      }
  
 +    // Canvas start - rewrite tick scheduler
-+    public void addConnection(Connection connection, ServerPlayer serverPlayer) {
-+        this.connections.add(connection);
-+    }
-+
-+    public void removeConnection(Connection connection, ServerPlayer serverPlayer) {
-+        this.connections.remove(connection);
-+    }
-+
 +    // copied from it.unimi.dsi.fastutil.objects.ObjectLists.shuffle method, modified to use Minecraft RandomSources
 +    public static <K> it.unimi.dsi.fastutil.objects.ObjectList<K> shuffle(final it.unimi.dsi.fastutil.objects.ObjectList<K> l, final net.minecraft.util.RandomSource random) {
 +        for (int i = l.size(); i-- != 0;) {
@@ -192,6 +174,7 @@
 +        }
 +        return l;
 +    }
++
 +    // Canvas end - rewrite tick scheduler
      // connections
      public void tickConnections() {
@@ -209,7 +192,6 @@
 +                // Canvas start - rewrite scheduler
 +                try {
 +                    ServerPlayer player = conn.getPlayer();
-+                    this.removeConnection(conn, player);
 +                    // ensure we don't run into ownership issues with the bounding box exceeding the region
 +                    player.level().loadChunksForMoveAsync(player.getBoundingBox().inflate(2), ca.spottedleaf.concurrentutil.util.Priority.HIGH, (chunks) -> {
 +                        RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
@@ -218,6 +200,7 @@
 +                            player.chunkPosition().z,
 +                            () -> {
 +                                conn.handleDisconnection();
++                                this.connections.remove(conn);
 +                                // global tick thread will not remove connections not owned by it, so we need to
 +                                RegionizedServer.getInstance().removeConnection(conn);
 +                                cleanUpConnection(conn);

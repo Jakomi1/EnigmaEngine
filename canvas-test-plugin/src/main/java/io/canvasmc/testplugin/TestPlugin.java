@@ -197,17 +197,17 @@ public class TestPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void join(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-        RandomSource randomSource = RandomSource.create();
-        int blockX = build(randomSource);
-        int blockZ = build(randomSource);
-        player.getScheduler().run(this, (task) -> {
-            player.teleportAsync(
-                new Location(
-                    player.getWorld(), blockX, 90, blockZ, player.getYaw(), player.getPitch()
-                )
-            );
-            player.setGameMode(GameMode.CREATIVE);
-        }, null);
+        // Player player = event.getPlayer();
+        // RandomSource randomSource = RandomSource.create();
+        // int blockX = build(randomSource);
+        // int blockZ = build(randomSource);
+        // player.getScheduler().run(this, (task) -> {
+        //     player.teleportAsync(
+        //         new Location(
+        //             player.getWorld(), blockX, 90, blockZ, player.getYaw(), player.getPitch()
+        //         )
+        //     );
+        //     player.setGameMode(GameMode.CREATIVE);
+        // }, null);
     }
 }

@@ -41,15 +41,6 @@
              LOGGER.error(
                  "Received unsigned command packet from {}, but the command requires signable arguments: {}", this.player.getGameProfile().getName(), command
              );
-@@ -2787,7 +_,7 @@
-         this.removePlayerFromWorld();
-         } finally { // Folia start - rewrite login process - move connection ownership to global region
-             io.papermc.paper.threadedregions.RegionizedWorldData worldData = this.player.level().getCurrentWorldData();
--            worldData.connections.remove(this.connection);
-+            worldData.removeConnection(this.connection, this.player); // Canvas - rewrite tick scheduler
-             // once waitingForSwitchToConfig is set, the global tick thread will own the connection
-         } // Folia end - rewrite login process - move connection ownership to global region
-         this.waitingForSwitchToConfig = true; // Folia - rewrite login process - fix bad ordering of this field write - moved down
 @@ -3653,7 +_,7 @@
      private void resetPlayerChatState(RemoteChatSession chatSession) {
          this.chatSession = chatSession;
