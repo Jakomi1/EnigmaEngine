@@ -39,15 +39,11 @@
                                      EntityTypeTest.forExactClass(entity.getClass()),
                                      new AABB(pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1).inflate(this.spawnRange),
                                      EntitySelector.NO_SPECTATORS
-@@ -191,6 +_,11 @@
+@@ -191,6 +_,7 @@
                                      mob.aware = false;
                                  }
                                  // Spigot end
-+                                // Canvas start - spawner configs
-+                                if (io.canvasmc.canvas.Config.INSTANCE.spawner.noCollisions) {
-+                                    mob.collides = false;
-+                                }
-+                                // Canvas end - spawner configs
++                                mob.fromSpawner = true; // Canvas - spawner configs
                              }
  
                              // Paper start
