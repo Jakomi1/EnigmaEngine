@@ -14,7 +14,7 @@
 -            .collect(Collectors.toList());
 +        // Canvas start - remove streams
 +        List<net.minecraft.server.level.ServerPlayer> allPlayers = level.getLocalPlayers(); // Folia - region threading
-+        List<Player> list = new java.util.ArrayList<>();
++        it.unimi.dsi.fastutil.objects.ObjectArrayList<Player> list = new it.unimi.dsi.fastutil.objects.ObjectArrayList<>();
 +        for (Player serverPlayer : allPlayers) {
 +            if (EntitySelector.NO_SPECTATORS.test(serverPlayer) &&
 +                targetingConditions.test(level, entity, serverPlayer) &&
@@ -26,7 +26,7 @@
 +
 +        // Canvas end - remove streams
          if (!list.isEmpty()) {
-+            list.sort(Comparator.comparingDouble(entity::distanceToSqr)); // Canvas - remove streams
++            list.unstableSort(Comparator.comparingDouble(entity::distanceToSqr)); // Canvas - remove streams
              Player player = list.get(0);
              // CraftBukkit start
              org.bukkit.event.entity.EntityTargetLivingEntityEvent event = org.bukkit.craftbukkit.event.CraftEventFactory.callEntityTargetLivingEvent(

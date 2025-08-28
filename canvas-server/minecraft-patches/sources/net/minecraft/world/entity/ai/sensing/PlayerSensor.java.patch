@@ -11,7 +11,7 @@
 -            .sorted(Comparator.comparingDouble(entity::distanceToSqr))
 -            .collect(Collectors.toList());
 +        // Canvas start - remove streams
-+        List<Player> list = new java.util.ArrayList<>();
++        it.unimi.dsi.fastutil.objects.ObjectArrayList<Player> list = new it.unimi.dsi.fastutil.objects.ObjectArrayList<>();
 +        for (Player serverPlayer : level.getLocalPlayers()) { // Folia - region threading
 +            if (!EntitySelector.NO_SPECTATORS.test(serverPlayer)) {
 +                continue;
@@ -22,7 +22,7 @@
 +
 +            list.add(serverPlayer);
 +        }
-+        list.sort(Comparator.comparingDouble(entity::distanceToSqr));
++        list.unstableSort(Comparator.comparingDouble(entity::distanceToSqr));
 +        // Canvas end - remove streams
          Brain<?> brain = entity.getBrain();
          brain.setMemory(MemoryModuleType.NEAREST_PLAYERS, list);

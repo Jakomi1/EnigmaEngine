@@ -28,7 +28,7 @@
      }
  
      public void init() {
-@@ -63,9 +_,24 @@
+@@ -63,9 +_,23 @@
          new RegionizedServerInitEvent().callEvent();
  
          // now we can schedule
@@ -40,12 +40,11 @@
 +        if (level == null) {
 +            throw new IllegalStateException("Respawn dimension invalid, could not fetch dimension from value '" + respawnDimension + "'");
 +        }
-+        // this is required because the new scheduler will not act like the old
-+        // one where the most recent task scheduled gets run first if it's able
-+        // to run, so we need to run the global tick synchronously first to ensure
-+        // we don't royally screw over the entire server
++        // Folia has a race condition in the old scheduler(which is more likely with the new scheduler)
++        // that essentially crashes the server on the first tick of a freshly generated world.
++        // This fixes it, because the race condition is caused by the global tick not being run first
++        // which is required to process ticket updates so we don't fail any thread ownership checks
 +        LOGGER.info("Running first global tick before starting tick scheduler");
-+        // TODO - can we just... not do this? would want to run global tick on the scheduler first, not sync on startup thread
 +        this.globalTick((int) this.tickHandle.getCurrentTick());
 +        this.tickHandle.setInitialStart(System.nanoTime());
 +        // Canvas end - rewrite scheduler

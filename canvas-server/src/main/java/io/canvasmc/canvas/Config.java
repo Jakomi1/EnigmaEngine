@@ -556,6 +556,9 @@ public class Config {
 
         @Comment("Disables the spawner max nearby entities check")
         public boolean disableMaxNearbyEntitiesCheck = false;
+
+        @Comment("Disables collisions for entities spawned by spawners")
+        public boolean noCollisions = false;
     }
 
     // Implementation done in 0005-Disable-Criterion-Trigger-Config base patch
