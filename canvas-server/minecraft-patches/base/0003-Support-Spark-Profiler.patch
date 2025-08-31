@@ -5,7 +5,7 @@ Subject: [PATCH] Support Spark Profiler
 
 
 diff --git a/io/papermc/paper/threadedregions/RegionizedServer.java b/io/papermc/paper/threadedregions/RegionizedServer.java
-index e1842ab8f20271a8b20ab8462b09a4745a612a9a..29de79425a4866ca7d89b72aab0cbd2cf64d5be2 100644
+index 07038e34a21a52afe785b901046af66e7b4e40ec..8eab5272882049c472c131e1e6f97c34c8cf1572 100644
 --- a/io/papermc/paper/threadedregions/RegionizedServer.java
 +++ b/io/papermc/paper/threadedregions/RegionizedServer.java
 @@ -302,6 +302,13 @@ public final class RegionizedServer {
@@ -37,10 +37,10 @@ index e1842ab8f20271a8b20ab8462b09a4745a612a9a..29de79425a4866ca7d89b72aab0cbd2c
  
      private void tickPlayerSample() {
 diff --git a/net/minecraft/server/MinecraftServer.java b/net/minecraft/server/MinecraftServer.java
-index 7759b0959c16d1e2af447fac241e5ff07e11a069..9b2d57c12b056177b271fd95c1e6526dfb9d7882 100644
+index 460d64af226beaacdc0746dd79cc9a2301bdcfeb..66d304d4a38a07d056df1d477402f5243c8a7f4e 100644
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
-@@ -1600,7 +1600,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1601,7 +1601,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
          };
          // Folia end - region threading
  
@@ -49,7 +49,7 @@ index 7759b0959c16d1e2af447fac241e5ff07e11a069..9b2d57c12b056177b271fd95c1e6526d
          new com.destroystokyo.paper.event.server.ServerTickStartEvent((int)region.getCurrentTick()).callEvent(); // Paper - Server Tick Events // Folia - region threading
          // Folia start - region threading
          if (region != null) {
-@@ -1654,7 +1654,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1655,7 +1655,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
          long remaining = scheduledEnd - endTime; // Folia - region ticking
          new com.destroystokyo.paper.event.server.ServerTickEndEvent((int)io.papermc.paper.threadedregions.RegionizedServer.getCurrentTick(), ((double)(endTime - startTime) / 1000000D), remaining).callEvent(); // Folia - region ticking
          // Paper end - Server Tick Events

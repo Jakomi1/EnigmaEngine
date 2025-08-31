@@ -129,7 +129,7 @@ index 18071dcc69cc28471dddb7de94e803ec1e5fc2e4..e30bb9c4046200c1a6e4e917d15b205f
      }
  }
 diff --git a/net/minecraft/server/MinecraftServer.java b/net/minecraft/server/MinecraftServer.java
-index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c304fb64c 100644
+index 2e36dfd02bd06d4eacc29f7318f5c7aeca96c740..460d64af226beaacdc0746dd79cc9a2301bdcfeb 100644
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
 @@ -114,19 +114,8 @@ import net.minecraft.util.TimeUtil;
@@ -176,7 +176,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
  
          LOGGER.info("Stopping server");
          Commands.COMMAND_SENDING_POOL.shutdownNow(); // Paper - Perf: Async command map building; Shutdown and don't bother finishing
-@@ -1330,18 +1309,11 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1331,18 +1310,11 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
                  // Spigot end
  
                  boolean flag = l == 0L;
@@ -195,7 +195,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
                      this.tickFrame.start();
                      if (true) throw new UnsupportedOperationException(); // Folia - region threading
                      // Paper start - rewrite chunk system
-@@ -1352,7 +1324,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1353,7 +1325,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
                      }
                      // Paper end - rewrite chunk system
                      this.tickFrame.end();
@@ -203,7 +203,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
                      this.mayHaveDelayedTasks = true;
                      this.delayedTasksMaxNextTickTimeNanos = Math.max(Util.getNanos() + l, this.nextTickTimeNanos);
                      this.startMeasuringTaskExecutionTime();
-@@ -1362,11 +1333,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1363,11 +1334,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
                          this.tickRateManager.endTickWork();
                      }
  
@@ -215,7 +215,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
  
                  this.isReady = true;
                  JvmProfiler.INSTANCE.onServerTick(this.smoothedTickTimeMillis);
-@@ -1536,7 +1503,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1537,7 +1504,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      @Override
      public void doRunTask(TickTask task) {
          if (true) throw new UnsupportedOperationException(); // Folia - region threading
@@ -223,7 +223,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
          super.doRunTask(task);
      }
  
-@@ -1661,12 +1627,10 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1662,12 +1628,10 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
  
          //this.ticksUntilAutosave--; // Folia - region threading
          // Paper start - Incremental chunk and player saving
@@ -236,7 +236,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
          final boolean fullSave = autosavePeriod > 0 && io.papermc.paper.threadedregions.RegionizedServer.getCurrentTick() % autosavePeriod == 0; // Folia - region threading
          try {
              this.isSaving = true;
-@@ -1681,10 +1645,8 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1682,10 +1646,8 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
          } finally {
              this.isSaving = false;
          }
@@ -247,7 +247,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
          //this.runAllTasks(); // Paper - move runAllTasks() into full server tick (previously for timings) // Folia - region threading
          //this.server.spark.executeMainThreadTasks(); // Paper - spark // Folia - region threading
          // Paper start - Server Tick Events
-@@ -1699,10 +1661,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1700,10 +1662,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      private void autoSave() {
          //this.ticksUntilAutosave = this.autosavePeriod; // CraftBukkit // Folia - region threading
          LOGGER.debug("Autosave started");
@@ -258,7 +258,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
          LOGGER.debug("Autosave finished");
      }
  
-@@ -1763,15 +1722,12 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1764,15 +1723,12 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
  
      protected void tickChildren(BooleanSupplier hasTimeLeft, io.papermc.paper.threadedregions.TickRegions.TickRegionData region) { // Folia - region threading
          final io.papermc.paper.threadedregions.RegionizedWorldData regionizedWorldData = io.papermc.paper.threadedregions.TickRegionScheduler.getCurrentRegionizedWorldData(); // Folia - regionised ticking
@@ -274,7 +274,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
  
          // CraftBukkit start
          // Run tasks that are waiting on processing
-@@ -1803,17 +1759,12 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1804,17 +1760,12 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
          //this.isIteratingOverLevels = true; // Paper - Throw exception on world create while being ticked // Folia - region threading
          for (ServerLevel serverLevel : Arrays.asList(region.world)) { // Folia - region threading
              // Folia - region threading
@@ -292,7 +292,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
              try {
                  serverLevel.tick(hasTimeLeft, region); // Folia - region threading
              } catch (Throwable var7) {
-@@ -1822,34 +1773,24 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1823,34 +1774,24 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
                  throw new ReportedException(crashReport);
              }
  
@@ -327,7 +327,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
      }
  
      public void tickConnection() {
-@@ -1865,14 +1806,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1866,14 +1807,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      }
  
      public void forceTimeSynchronization() {
@@ -342,7 +342,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
      }
  
      public boolean isLevelEnabled(Level level) {
-@@ -2706,55 +2642,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -2707,55 +2643,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      }
      // CraftBukkit end
  
@@ -398,7 +398,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
      public Path getWorldPath(LevelResource levelResource) {
          return this.storageSource.getLevelPath(levelResource);
      }
-@@ -2804,18 +2691,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -2805,18 +2692,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
          return this.isSaving;
      }
  
@@ -417,7 +417,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..f84a72aaf6f05b4072e47be4fbb6b08c
      public int getMaxChainedNeighborUpdates() {
          return 1000000;
      }
-@@ -2925,55 +2800,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -2926,55 +2801,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      public record ServerResourcePackInfo(UUID id, String url, String hash, boolean isRequired, @Nullable Component prompt) {
      }
  
@@ -1058,7 +1058,7 @@ index d96e9ee479b81f6d38f66fa1d087b1f5357a5f29..917069c6710ba7a9455603f821d80c81
                  this.stopUsingItem();
                  this.connection.send(new ClientboundPlayerAbilitiesPacket(this.getAbilities()));
 diff --git a/net/minecraft/server/network/ServerCommonPacketListenerImpl.java b/net/minecraft/server/network/ServerCommonPacketListenerImpl.java
-index fd4632fbc7fd17a1b46a84510a6745c848e59dac..0b0aab1d5450f9b09f79d45a5466287055b82717 100644
+index 0807a607bade05f08e822610f2b6202a04fbf3b9..c1a6fed59b9b993257f5da68b4e33d9b52634aec 100644
 --- a/net/minecraft/server/network/ServerCommonPacketListenerImpl.java
 +++ b/net/minecraft/server/network/ServerCommonPacketListenerImpl.java
 @@ -26,7 +26,6 @@ import net.minecraft.network.protocol.cookie.ServerboundCookieResponsePacket;
@@ -1177,7 +1177,7 @@ index 64b0508ef21952c65b0b967b756b2a4c64d96899..bc469a2a7452e82cc181fec654710dd1
  
      protected abstract T prepare(ResourceManager resourceManager, ProfilerFiller profiler);
 diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
-index 393cb4b9d9ba17111ec998a6227472427f98a33d..5f151f4d0354729be8b50937ab8b7853406fd27e 100644
+index a65205df66c0616956adb6564ddbcb5a5bef0249..238fed45bc1910f149a8050f71b4eba30f00075d 100644
 --- a/net/minecraft/world/entity/Entity.java
 +++ b/net/minecraft/world/entity/Entity.java
 @@ -80,8 +80,6 @@ import net.minecraft.tags.TagKey;
@@ -1301,7 +1301,7 @@ index 393cb4b9d9ba17111ec998a6227472427f98a33d..5f151f4d0354729be8b50937ab8b7853
          }
      }
 diff --git a/net/minecraft/world/entity/LivingEntity.java b/net/minecraft/world/entity/LivingEntity.java
-index b6a980d26ff3e30fd5a3795cd461d10253a880c4..01381b613069819d4e9d4aba50d1622b85aec7d6 100644
+index 3663b13c0b66509269d0c2378b53074ab61debb5..c799ab5aaad77f3735496aa014388184658e573a 100644
 --- a/net/minecraft/world/entity/LivingEntity.java
 +++ b/net/minecraft/world/entity/LivingEntity.java
 @@ -69,8 +69,6 @@ import net.minecraft.tags.FluidTags;

@@ -39,7 +39,7 @@
              }
              // Folia end - region threading
              // Spigot start
-@@ -1350,7 +_,7 @@
+@@ -1351,7 +_,7 @@
              }
  
              this.onServerCrash(crashReport);
@@ -48,7 +48,7 @@
              try {
                  this.stopped = true;
                  this.stopServer();
-@@ -1591,6 +_,7 @@
+@@ -1592,6 +_,7 @@
                      LOGGER.info("Initialising world '" + region.world.getWorld().getName() + "' before it can be ticked...");
                      this.initWorld(region.world, region.world.serverLevelData, worldData, region.world.serverLevelData.worldGenOptions()); // Folia - delayed until first tick of world
                      region.world.checkInitialised.set(ServerLevel.WORLD_INIT_CHECKED);
@@ -56,7 +56,7 @@
                      LOGGER.info("Initialised world '" + region.world.getWorld().getName() + "'");
                  } // else: must be checked
              }
-@@ -1606,6 +_,7 @@
+@@ -1607,6 +_,7 @@
          if (region != null) {
              region.getTaskQueueData().drainTasks();
              ((io.papermc.paper.threadedregions.scheduler.FoliaRegionScheduler)org.bukkit.Bukkit.getRegionScheduler()).tick();
@@ -64,7 +64,7 @@
              // now run all the entity schedulers
              for (io.papermc.paper.threadedregions.EntityScheduler scheduler : region.world.getCurrentWorldData().entitySchedulerTickList.getAllSchedulers()) {
                  net.minecraft.world.entity.Entity handle = scheduler.entity.getHandleRaw();
-@@ -1619,6 +_,7 @@
+@@ -1620,6 +_,7 @@
          // Folia end - region threading
          //this.tickCount++; // Folia - region threading
          //this.tickRateManager.tick(); // Folia - region threading
@@ -72,7 +72,7 @@
          this.tickChildren(hasTimeLeft, region); // Folia - region threading
          if (false && nanos - this.lastServerStatus >= STATUS_EXPIRE_TIME_NANOS) { // Folia - region threading
              this.lastServerStatus = nanos;
-@@ -1729,6 +_,15 @@
+@@ -1730,6 +_,15 @@
          //io.papermc.paper.adventure.providers.ClickCallbackProviderImpl.DIALOG_CLICK_MANAGER.handleQueue(this.tickCount); // Paper // Folia - region threading - moved to global tick
          //this.getFunctions().tick(); // Folia - region threading - TODO Purge functions
  
@@ -88,7 +88,7 @@
          // CraftBukkit start
          // Run tasks that are waiting on processing
          if (false) while (!this.processQueue.isEmpty()) { // Folia - region threading
-@@ -1738,6 +_,7 @@
+@@ -1739,6 +_,7 @@
          // Send time updates to everyone, it will get the right time from the world the player is in.
          // Paper start - Perf: Optimize time updates
          for (final ServerLevel level : Arrays.asList(region.world)) { // Folia - region threading
@@ -96,7 +96,7 @@
              final boolean doDaylight = level.getGameRules().getBoolean(GameRules.RULE_DAYLIGHT);
              final long dayTime = level.getDayTime();
              long worldTime = level.getGameTime();
-@@ -1765,6 +_,48 @@
+@@ -1766,6 +_,48 @@
              }
              // CraftBukkit end */
  
@@ -145,7 +145,7 @@
              try {
                  serverLevel.tick(hasTimeLeft, region); // Folia - region threading
              } catch (Throwable var7) {
-@@ -1837,22 +_,31 @@
+@@ -1838,22 +_,31 @@
  
      @Nullable
      public ServerLevel getLevel(ResourceKey<Level> dimension) {
@@ -178,7 +178,7 @@
      }
      // CraftBukkit end
  
-@@ -2201,6 +_,13 @@
+@@ -2202,6 +_,13 @@
          return 256;
      }
  
@@ -192,7 +192,7 @@
      public boolean enforceSecureProfile() {
          return false;
      }
-@@ -2707,6 +_,7 @@
+@@ -2708,6 +_,7 @@
      }
  
      public final java.util.concurrent.ExecutorService chatExecutor = java.util.concurrent.Executors.newCachedThreadPool(
