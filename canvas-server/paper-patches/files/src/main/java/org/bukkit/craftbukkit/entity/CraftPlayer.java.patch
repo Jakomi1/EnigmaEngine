@@ -13,8 +13,8 @@
          Preconditions.checkArgument(entity != null, "Entity hidden cannot be null");
          if (this.getHandle().connection == null) return;
          if (this.equals(entity)) return;
-+        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.getHandle(), "Cannot hide entity asynchronously"); // Canvas - region threading
-+        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(((CraftEntity) entity).getHandle(), "Cannot mark entity as hidden asynchronously"); // Canvas - region threading
++        if (!this.getHandle().supressTrackerForLogin && this.getHandle().valid) ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.getHandle(), "Cannot hide entity asynchronously"); // Canvas - region threading
++        if (!this.getHandle().supressTrackerForLogin && this.getHandle().valid) ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(((CraftEntity) entity).getHandle(), "Cannot mark entity as hidden asynchronously"); // Canvas - region threading
  
          boolean shouldHide;
          if (entity.isVisibleByDefault()) {
@@ -22,8 +22,8 @@
          Preconditions.checkArgument(entity != null, "Entity show cannot be null");
          if (this.getHandle().connection == null) return;
          if (this.equals(entity)) return;
-+        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.getHandle(), "Cannot show entity asynchronously"); // Canvas - region threading
-+        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(((CraftEntity) entity).getHandle(), "Cannot mark entity as shown asynchronously"); // Canvas - region threading
++        if (!this.getHandle().supressTrackerForLogin && this.getHandle().valid) ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.getHandle(), "Cannot show entity asynchronously"); // Canvas - region threading
++        if (!this.getHandle().supressTrackerForLogin && this.getHandle().valid) ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(((CraftEntity) entity).getHandle(), "Cannot mark entity as shown asynchronously"); // Canvas - region threading
  
          boolean shouldShow;
          if (entity.isVisibleByDefault()) {
