@@ -1,0 +1,139 @@
+--- a/net/minecraft/network/Connection.java
++++ b/net/minecraft/network/Connection.java
+@@ -373,6 +_,136 @@
+         }
+     }
+ 
++    // Canvas start - async connection state switch
++    public <T extends PacketListener> void setupInboundProtocolAsync(
++        ProtocolInfo<T> protocolInfo,
++        T packetInfo,
++        @Nullable Runnable callback,
++        boolean releaseAutoRead
++    ) {
++        validateListener(protocolInfo, packetInfo);
++
++        if (protocolInfo.flow() != getReceiving()) {
++            throw new IllegalStateException("Invalid inbound protocol: " + protocolInfo.id());
++        }
++
++        this.packetListener = packetInfo;
++        this.disconnectListener = null;
++
++        UnconfiguredPipelineHandler.InboundConfigurationTask inboundTask =
++            UnconfiguredPipelineHandler.setupInboundProtocol(protocolInfo);
++
++        BundlerInfo bundlerInfo = protocolInfo.bundlerInfo();
++        if (bundlerInfo != null) {
++            final PacketBundlePacker packer = new PacketBundlePacker(bundlerInfo);
++            inboundTask = inboundTask.andThen(ctx ->
++                ctx.pipeline().addAfter("decoder", "bundler", packer)
++            );
++        }
++
++        channel.config().setAutoRead(false);
++        Runnable executeTask = buildExecuteTask(callback, releaseAutoRead, inboundTask);
++
++        if (channel.eventLoop().inEventLoop()) {
++            executeTask.run();
++        } else {
++            channel.eventLoop().execute(executeTask);
++        }
++    }
++
++    private Runnable buildExecuteTask(@org.jetbrains.annotations.Nullable Runnable callback, boolean releaseAutoRead, UnconfiguredPipelineHandler.InboundConfigurationTask inboundTask) {
++        final UnconfiguredPipelineHandler.InboundConfigurationTask finalTask = inboundTask;
++
++        return () -> {
++            ChannelFuture future = channel.writeAndFlush(finalTask);
++
++            future.addListener(listener -> {
++                try {
++                    if (listener.isSuccess()) {
++                        if (callback != null) {
++                            callback.run();
++                        }
++                        return;
++                    }
++
++                    Throwable cause = listener.cause();
++                    if (cause instanceof ClosedChannelException) {
++                        LOGGER.info("Connection disconnected during connection state change");
++                    } else {
++                        channel.pipeline().fireExceptionCaught(cause);
++                    }
++                } finally {
++                    if (releaseAutoRead) {
++                        channel.config().setAutoRead(true);
++                        channel.read();
++                    }
++                }
++            });
++        };
++    }
++
++    public void setupOutboundProtocolAsync(
++        ProtocolInfo<?> protocolInfo,
++        @Nullable Runnable callback,
++        boolean releaseAutoRead
++    ) {
++        if (protocolInfo.flow() != getSending()) {
++            throw new IllegalStateException("Invalid outbound protocol: " + protocolInfo.id());
++        }
++
++        UnconfiguredPipelineHandler.OutboundConfigurationTask outboundTask =
++            UnconfiguredPipelineHandler.setupOutboundProtocol(protocolInfo);
++
++        BundlerInfo bundlerInfo = protocolInfo.bundlerInfo();
++        if (bundlerInfo != null) {
++            final PacketBundleUnpacker unpacker = new PacketBundleUnpacker(bundlerInfo);
++            outboundTask = outboundTask.andThen(ctx ->
++                ctx.pipeline().addAfter("encoder", "unbundler", unpacker)
++            );
++        }
++
++        final boolean isLogin = (protocolInfo.id() == ConnectionProtocol.LOGIN);
++
++        channel.config().setAutoRead(false);
++        final UnconfiguredPipelineHandler.OutboundConfigurationTask finalTask = outboundTask;
++
++        Runnable executeTask = () -> {
++            ChannelFuture future = channel.writeAndFlush(
++                finalTask.andThen(ctx -> this.sendLoginDisconnect = isLogin)
++            );
++
++            future.addListener(listener -> {
++                try {
++                    if (listener.isSuccess()) {
++                        if (callback != null) {
++                            callback.run();
++                        }
++                        return;
++                    }
++
++                    Throwable cause = listener.cause();
++                    if (cause instanceof ClosedChannelException) {
++                        LOGGER.info("Connection closed during protocol change");
++                    } else {
++                        channel.pipeline().fireExceptionCaught(cause);
++                    }
++                } finally {
++                    if (releaseAutoRead) {
++                        channel.config().setAutoRead(true);
++                        channel.read();
++                    }
++                }
++            });
++        };
++
++        if (channel.eventLoop().inEventLoop()) {
++            executeTask.run();
++        } else {
++            channel.eventLoop().execute(executeTask);
++        }
++    }
++
++    // Canvas end - async connection state switch
+     public <T extends PacketListener> void setupInboundProtocol(ProtocolInfo<T> protocolInfo, T packetInfo) {
+         this.validateListener(protocolInfo, packetInfo);
+         if (protocolInfo.flow() != this.getReceiving()) {

@@ -46,6 +46,23 @@ public class Config {
     public static final List<EntityNonTickableConf> NON_TICKABLES = new CopyOnWriteArrayList<>();
     public static Config INSTANCE;
 
+    public Scheduler scheduler = new Scheduler();
+    public static class Scheduler {
+        @Comment({
+            "The maximum amount of time, in milliseconds, a thread will delay the execution of a scheduled task",
+            "before allowing other threads to steal it for execution.",
+            "Note: A smaller value reduces task start delays but increases potential task stealing between threads"
+        })
+        public long stealThresholdMillis = 3L;
+
+        @Comment({
+            "The maximum amount of time, in milliseconds, a thread is allowed to process intermediate tasks before",
+            "yielding control.",
+            "Note: Ensures fairness by preventing any single task from keeping a scheduler thread for too long"
+        })
+        public long taskTimeSliceMillis = 2L;
+    }
+
     public Chunks chunks = new Chunks();
     public static class Chunks {
         @Comment("Use euclidean distance squared for chunk task ordering. Makes the world load in what appears a circle rather than a diamond")

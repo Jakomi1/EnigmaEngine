@@ -14,13 +14,16 @@
              private final AtomicInteger idGenerator = new AtomicInteger();
  
              @Override
-@@ -53,11 +_,33 @@
+@@ -53,11 +_,36 @@
                  ret.setUncaughtExceptionHandler(TickRegionScheduler.this::uncaughtException);
                  return ret;
              }
 -        });
 +    // Canvas start - rewrite scheduler
-+        }, TimeUnit.MILLISECONDS.toNanos(3L), TimeUnit.MILLISECONDS.toNanos(2L));
++        },
++            TimeUnit.MILLISECONDS.toNanos(io.canvasmc.canvas.Config.INSTANCE.scheduler.stealThresholdMillis),
++            TimeUnit.MILLISECONDS.toNanos(io.canvasmc.canvas.Config.INSTANCE.scheduler.taskTimeSliceMillis)
++        );
 +    }
 +
 +    private static float currTickRate = RegionizedServer.DEFAULT_TICK_RATE;

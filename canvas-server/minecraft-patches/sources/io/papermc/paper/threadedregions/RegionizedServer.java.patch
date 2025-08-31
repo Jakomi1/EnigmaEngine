@@ -81,10 +81,26 @@
              this.server = server;
          }
  
-@@ -177,20 +_,28 @@
+@@ -162,7 +_,7 @@
+         }
+ 
+         private void drainTasks() {
+-            while (this.runOneTask());
++            while (this.runOneTask() | this.runGlobalTask()); // Canvas - rewrite scheduler
+         }
+ 
+         private boolean runOneTask() {
+@@ -177,20 +_,23 @@
              return true;
          }
  
+-        @Override
+-        protected boolean runRegionTasks(final BooleanSupplier canContinue) {
+-            do {
+-                if (!this.runOneTask()) {
+-                    return false;
+-                }
+-            } while (canContinue.getAsBoolean());
 +        // Canvas start - rewrite scheduler
 +        private boolean runGlobalTask() {
 +            boolean ret = false;
@@ -93,19 +109,10 @@
 +            }
 +            return ret;
 +        }
-+
-         @Override
--        protected boolean runRegionTasks(final BooleanSupplier canContinue) {
-+        protected void runRegionTasks(final BooleanSupplier canContinue) {
-             do {
--                if (!this.runOneTask()) {
--                    return false;
-+                if (!this.runOneTask() || !this.runGlobalTask()) {
-+                    return;
-                 }
-             } while (canContinue.getAsBoolean());
--
+ 
 -            return true;
++        @Override
++        protected void runRegionTasks(final BooleanSupplier canContinue) {
 +        // Canvas end - rewrite scheduler
          }
  

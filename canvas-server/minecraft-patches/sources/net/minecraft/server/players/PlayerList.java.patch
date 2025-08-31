@@ -14,6 +14,37 @@
      private final Map<UUID, ServerPlayer> playersByUUID = new java.util.concurrent.ConcurrentHashMap<>(); // Folia - region threading - change to CHM - Note: we do NOT expect concurrency PER KEY!
      private final UserBanList bans = new UserBanList(USERBANLIST_FILE);
      private final IpBanList ipBans = new IpBanList(IPBANLIST_FILE);
+@@ -150,17 +_,7 @@
+             conflictingId = this.connectionById.get(byId);
+ 
+             if (conflictingName == null && conflictingId == null) {
+-                // Folia start - max concurrent login
+-                int loggedInCount = 0;
+-                for (Connection value : this.connectionById.values()) {
+-                    if (value.getPacketListener() instanceof ServerGamePacketListenerImpl) {
+-                        ++loggedInCount;
+-                    }
+-                }
+-                if ((this.connectionById.size() - loggedInCount) >= io.papermc.paper.configuration.GlobalConfiguration.get().misc.maxJoinsPerTick) {
+-                    return false;
+-                }
+-                // Folia end - max concurrent login
++                // Canvas - broken implementation, remove - TODO - reimplement?
+                 this.connectionByName.put(userName, conn);
+                 this.connectionById.put(byId, conn);
+             }
+@@ -342,10 +_,7 @@
+             // only after setting the connection listener to game type, add the connection to this regions list
+             serverLevel.getCurrentWorldData().connections.add(connection);
+             // Folia end - rewrite login process
+-            connection.setupInboundProtocol(
+-                GameProtocols.SERVERBOUND_TEMPLATE.bind(RegistryFriendlyByteBuf.decorator(this.server.registryAccess()), serverGamePacketListenerImpl),
+-                serverGamePacketListenerImpl
+-            );
++            // Canvas - async connection state switch
+             GameRules gameRules = serverLevel.getGameRules();
+             boolean _boolean = gameRules.getBoolean(GameRules.RULE_DO_IMMEDIATE_RESPAWN);
+             boolean _boolean1 = gameRules.getBoolean(GameRules.RULE_REDUCEDDEBUGINFO);
 @@ -396,6 +_,7 @@
  
              // player.connection.send(ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(this.players)); // CraftBukkit - replaced with loop below
@@ -22,7 +53,7 @@
              this.playersByName.put(player.getScoreboardName().toLowerCase(java.util.Locale.ROOT), player); // Spigot
              this.playersByUUID.put(player.getUUID(), player);
              // this.broadcastAll(ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(List.of(player))); // CraftBukkit - replaced with loop below
-@@ -496,6 +_,11 @@
+@@ -496,6 +_,21 @@
                      serverLevel.getLightEngine(), (java.util.BitSet)null, (java.util.BitSet) null, true) // Paper - Anti-Xray
                  );
              }
@@ -31,6 +62,16 @@
 +                player.tpsBar.addViewer(player.getBukkitEntity());
 +            }
 +            // Canvas end - tpsbar
++            // Canvas start - async connection state switch
++            connection.setupInboundProtocolAsync(
++                GameProtocols.SERVERBOUND_TEMPLATE.bind(
++                    RegistryFriendlyByteBuf.decorator(this.server.registryAccess()), serverGamePacketListenerImpl
++                ),
++                serverGamePacketListenerImpl,
++                null,
++                true
++            );
++            // Canvas end - async connection state switch
              // Paper end - Send empty chunk
          }
      }

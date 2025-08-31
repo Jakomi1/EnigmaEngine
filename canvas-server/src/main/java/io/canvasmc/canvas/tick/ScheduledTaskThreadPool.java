@@ -12,13 +12,32 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 
-// TODO - SAPPHIRE
+// TODO - SAPPHIRE - discuss implementation with Root when available
 public final class ScheduledTaskThreadPool {
 
     public static final long DEADLINE_NOT_SET = Long.MIN_VALUE;
 
+    /**
+     * The {@link ThreadFactory} used to create new scheduling threads
+     * for the thread pool.
+     */
     private final ThreadFactory threadFactory;
+    /**
+     * The maximum amount of time, in nanoseconds, a thread will delay
+     * the execution of a scheduled task before allowing other threads
+     * to steal it for execution.
+     * <p>
+     * <b>Note: A smaller value reduces task start delays but increases potential
+     * task stealing between threads.</b>
+     */
     private final long stealThresholdNS;
+    /**
+     * The maximum amount of time, in nanoseconds, a thread is allowed
+     * to process intermediate tasks before yielding control.
+     * <p>
+     * <b>Note: Ensures fairness by preventing any single task from keeping
+     * a scheduler thread for too long.</b>
+     */
     private final long taskTimeSliceNS;
 
     private final COWArrayList<TickThreadRunner> coreThreads = new COWArrayList<>(TickThreadRunner.class);
@@ -403,7 +422,7 @@ public final class ScheduledTaskThreadPool {
 
         private volatile ScheduledTickTask task;
 
-        public int getStateVolatile() { // Canvas - private -> public
+        private int getStateVolatile() {
             return (int)STATE_HANDLE.getVolatile(this);
         }
 
@@ -431,7 +450,7 @@ public final class ScheduledTaskThreadPool {
             return STATE_UNSCHEDULED == this.compareAndExchangeStateVolatile(STATE_UNSCHEDULED, STATE_SCHEDULED_TASKS);
         }
 
-        public boolean cancel() { // Canvas - private -> public
+        private boolean cancel() {
             for (int currState = this.getStateVolatile();;) {
                 switch (currState) {
                     case STATE_UNSCHEDULED: {
@@ -1230,7 +1249,7 @@ public final class ScheduledTaskThreadPool {
         }
 
         public boolean isWatched() {
-            return (boolean)TAKEN_HANDLE.getVolatile(this);
+            return (boolean)WATCHED_HANDLE.getVolatile(this);
         }
 
         public long getLastTaskNotify() {

@@ -9,26 +9,6 @@
      private final Set<UUID> unlistedEntities = new HashSet<>(); // Paper - Add Listing API for Player
      private static final WeakHashMap<Plugin, WeakReference<Plugin>> pluginWeakReferences = new WeakHashMap<>();
      private int hash = 0;
-@@ -230,6 +_,19 @@
-     private CraftWorldBorder clientWorldBorder = null;
-     private BorderChangeListener clientWorldBorderListener = this.createWorldBorderListener();
-     private long lastSaveTime; // Paper - getLastPlayed replacement API
-+    // Canvas start - rewrite scheduler
-+    private io.papermc.paper.threadedregions.RegionizedWorldData worldDataRef = null;
-+
-+    /**
-+     * Realistically, this isn't crucial. This *can* be null safely, as worst case senario
-+     * this is forever as null, which shouldn't happen at all ever, but it doesn't entirely
-+     * make that much of a difference
-+     * @param worldDataRef the current regionized world data for this player
-+     */
-+    public void setRegionData(final io.papermc.paper.threadedregions.RegionizedWorldData worldDataRef) {
-+        this.worldDataRef = worldDataRef;
-+    }
-+    // Canvas end
- 
-     public CraftPlayer(CraftServer server, ServerPlayer entity) {
-         super(server, entity);
 @@ -2219,8 +_,14 @@
  
      @Override

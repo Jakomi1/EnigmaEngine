@@ -59,6 +59,64 @@
      }
  
      // Folia start - region threading
+@@ -611,11 +_,52 @@
+ 
+     }
+ 
+-    public void queuePacketTask(Runnable run) {
+-        this.getBukkitEntity().taskScheduler.schedule((ServerPlayer player) -> {
+-            run.run();
+-        }, null, 1L);
+-    }
++    // Canvas start - rewrite scheduler
++    private io.papermc.paper.threadedregions.RegionizedWorldData worldDataRef = null;
++    private final ca.spottedleaf.concurrentutil.collection.MultiThreadedQueue<Runnable> packetTaskQueue = new ca.spottedleaf.concurrentutil.collection.MultiThreadedQueue<>();
++
++    /**
++     * Realistically, this isn't crucial. This *can* be null safely, as worst case senario
++     * this is forever as null, which shouldn't happen at all ever, but it doesn't entirely
++     * make that much of a difference
++     * @param worldDataRef the current regionized world data for this player
++     */
++    public void setRegionData(final io.papermc.paper.threadedregions.RegionizedWorldData worldDataRef) {
++        this.worldDataRef = worldDataRef;
++    }
++
++    /**
++     * Executes a task from the packet processing queue
++     * @return true if the queue has more tasks, false otherwise
++     */
++    public boolean executeOnePacketTask() {
++        Runnable task = packetTaskQueue.poll();
++        if (task == null) {
++            return false;
++        }
++        task.run();
++        return true;
++    }
++
++    /**
++     * Returns if the player has tasks or not
++     * @return if the task queue has packets
++     */
++    public boolean hasPackets() {
++        return !this.packetTaskQueue.isEmpty();
++    }
++
++    public void queuePacketTask(Runnable task) {
++        if (!this.packetTaskQueue.add(task)) return;
++        if (worldDataRef != null) {
++            // really shouldn't be null, but we check anyway just in the case it is
++            // we also drain packets right before entity scheduler tick, so no
++            // point in trying to send to the entity scheduler if the region is null,
++            // since it makes no fucking sense since it will do literally the same thing
++            worldDataRef.regionData.setHasPackets();
++        }
++    }
++    // Canvas end - rewrite scheduler
+     // Folia end - region threading
+ 
+     @Override
 @@ -707,6 +_,7 @@
          this.respawnConfig = input.read("respawn", ServerPlayer.RespawnConfig.CODEC).orElse(null);
          this.spawnExtraParticlesOnFall = input.getBooleanOr("spawn_extra_particles_on_fall", false);

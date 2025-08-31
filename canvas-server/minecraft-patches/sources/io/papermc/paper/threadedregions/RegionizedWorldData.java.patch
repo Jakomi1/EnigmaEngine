@@ -13,7 +13,7 @@
              // entities
              for (final ServerPlayer player : from.localPlayers) {
                  into.localPlayers.add(player);
-+                player.getBukkitEntity().setRegionData(into); // Canvas - rewrite scheduler
++                player.setRegionData(into); // Canvas - rewrite scheduler
                  into.nearbyPlayers.addPlayer(player);
 +                into.waypointManager.addPlayer(player); // Canvas - region threading - restore waypoints
              }
@@ -38,7 +38,7 @@
                  // the chunk holder must _exist_, and so the region section exists.
                  final RegionizedWorldData into = regionToData.get(CoordinateUtils.getChunkKey(pos.x >> chunkToRegionShift, pos.z >> chunkToRegionShift));
                  into.localPlayers.add(player);
-+                player.getBukkitEntity().setRegionData(into); // Canvas - rewrite scheduler
++                player.setRegionData(into); // Canvas - rewrite scheduler
 +                // Canvas start - region threading - restore waypoints
 +                from.waypointManager.removePlayer(player);
 +                into.waypointManager.addPlayer(player);
@@ -75,6 +75,15 @@
  
      // misc. fields
      private boolean isHandlingTick;
+@@ -348,7 +_,7 @@
+     }
+ 
+     // entities
+-    private final List<ServerPlayer> localPlayers = new ArrayList<>();
++    private final List<ServerPlayer> localPlayers = new java.util.concurrent.CopyOnWriteArrayList<>(); // Canvas - rewrite scheduler
+     private final NearbyPlayers nearbyPlayers;
+     public final io.papermc.paper.threadedregions.EntityScheduler.EntitySchedulerTickList entitySchedulerTickList = new io.papermc.paper.threadedregions.EntityScheduler.EntitySchedulerTickList();
+     private final ReferenceList<Entity> allEntities = new ReferenceList<>(EMPTY_ENTITY_ARRAY);
 @@ -364,8 +_,8 @@
      private final LevelTicks<Fluid> fluidLevelTicks;
  
@@ -221,7 +230,7 @@
          if (this.allEntities.add(entity)) {
              if (entity instanceof ServerPlayer player) {
                  this.localPlayers.add(player);
-+                player.getBukkitEntity().setRegionData(this); // Canvas - rewrite scheduler
++                player.setRegionData(this); // Canvas - rewrite scheduler
 +                this.waypointManager.addPlayer(player); // Canvas - region threading - restore waypoints
              }
              TickRegions.RegionStats.updateCurrentRegion();
@@ -230,7 +239,7 @@
          if (this.allEntities.remove(entity)) {
              if (entity instanceof ServerPlayer player) {
                  this.localPlayers.remove(player);
-+                player.getBukkitEntity().setRegionData(null); // Canvas - rewrite scheduler
++                player.setRegionData(null); // Canvas - rewrite scheduler
 +                this.waypointManager.removePlayer(player); // Canvas - region threading - restore waypoints
              }
              TickRegions.RegionStats.updateCurrentRegion();
