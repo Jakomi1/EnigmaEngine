@@ -34,14 +34,14 @@ public class VirtualThreadUtils {
 
     public static @NotNull ExecutorService createFixedExecutor(int threads, boolean useVirtual, ThreadFactory fallbackFactory) {
         if (useVirtual) {
-            return Executors.newFixedThreadPool(threads, SERVICE.createFactory());
+            return Executors.newThreadPerTaskExecutor(SERVICE.createFactory());
         }
         return Executors.newFixedThreadPool(threads, fallbackFactory);
     }
 
     public static @NotNull ExecutorService createFixedExecutor(int threads, boolean useVirtual, ThreadFactory fallbackFactory, ThreadFactory virtualFactory) {
         if (useVirtual) {
-            return Executors.newFixedThreadPool(threads, virtualFactory);
+            return Executors.newThreadPerTaskExecutor(virtualFactory);
         }
         return Executors.newFixedThreadPool(threads, fallbackFactory);
     }
