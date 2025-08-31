@@ -590,6 +590,12 @@ public class Config {
     @Comment("Makes crops ignore sunlight requirements when planting")
     public boolean cropsIgnoreLightCheck = false;
 
+    @Comment("Disables snow light checks, so snow layers never melt")
+    public boolean disableSnowLightChecks = false;
+
+    @Comment("Disables grass light checks, so grass always spreads despite being in darkness")
+    public boolean disableGrassLightChecks = false;
+
     @Comment("It is recommended to enable these options, as the client displays most of these particles already, so the server-side particle logic is not needed")
     public Particles particles = new Particles();
     public static class Particles {
@@ -620,6 +626,15 @@ public class Config {
         })
         public boolean disableNewCombatParticles = false;
     }
+
+    @Comment("Disables non-player-entities from entering nether portals")
+    public boolean blacklistNonPlayerEntitiesFromEnteringNetherPortals = false;
+
+    @Comment("Disables non-player-entities from entering end portals")
+    public boolean blacklistNonPlayerEntitiesFromEnteringEndPortals = false;
+
+    @Comment("Disables non-player-entities from entering gateway portals")
+    public boolean blacklistNonPlayerEntitiesFromEnteringGatewayPortals = false;
 
     private static <T extends Config> @NotNull ConfigSerializer<T> buildSerializer(Configuration config, Class<T> configClass) {
         return new Json5Builder<T>()
@@ -704,7 +719,7 @@ public class Config {
     }
 
     public static @NotNull Config getDefault() {
-        // TODO - remove this on next Minecraft update.
+        // TODO - remove this on next Minecraft update. -- we are doing this for 1.22
         final Path path = Paths.get("./canvas-server.yml");
         if (Files.exists(path)) {
             LOGGER.info("Old configuration detected, migrating.");
