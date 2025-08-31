@@ -8,3 +8,12 @@
          java.util.function.Consumer<Entity> run = (Entity nmsEntity) -> {
              boolean success = nmsEntity.teleportAsync(
                  ((CraftWorld)locationClone.getWorld()).getHandle(),
+@@ -1238,7 +_,7 @@
+ 
+     @Override
+     public Set<org.bukkit.entity.Player> getTrackedPlayers() {
+-        ChunkMap.TrackedEntity tracker = this.entity.moonrise$getTrackedEntity(); // Folia - region threading
++        ChunkMap.TrackedEntity tracker = this.getHandle().moonrise$getTrackedEntity(); // Folia - region threading // Canvas - region threading
+         if (tracker == null) {
+             return java.util.Collections.emptySet();
+         }

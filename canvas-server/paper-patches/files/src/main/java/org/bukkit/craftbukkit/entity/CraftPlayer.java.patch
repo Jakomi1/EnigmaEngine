@@ -9,6 +9,24 @@
      private final Set<UUID> unlistedEntities = new HashSet<>(); // Paper - Add Listing API for Player
      private static final WeakHashMap<Plugin, WeakReference<Plugin>> pluginWeakReferences = new WeakHashMap<>();
      private int hash = 0;
+@@ -1993,6 +_,8 @@
+         Preconditions.checkArgument(entity != null, "Entity hidden cannot be null");
+         if (this.getHandle().connection == null) return;
+         if (this.equals(entity)) return;
++        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.getHandle(), "Cannot hide entity asynchronously"); // Canvas - region threading
++        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(((CraftEntity) entity).getHandle(), "Cannot mark entity as hidden asynchronously"); // Canvas - region threading
+ 
+         boolean shouldHide;
+         if (entity.isVisibleByDefault()) {
+@@ -2080,6 +_,8 @@
+         Preconditions.checkArgument(entity != null, "Entity show cannot be null");
+         if (this.getHandle().connection == null) return;
+         if (this.equals(entity)) return;
++        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.getHandle(), "Cannot show entity asynchronously"); // Canvas - region threading
++        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(((CraftEntity) entity).getHandle(), "Cannot mark entity as shown asynchronously"); // Canvas - region threading
+ 
+         boolean shouldShow;
+         if (entity.isVisibleByDefault()) {
 @@ -2219,8 +_,14 @@
  
      @Override
