@@ -364,7 +364,7 @@
                      }
                      final net.minecraft.world.level.chunk.LevelChunkSection section = sections[sectionIdx];
 -                    if (section.hasOnlyAir()) {
-+                    if (section.hasOnlyAir() || (fluid == FluidTags.WATER && section.waterCount == 0) || (fluid == FluidTags.LAVA && section.lavaCount == 0)) { // Canvas - optimize fluid pushing
++                    if (section.hasOnlyAir() || (fluid == FluidTags.WATER && section.waterCount == 0 && section.bubbleCount <= 0) || (fluid == FluidTags.LAVA && section.lavaCount == 0)) { // Canvas - optimize fluid pushing
                          // empty
                          continue;
                      }
