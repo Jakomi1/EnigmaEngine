@@ -79,11 +79,3 @@
              SaveOffCommand.register(this.dispatcher);
              SaveOnCommand.register(this.dispatcher);
              SetPlayerIdleTimeoutCommand.register(this.dispatcher);
-@@ -471,6 +_,7 @@
-     public static final java.util.concurrent.ExecutorService COMMAND_SENDING_POOL = new java.util.concurrent.ThreadPoolExecutor(
-         2, 2, 0, java.util.concurrent.TimeUnit.MILLISECONDS,
-         new java.util.concurrent.LinkedBlockingQueue<>(),
-+        io.canvasmc.canvas.Config.INSTANCE.virtualThreads.commandSendingPool ? io.canvasmc.canvas.util.virtual.VirtualThreadUtils.buildFactory((virtual) -> virtual.uncaughtExceptionHandler(new net.minecraft.DefaultUncaughtExceptionHandlerWithName(net.minecraft.server.MinecraftServer.LOGGER))) : // Canvas - virtual threads
-         new com.google.common.util.concurrent.ThreadFactoryBuilder()
-             .setNameFormat("Paper Async Command Builder Thread Pool - %1$d")
-             .setUncaughtExceptionHandler(new net.minecraft.DefaultUncaughtExceptionHandlerWithName(net.minecraft.server.MinecraftServer.LOGGER))

@@ -190,9 +190,6 @@ public class Config {
 
         @Comment("Enables virtual thread usage for the profile lookup executor")
         public boolean profileLookupExecutor = false;
-
-        @Comment("Enables virtual thread usage for the command sending pool")
-        public boolean commandSendingPool = false;
     }
 
     @Comment("Check if a cactus can survive before growing. Heavily optimizes cacti farms")
