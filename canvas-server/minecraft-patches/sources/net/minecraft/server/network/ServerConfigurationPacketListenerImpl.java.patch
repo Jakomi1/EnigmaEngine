@@ -25,7 +25,14 @@
      }
  
      @Override
-@@ -285,7 +_,7 @@
+@@ -279,13 +_,13 @@
+     // Paper start
+     @Override
+     public void disconnectAsync(final net.minecraft.network.DisconnectionDetails disconnectionInfo) {
+-        if (this.cserver.isPrimaryThread()) {
++        if (io.papermc.paper.threadedregions.RegionizedServer.isGlobalTickThread()) { // Canvas - region threading
+             this.disconnect(disconnectionInfo);
+             return;
          }
  
          this.connection.setReadOnly();
