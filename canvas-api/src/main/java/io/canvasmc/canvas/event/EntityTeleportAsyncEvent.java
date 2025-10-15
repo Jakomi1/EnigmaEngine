@@ -23,10 +23,9 @@ public class EntityTeleportAsyncEvent extends EntityEvent implements Cancellable
     private static final HandlerList HANDLER_LIST = new HandlerList();
 
     private final Location from;
-    private Location to;
     @NotNull
     private final PlayerTeleportEvent.TeleportCause cause;
-
+    private Location to;
     private boolean cancelled;
 
     @ApiStatus.Internal
@@ -35,6 +34,11 @@ public class EntityTeleportAsyncEvent extends EntityEvent implements Cancellable
         this.from = from;
         this.to = to;
         this.cause = cause;
+    }
+
+    @NotNull
+    public static HandlerList getHandlerList() {
+        return HANDLER_LIST;
     }
 
     /**
@@ -88,11 +92,6 @@ public class EntityTeleportAsyncEvent extends EntityEvent implements Cancellable
     @NotNull
     @Override
     public HandlerList getHandlers() {
-        return HANDLER_LIST;
-    }
-
-    @NotNull
-    public static HandlerList getHandlerList() {
         return HANDLER_LIST;
     }
 }
