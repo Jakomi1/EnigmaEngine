@@ -48,7 +48,9 @@ public class MobCapsSubCommand implements SubCommand {
         final ImmutableMap.Builder<String, SpawnCategory> builder = new ImmutableMap.Builder<>();
 
         for (final String arg : ARGS) {
-            builder.put(arg.toUpperCase(), SpawnCategory.valueOf(arg));
+            final String upper = arg.toUpperCase();
+
+            builder.put(upper, SpawnCategory.valueOf(upper));
         }
 
         NAME2CATEGORY = builder.build();
