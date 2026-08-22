@@ -1128,7 +1128,7 @@ index f659aba1587d70b8d4011e66f40f480ff4deeeb4..d8f9970242d4935c780ba4982ab01855
                  MinecraftServer.LOGGER.warn("Asynchronous " + reason + "! Blocking thread until it returns ", new IllegalStateException());
              }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 319bad2cbad73e76973cfa7ed3c4879ec2d31277..a12174bbb3717418c405e6653bd98b9fefb37bc5 100644
+index 58e8e672395e3699afcffcb08378ac1693c23302..4495f6101f47ec9acf8159259cbb5b5454af8c73 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -306,7 +306,7 @@ public final class CraftServer implements Server {
