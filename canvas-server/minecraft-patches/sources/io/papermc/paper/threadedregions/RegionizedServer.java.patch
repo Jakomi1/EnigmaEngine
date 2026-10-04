@@ -1,0 +1,12 @@
+--- a/io/papermc/paper/threadedregions/RegionizedServer.java
++++ b/io/papermc/paper/threadedregions/RegionizedServer.java
+@@ -299,6 +_,9 @@
+ 
+         // player list
+         minecraftServer.getPlayerList().tick();
++        // Enigma start - adaptive regionizer maintenance pass
++        io.canvasmc.canvas.regionizer.loadscaling.RegionMaintenance.tick();
++        // Enigma end - adaptive regionizer maintenance pass
+         // Canvas start - region threading
+ 
+         // gui tick

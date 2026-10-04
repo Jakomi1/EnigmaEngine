@@ -14,7 +14,7 @@ import java.lang.annotation.Target;
  * <b>Do not use anything annotated with this.</b>
  *
  * @author dueris
- * @implNote If a class is annotated with this, it is to be assumed the <b>full</b> class is unsupported including
+ * <p>If a class is annotated with this, it is to be assumed the <b>full</b> class is unsupported including
  *     the methods and functions provided or declared by the class
  */
 @Documented

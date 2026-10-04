@@ -19,22 +19,24 @@ import org.jspecify.annotations.Nullable;
  *
  * @author ishland
  */
-// TODO - cleanup
-public class FlowableFluidUtils {
+public final class FlowableFluidUtils {
 
-    private static boolean canFlowNormally(LevelReader level, BlockPos pos, BlockState state, FluidState fluidState) {
+    private FlowableFluidUtils() {
+    }
+
+    private static boolean canFlowNormally(final LevelReader level, final BlockPos pos, final BlockState state, final FluidState fluidState) {
         if (fluidState.isEmpty()) return false;
 
-        BlockPos belowPos = pos.below();
-        BlockState belowBlockState = level.getBlockState(belowPos);
-        FluidState belowFluidState = belowBlockState.getFluidState();
+        final BlockPos belowPos = pos.below();
+        final BlockState belowBlockState = level.getBlockState(belowPos);
+        final FluidState belowFluidState = belowBlockState.getFluidState();
         // very rough filtering
         if (((FlowingFluid) fluidState.getType()).canMaybePassThrough(level, pos, state, Direction.DOWN, belowPos, belowBlockState, belowFluidState)) {
-            FluidState fluidState3 = getUpdatedState(((FlowingFluid) fluidState.getType()), level, belowPos, belowBlockState);
-            if (fluidState3 == null) {
+            final FluidState updatedState = getUpdatedState((FlowingFluid) fluidState.getType(), level, belowPos, belowBlockState);
+            if (updatedState == null) {
                 return true; // shortcut
             }
-            Fluid fluid = fluidState3.getType();
+            final Fluid fluid = updatedState.getType();
             if (belowFluidState.canBeReplacedWith(level, belowPos, fluid, Direction.DOWN) && FlowingFluid.canHoldSpecificFluid(level, belowPos, belowBlockState, fluid)) {
                 return true;
             }
@@ -43,27 +45,22 @@ public class FlowableFluidUtils {
             canSpreadToSidesNormally(level, pos, state, fluidState);
     }
 
-    private static boolean canSpreadToSidesNormally(LevelReader level, BlockPos pos, BlockState state, FluidState fluidState) {
+    private static boolean canSpreadToSidesNormally(final LevelReader level, final BlockPos pos, final BlockState state, final FluidState fluidState) {
         int nextFluidLevel = fluidState.getAmount() - ((FlowingFluid) fluidState.getType()).getDropOff(level);
         if (fluidState.getValue(FlowingFluid.FALLING)) {
             nextFluidLevel = 7;
         }
         if (nextFluidLevel > 0) {
-            // getSpread
-            // int i = 1000;
-            // Map<Direction, FluidState> map = Maps.newEnumMap(Direction.class);
-            // SpreadCache spreadCache = null;
-
-            for (Direction direction : Direction.Plane.HORIZONTAL) {
-                BlockPos offsetPos = pos.relative(direction);
-                BlockState offsetBlockState = level.getBlockState(offsetPos);
-                FluidState offsetFluidState = offsetBlockState.getFluidState();
+            for (final Direction direction : Direction.Plane.HORIZONTAL) {
+                final BlockPos offsetPos = pos.relative(direction);
+                final BlockState offsetBlockState = level.getBlockState(offsetPos);
+                final FluidState offsetFluidState = offsetBlockState.getFluidState();
                 if (((FlowingFluid) fluidState.getType()).canMaybePassThrough(level, pos, state, direction, offsetPos, offsetBlockState, offsetFluidState)) {
-                    FluidState fluidState2 = getUpdatedState((FlowingFluid) fluidState.getType(), level, offsetPos, offsetBlockState);
-                    if (fluidState2 == null) {
+                    final FluidState updatedState = getUpdatedState((FlowingFluid) fluidState.getType(), level, offsetPos, offsetBlockState);
+                    if (updatedState == null) {
                         return true; // shortcut
                     }
-                    if (FlowingFluid.canHoldSpecificFluid(level, offsetPos, offsetBlockState, fluidState2.getType())) {
+                    if (FlowingFluid.canHoldSpecificFluid(level, offsetPos, offsetBlockState, updatedState.getType())) {
                         return true; // shortcut
                     }
                 }
@@ -74,48 +71,42 @@ public class FlowableFluidUtils {
     }
 
     @Nullable
-    private static FluidState getUpdatedState(FlowingFluid receiver, LevelReader level, BlockPos pos, BlockState state) {
-        int i = 0;
-        int j = 0;
-        BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos();
+    private static FluidState getUpdatedState(final FlowingFluid receiver, final LevelReader level, final BlockPos pos, final BlockState state) {
+        int maxAmount = 0;
+        int sourceCount = 0;
+        final BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos();
 
-        for (Direction direction : Direction.Plane.HORIZONTAL) {
-            BlockPos blockPos = mutable.setWithOffset(pos, direction);
-            BlockState blockState = level.getBlockState(blockPos);
-            FluidState fluidState = blockState.getFluidState();
+        for (final Direction direction : Direction.Plane.HORIZONTAL) {
+            final BlockPos blockPos = mutable.setWithOffset(pos, direction);
+            final BlockState blockState = level.getBlockState(blockPos);
+            final FluidState fluidState = blockState.getFluidState();
             if (fluidState.getType().isSame(receiver) && FlowingFluid.canPassThroughWall(direction, level, pos, state, blockPos, blockState)) {
                 if (fluidState.isSource()) {
-                    j++;
+                    sourceCount++;
                 }
 
-                i = Math.max(i, fluidState.getAmount());
+                maxAmount = Math.max(maxAmount, fluidState.getAmount());
             }
         }
 
-//        if (j >= 2 && this.isInfinite(level)) {
-//            BlockState blockState2 = level.getBlockState(mutable.set(pos, Direction.DOWN));
-//            FluidState fluidState2 = blockState2.getFluidState();
-//            if (blockState2.isSolid() || receiver.isMatchingAndStill(fluidState2)) {
-//                return receiver.getStill(false);
-//            }
-//        }
-        if (j >= 2) {
+        // two or more adjacent sources mean the position is already saturated, so the caller
+        // must not filter this block away
+        if (sourceCount >= 2) {
             return null; // to not filter this
         }
 
-        BlockPos blockPos2 = mutable.setWithOffset(pos, Direction.UP);
-        BlockState blockState3 = level.getBlockState(blockPos2);
-        FluidState fluidState3 = blockState3.getFluidState();
-        if (!fluidState3.isEmpty() && fluidState3.getType().isSame(receiver) && FlowingFluid.canPassThroughWall(Direction.UP, level, pos, state, blockPos2, blockState3)) {
+        final BlockPos upPos = mutable.setWithOffset(pos, Direction.UP);
+        final BlockState upState = level.getBlockState(upPos);
+        final FluidState upFluidState = upState.getFluidState();
+        if (!upFluidState.isEmpty() && upFluidState.getType().isSame(receiver) && FlowingFluid.canPassThroughWall(Direction.UP, level, pos, state, upPos, upState)) {
             return receiver.getFlowing(8, true);
-        }
-        else {
-            int k = i - receiver.getDropOff(level);
-            return k <= 0 ? Fluids.EMPTY.defaultFluidState() : receiver.getFlowing(k, false);
+        } else {
+            final int amount = maxAmount - receiver.getDropOff(level);
+            return amount <= 0 ? Fluids.EMPTY.defaultFluidState() : receiver.getFlowing(amount, false);
         }
     }
 
-    public static boolean needsPostProcessing(LevelReader level, BlockPos pos, BlockState state, FluidState fluidState) {
+    public static boolean needsPostProcessing(final LevelReader level, final BlockPos pos, final BlockState state, final FluidState fluidState) {
         if (!fluidState.isSource()) {
             return true;
         }

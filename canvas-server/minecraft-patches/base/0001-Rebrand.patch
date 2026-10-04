@@ -9,7 +9,7 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..c777f4416680da6ec868a5bb40805e5075406f1f
 --- /dev/null
 +++ b/io/canvasmc/canvas/commands/CanvasCommands.java
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,113 @@
 +package io.canvasmc.canvas.commands;
 +
 +import com.mojang.brigadier.CommandDispatcher;
@@ -28,6 +28,11 @@ index 0000000000000000000000000000000000000000..c777f4416680da6ec868a5bb40805e50
 +@NullMarked
 +public class CanvasCommands {
 +    public static final CanvasCommands INSTANCE;
++
++    /**
++     * The only command root EnigmaEngine exposes.
++     */
++    public static final String ROOT = "enigma";
 +
 +    static final TextColor HEADER = TextColor.color(160, 90, 245);
 +    static final TextColor PRIMARY = TextColor.color(118, 52, 212);
@@ -65,7 +70,7 @@ index 0000000000000000000000000000000000000000..c777f4416680da6ec868a5bb40805e50
 +    }
 +
 +    public static Predicate<CommandSourceStack> permission(final String node) {
-+        return source -> source.hasPermission(Permissions.COMMANDS_ADMIN, "canvas.command." + node);
++        return source -> source.hasPermission(Permissions.COMMANDS_ADMIN, ROOT + ".command." + node);
 +    }
 +
 +    private void internalRegister(final Class<? extends SubCommand> command) {
@@ -84,38 +89,34 @@ index 0000000000000000000000000000000000000000..c777f4416680da6ec868a5bb40805e50
 +    }
 +
 +    public void build(final CommandDispatcher<CommandSourceStack> dispatcher, final CommandBuildContext context) {
-+        final LiteralArgumentBuilder<CommandSourceStack> base = literal("canvas")
-+            .requires(source -> {
-+                // the "base" is just the root command, "help" is builtin, so we need these hard coded
-+                boolean canUse = permission("help").test(source);
++        // the "base" is just the root command, "help" is builtin, so we need these hard coded
++        final Predicate<CommandSourceStack> rootPermission = source -> {
++            boolean canUse = permission("help").test(source);
 +
-+                // if we have sub commands, they should also allow usage of the base canvas command
-+                // since it's a way to access said sub command
++            // if we have sub commands, they should also allow usage of the base command
++            // since it's a way to access said sub command
 +
-+                for (final SubCommand subCommand : this.subCommands) {
-+                    if (canUse) break;
++            for (final SubCommand subCommand : this.subCommands) {
++                if (canUse) break;
 +
-+                    if (permission(subCommand.getName()).test(source)) {
-+                        canUse = true;
-+                    }
++                if (permission(subCommand.getName()).test(source)) {
++                    canUse = true;
 +                }
++            }
 +
-+                return canUse;
-+            });
++            return canUse;
++        };
++
++        // Enigma is the only exposed brand: everything lives under /enigma.
++        // No standalone ("/regionbar") and no namespaced ("/enigma:regionbar") variants,
++        // and the legacy "/canvas" root is intentionally not registered.
++        final LiteralArgumentBuilder<CommandSourceStack> base = literal(ROOT)
++            .requires(rootPermission);
 +
 +        for (final SubCommand sub : subCommands) {
 +            final String name = sub.getName();
-+
 +            base.then(sub.construct(literal(name)
 +                .requires(permission(name)), context));
-+
-+            if (sub.isAllowedSelfCommand()) {
-+                dispatcher.register(sub.construct(literal(name)
-+                    .requires(permission(name)), context));
-+
-+                dispatcher.register(sub.construct(literal("canvas:" + name)
-+                    .requires(permission(name)), context));
-+            }
 +        }
 +
 +        HelpCommand.constructHelpSystem(base, () -> this.subCommands);
@@ -127,7 +128,7 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a44e14a3ac
 --- /dev/null
 +++ b/io/canvasmc/canvas/commands/HelpCommand.java
-@@ -0,0 +1,341 @@
+@@ -0,0 +1,334 @@
 +package io.canvasmc.canvas.commands;
 +
 +import com.google.common.collect.Lists;
@@ -178,7 +179,7 @@ index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a4
 +            audience instanceof CraftPlayer craftPlayer && CanvasCommands.permission("help").test(craftPlayer.getHandle().createCommandSourceStack())
 +        ) {
 +            // audience is a player and has "help" permissions
-+            craftPlayer.performCommand("canvas help");
++            craftPlayer.performCommand(CanvasCommands.ROOT + " help");
 +        }
 +        else {
 +            audience.sendMessage(Component.text("You do not have the required permissions to run this command", NamedTextColor.RED));
@@ -188,7 +189,7 @@ index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a4
 +    // odd workaround for when the server gives permission to the help command but doesn't give
 +    // full "admin"/"operator" status. when the player doesn't have that, then Minecraft asks the
 +    // player "are you sure?" every time the "Go back" button is clicked, which is annoying
-+    private static final Boolean USE_LEGACY = Boolean.getBoolean("Canvas.LegacyHelpCommand");
++    private static final Boolean USE_LEGACY = Boolean.getBoolean("Enigma.LegacyHelpCommand");
 +
 +    static void constructHelpSystem(
 +        final LiteralArgumentBuilder<CommandSourceStack> base,
@@ -230,13 +231,13 @@ index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a4
 +        final TextComponent.Builder builder
 +    ) {
 +        builder.append(Component.text("----", SECONDARY, TextDecoration.BOLD))
-+            .append(Component.text("Canvas Commands", HEADER, TextDecoration.BOLD))
++            .append(Component.text("Enigma Engine Commands", HEADER, TextDecoration.BOLD))
 +            .append(Component.text("----", SECONDARY, TextDecoration.BOLD))
 +            .appendNewline();
 +
 +        for (final SubCommand subCommand : commands.get()) {
 +            final String name = subCommand.getName();
-+            if (!bukkitSender.hasPermission("canvas.command." + name)) {
++            if (!bukkitSender.hasPermission(CanvasCommands.ROOT + ".command." + name)) {
 +                continue;
 +            }
 +
@@ -273,7 +274,7 @@ index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a4
 +                    Lists.asList(
 +                        ActionButton.create(
 +                            Component.text("Useful links"),
-+                            Component.text("A list of useful links for CanvasMC"),
++                            Component.text("A list of useful links for Enigma Engine"),
 +                            155,
 +                            DialogAction.staticAction(ClickEvent.showDialog(Dialog.create(builder1 -> builder1.empty()
 +                                .base(
@@ -315,11 +316,10 @@ index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a4
 +    private static Component buildTextOut(final SubCommand subCommand) {
 +        final String name = subCommand.getName();
 +        final String description = subCommand.getDescription();
-+        final boolean selfCmd = subCommand.isAllowedSelfCommand();
 +
 +        final TextComponent.Builder builder = Component.text()
 +            .append(Component.text("----", SECONDARY, TextDecoration.BOLD))
-+            .append(Component.text("/canvas " + name, HEADER, TextDecoration.BOLD))
++            .append(Component.text("/" + CanvasCommands.ROOT + " " + name, HEADER, TextDecoration.BOLD))
 +            .append(Component.text("----", SECONDARY, TextDecoration.BOLD))
 +            .appendNewline()
 +            .appendNewline();
@@ -329,13 +329,7 @@ index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a4
 +            .appendNewline();
 +
 +        builder.append(Component.text("  Permission   ", MUTED).decorate(TextDecoration.BOLD))
-+            .append(Component.text("canvas.command." + name, ACCENT))
-+            .appendNewline();
-+
-+        builder.append(Component.text("  Standalone   ", MUTED).decorate(TextDecoration.BOLD))
-+            .append(selfCmd
-+                ? Component.text("Yes ", TextColor.color(100, 220, 140)).append(Component.text("(/" + name + ", /canvas:" + name + ")", INFORMATION))
-+                : Component.text("No", TextColor.color(220, 100, 100)))
++            .append(Component.text(CanvasCommands.ROOT + ".command." + name, ACCENT))
 +            .appendNewline()
 +            .appendNewline();
 +
@@ -352,8 +346,8 @@ index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a4
 +        return subCommands.stream().map((subCommand) -> {
 +            final String description = subCommand.getDescription();
 +            final String name = subCommand.getName();
-+            final String baseCommand = subCommand.isAllowedSelfCommand() ? "/" + name : "/canvas " + name;
-+            final String permission = "canvas.command." + name;
++            final String baseCommand = "/" + CanvasCommands.ROOT + " " + name;
++            final String permission = CanvasCommands.ROOT + ".command." + name;
 +
 +            // if source doesn't have permission, don't show
 +            if (!CanvasCommands.permission(name).test(context.getSource())) {
@@ -382,7 +376,7 @@ index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a4
 +                                ),
 +                                DialogBody.plainMessage(
 +                                    Component.text(
-+                                        subCommand.isAllowedSelfCommand() ? "You are able to use this outside of \"/canvas\"" : "This is strictly only a Canvas sub command",
++                                        "Everything is reached through \"/enigma\"",
 +                                        ACCENT
 +                                    )
 +                                )
@@ -406,7 +400,7 @@ index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a4
 +
 +    private static Component getGradientForCanvasTitled(final String textContent) {
 +        return Util.gradient(
-+            "CanvasMC - " + textContent,
++            "Enigma Engine - " + textContent,
 +            style -> style.decorate(TextDecoration.BOLD),
 +            TextColor.color(0xFF635BFF), TextColor.color(0xFFFF5CCF)
 +        );
@@ -474,7 +468,7 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..558295060366f2590b3ebbdbfc53604d5d3fab2b
 --- /dev/null
 +++ b/io/canvasmc/canvas/commands/SubCommand.java
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,87 @@
 +package io.canvasmc.canvas.commands;
 +
 +import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -518,12 +512,15 @@ index 0000000000000000000000000000000000000000..558295060366f2590b3ebbdbfc53604d
 +    LiteralArgumentBuilder<CommandSourceStack> construct(final LiteralArgumentBuilder<CommandSourceStack> base, final CommandBuildContext buildContext);
 +
 +    /**
-+     * Gets if the command can be registered on its own and not as a subcommand of `/canvas`
++     * Gets if the command can be registered on its own and not as a subcommand of `/enigma`.
++     * <p>
++     * EnigmaEngine does not expose standalone commands, so this always returns {@code false}.
++     * </p>
 +     *
 +     * @return if it can have a self-command
 +     */
 +    default boolean isAllowedSelfCommand() {
-+        return true;
++        return false;
 +    }
 +
 +    /**
@@ -538,7 +535,7 @@ index 0000000000000000000000000000000000000000..558295060366f2590b3ebbdbfc53604d
 +
 +    /**
 +     * Returns the permission predicate for if the source stack in context has the permission node
-+     * {@code canvas.command.{sub command name}.{node arg}}
++     * {@code enigma.command.{sub command name}.{node arg}}
 +     *
 +     * @param node
 +     *     the node arg
@@ -552,7 +549,7 @@ index 0000000000000000000000000000000000000000..558295060366f2590b3ebbdbfc53604d
 +    /**
 +     * Gets the unique name of this subcommand.
 +     * <p>
-+     * This is used as the command literal, e.g. {@code /canvas <name>}.
++     * This is used as the command literal, e.g. {@code /enigma <name>}.
 +     * </p>
 +     *
 +     * @return the subcommand name (never {@code null})

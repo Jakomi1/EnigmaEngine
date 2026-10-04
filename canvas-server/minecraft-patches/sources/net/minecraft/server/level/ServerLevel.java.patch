@@ -14,6 +14,16 @@
      }
  
      // Folia start - region threading
+@@ -724,6 +_,9 @@
+         );
+     }
+     public final io.papermc.paper.threadedregions.RegionizedTaskQueue.WorldRegionTaskData taskQueueRegionData = new io.papermc.paper.threadedregions.RegionizedTaskQueue.WorldRegionTaskData(this);
++    // Enigma start - adaptive regionizer
++    public volatile io.canvasmc.canvas.regionizer.RegionizerSettings enigma$regionizerSettings = io.canvasmc.canvas.regionizer.RegionizerSettings.get();
++    // Enigma end - adaptive regionizer
+     // Canvas start - region threading
+     // note: *never* pop the unload ticket, EVER.
+     public final io.canvasmc.canvas.util.ticket.TicketHolder<io.canvasmc.canvas.util.ticket.UnloadTicket>
 @@ -1040,71 +_,84 @@
      // Paper start - optimise random ticking
      private final io.papermc.paper.threadedregions.util.SimpleThreadLocalRandomSource simpleRandom = io.papermc.paper.threadedregions.util.SimpleThreadLocalRandomSource.INSTANCE; // Folia - region threading

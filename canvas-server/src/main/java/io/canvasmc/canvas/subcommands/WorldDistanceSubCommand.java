@@ -20,7 +20,6 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.DimensionArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.permissions.Permissions;
 
 import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
@@ -41,7 +40,7 @@ public class WorldDistanceSubCommand implements SubCommand {
 
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> construct(final LiteralArgumentBuilder<CommandSourceStack> base, final CommandBuildContext buildContext) {
-        return base.requires(stack -> stack.hasPermission(Permissions.COMMANDS_ADMIN, "canvas.command.worlddistance"))
+        return base.requires(io.canvasmc.canvas.commands.CanvasCommands.permission("worlddistance"))
             .then(argument("type", StringArgumentType.word())
                 .suggests((_, builder) -> {
                     builder.suggest("view");

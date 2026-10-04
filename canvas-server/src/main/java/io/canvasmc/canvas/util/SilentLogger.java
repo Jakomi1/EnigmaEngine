@@ -4,7 +4,12 @@ import org.slf4j.Marker;
 import org.slf4j.event.Level;
 import org.slf4j.helpers.AbstractLogger;
 
-// TODO - this should have configurable filtered levels and then be reimplemented in the world unload logger, or removed outright
+/**
+ * A logger that swallows everything.
+ *
+ * @deprecated superseded by the per logger level configuration in log4j2.xml. Kept only so
+ *     that the few remaining call sites still compile, and scheduled for removal.
+ */
 @Deprecated(forRemoval = true)
 public class SilentLogger extends AbstractLogger {
 

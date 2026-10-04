@@ -1,0 +1,278 @@
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java
+@@ -82,6 +_,9 @@
+     private final ConcurrentChainedLong2ReferenceHashTable<NewChunkHolder> chunkHolders = ConcurrentChainedLong2ReferenceHashTable.createWithCapacity(16384, 0.25f);
+     private final ServerLevel world;
+     private final ChunkTaskScheduler taskScheduler;
++    private final ThreadLocal<Integer> moonrise$instantUnloadBudget = ThreadLocal.withInitial(() -> {
++        return Integer.valueOf(0); // Canvas - regionizer driven eviction: > 0 while force draining the unload queue of the invoking region thread
++    });
+     // Folia start - region threading
+     public static final class HolderManagerRegionData {
+         private final ArrayDeque<NewChunkHolder> pendingFullLoadUpdate = new ArrayDeque<>();
+@@ -1292,7 +_,10 @@
+     }
+ 
+     // note: never call while inside the chunk system, this will absolutely break everything
+-    public void processUnloads() {
++    // Canvas start - regionizer driven eviction
++    // Returns the number of chunks that were processed for unloading, so that the force unload
++    // path in moonrise$forceUnloadRegionIdleChunks can report an accurate total.
++    public int processUnloads() {
+         TickThread.ensureTickThread("Cannot unload chunks off-main");
+ 
+         if (BLOCK_TICKET_UPDATES.get() == Boolean.TRUE) {
+@@ -1318,16 +_,28 @@
+ 
+         if (unloadCountTentative <= 0) {
+             // no work to do
+-            return;
++            return 0; // Canvas - regionizer driven eviction
+         }
+ 
+         // We do need to process updates here so that any addTicket that is synchronised before this call does not go missed.
+         this.processTicketUpdates();
+ 
+-        final int toUnloadCount = Math.max(
+-            PlatformHooks.get().configMinChunkUnloadCount(this.world),
+-            (int)Math.round(unloadCountTentative * Math.clamp(PlatformHooks.get().configMinChunkUnloadFraction(this.world), 0.0, 1.0))
+-        );
++        // Canvas start - regionizer driven eviction
++        // While the regionizer is force draining this region's queue the normal throttle is
++        // bypassed, otherwise the drain would still be capped at the configured minimums and
++        // the unload would have to spread over many ticks.
++        final int instantUnloadBudget = this.moonrise$instantUnloadBudget.get();
++        final boolean moonrise$instantUnload = instantUnloadBudget > 0;
++        final int toUnloadCount;
++        if (moonrise$instantUnload) {
++            toUnloadCount = Math.min(instantUnloadBudget, unloadCountTentative);
++        } else {
++            toUnloadCount = Math.max(
++                PlatformHooks.get().configMinChunkUnloadCount(this.world),
++                (int)Math.round(unloadCountTentative * Math.clamp(PlatformHooks.get().configMinChunkUnloadFraction(this.world), 0.0, 1.0))
++            );
++        }
++        // Canvas end - regionizer driven eviction
+         int processedCount = 0;
+ 
+         for (final ChunkUnloadQueue.SectionToUnload sectionRef : unloadSectionsForRegion) {
+@@ -1427,7 +_,7 @@
+ 
+                         if (holder.unloadStage3()) {
+                             this.removeChunkHolder(holder);
+-                        } else {
++                        } else if (!moonrise$instantUnload) { // Canvas - regionizer driven eviction: skip the unload cooldown when force unloading
+                             // add cooldown so the next unload check is not immediately next tick
+                             this.addTicketAtLevel(UNLOAD_COOLDOWN, CoordinateUtils.getChunkKey(holder.chunkX, holder.chunkZ), MAX_TICKET_LEVEL, null, false);
+                         }
+@@ -1445,6 +_,8 @@
+                 break;
+             }
+         }
++
++        return processedCount; // Canvas - regionizer driven eviction
+     }
+ 
+     public enum TicketOperationType {
+@@ -1651,6 +_,201 @@
+         return future;
+     }
+ 
++    // Canvas start - regionizer driven eviction
++    /**
++     * Force unloads the idle chunks of the region currently being ticked. Must be invoked on the region's tick thread.
++     * <p>
++     * Two things are bypassed that normally delay unloads: the soft delay of expiring tickets (players leaving only
++     * leave a one tick {@link TicketType#PLAYER_TICKET_DELAYED} and the {@link #UNLOAD_COOLDOWN} tickets) as well as
++     * the unload throttle in {@link #processUnloads()}. Chunks pinned by a permanent ticket (active players, plugins,
++     * force loads, pending tasks, spawn chunks) are never touched.
++     *
++     * @param idleRadius the distance in chunks around a chunk that must be free of players before it may be force
++     *                   unloaded, or {@code 0} to rely purely on the ticket system
++     * @param maxToUnload the maximum amount of chunks to make unload-eligible in this call
++     * @return the amount of chunks that were made unload-eligible
++     */
++    public int moonrise$forceUnloadRegionIdleChunks(final int idleRadius, final int maxToUnload) {
++        TickThread.ensureTickThread("Cannot force unload chunks off-main");
++        if (maxToUnload <= 0) {
++            return 0;
++        }
++        final int expired = this.moonrise$fastForwardExpiringTickets(idleRadius, maxToUnload);
++        final int drainBudget = Math.max(0, maxToUnload - expired);
++
++        if (expired > 0) {
++            // propagate the ticket level changes; this moves the now unloadable chunks into the unload queue
++            this.processTicketUpdates();
++        }
++
++        if (drainBudget > 0) {
++            // drain the unload queue of the current region without throttling or the unload cooldown
++            this.moonrise$instantUnloadBudget.set(drainBudget);
++            final int drained;
++            try {
++                drained = this.processUnloads();
++            } finally {
++                this.moonrise$instantUnloadBudget.set(Integer.valueOf(0));
++            }
++            // note: "expired" counts chunks, not tickets, so the budget tracks the number of
++            // force unloaded chunks. The drained count is reported by processUnloads itself,
++            // because the queue can hold fewer chunks than the budget asked for.
++            return expired + drained;
++        }
++
++        return expired;
++    }
++
++    /**
++     * Fast forwards the soft delay of the expiring tickets of the current region's chunks so they become unloadable
++     * immediately, mirroring the bookkeeping performed by {@link #tick()}.
++     */
++    private int moonrise$fastForwardExpiringTickets(final int idleRadius, final int maxToUnload) {
++        final io.papermc.paper.threadedregions.ThreadedRegionizer.ThreadedRegion<
++            io.papermc.paper.threadedregions.TickRegions.TickRegionData,
++            io.papermc.paper.threadedregions.TickRegions.TickRegionSectionData
++            > region = io.papermc.paper.threadedregions.TickRegionScheduler.getCurrentRegion();
++        if (region == null) {
++            return 0;
++        }
++        final ca.spottedleaf.moonrise.common.misc.NearbyPlayers nearby = idleRadius <= 0
++            ? null : ((ChunkSystemServerLevel)this.world).moonrise$getNearbyPlayers();
++        final ca.spottedleaf.moonrise.common.misc.NearbyPlayers.NearbyMapType nearbyType = moonrise$mapIdleRadius(idleRadius);
++
++        final int regionShift = ((ChunkSystemServerLevel)this.world).moonrise$getRegionChunkShift();
++        final int ticketShift = ThreadedTicketLevelPropagator.SECTION_SHIFT;
++        final int ticketMask = (1 << ticketShift) - 1;
++
++        int processed = 0;
++
++        for (final LongIterator sections = region.getOwnedSectionsUnsynchronised(); sections.hasNext();) {
++            if (processed >= maxToUnload) {
++                break;
++            }
++            final long sectionKey = sections.nextLong();
++
++            if (!this.sectionToChunkToExpireCount.containsKey(sectionKey)) {
++                continue;
++            }
++
++            final int lowerChunkX = CoordinateUtils.getChunkX(sectionKey) << regionShift;
++            final int lowerChunkZ = CoordinateUtils.getChunkZ(sectionKey) << regionShift;
++
++            final ReentrantAreaLock.Node ticketLock = this.ticketLockArea.lock(
++                ((lowerChunkX >> ticketShift) - 1) << ticketShift,
++                ((lowerChunkZ >> ticketShift) - 1) << ticketShift,
++                (((lowerChunkX >> ticketShift) + 1) << ticketShift) | ticketMask,
++                (((lowerChunkZ >> ticketShift) + 1) << ticketShift) | ticketMask
++            );
++
++            try {
++                final Long2IntOpenHashMap expireCounts = this.sectionToChunkToExpireCount.get(sectionKey);
++                if (expireCounts == null) {
++                    continue;
++                }
++
++                for (final Iterator<Long2IntMap.Entry> iterator = expireCounts.long2IntEntrySet().fastIterator(); iterator.hasNext();) {
++                    if (processed >= maxToUnload) {
++                        break;
++                    }
++                    final Long2IntMap.Entry entry = iterator.next();
++                    final long chunkKey = entry.getLongKey();
++                    final int expireCount = entry.getIntValue();
++
++                    final int removed = this.moonrise$removeExpiringTicketsForChunk(chunkKey, nearby, nearbyType);
++                    if (removed <= 0) {
++                        continue;
++                    }
++
++                    final int newExpireCount = expireCount - removed;
++                    if (newExpireCount != 0) {
++                        entry.setValue(newExpireCount);
++                    } else {
++                        iterator.remove();
++                    }
++                    // count chunks, not tickets, so the force unload budget reflects unloaded chunks
++                    ++processed;
++                }
++
++                if (expireCounts.isEmpty()) {
++                    this.sectionToChunkToExpireCount.remove(sectionKey);
++                }
++            } finally {
++                this.ticketLockArea.unlock(ticketLock);
++            }
++        }
++
++        return processed;
++    }
++
++    private static ca.spottedleaf.moonrise.common.misc.NearbyPlayers.NearbyMapType moonrise$mapIdleRadius(final int idleRadius) {
++        if (idleRadius <= 0) {
++            return null;
++        }
++        if (idleRadius <= 2) {
++            return ca.spottedleaf.moonrise.common.misc.NearbyPlayers.NearbyMapType.GENERAL_REALLY_REALLY_SMALL;
++        }
++        if (idleRadius <= 3) {
++            return ca.spottedleaf.moonrise.common.misc.NearbyPlayers.NearbyMapType.GENERAL_REALLY_SMALL;
++        }
++        if (idleRadius <= 10) {
++            return ca.spottedleaf.moonrise.common.misc.NearbyPlayers.NearbyMapType.GENERAL_SMALL;
++        }
++        return ca.spottedleaf.moonrise.common.misc.NearbyPlayers.NearbyMapType.GENERAL;
++    }
++
++    // precondition: holds the ticket lock for the region section containing the chunk
++    private int moonrise$removeExpiringTicketsForChunk(final long chunkKey,
++                                                       final ca.spottedleaf.moonrise.common.misc.NearbyPlayers nearby,
++                                                       final ca.spottedleaf.moonrise.common.misc.NearbyPlayers.NearbyMapType nearbyType) {
++        final int chunkX = CoordinateUtils.getChunkX(chunkKey);
++        final int chunkZ = CoordinateUtils.getChunkZ(chunkKey);
++
++        if (nearby != null) {
++            final ca.spottedleaf.moonrise.common.list.ReferenceList<net.minecraft.server.level.ServerPlayer> players =
++                nearby.getPlayersByChunk(chunkX, chunkZ, nearbyType);
++            if (players != null && players.size() != 0) {
++                return 0;
++            }
++        }
++
++        final TicketSet tickets = this.tickets.get(chunkKey);
++        if (tickets == null || tickets.isEmpty() || this.chunkHolders.get(chunkKey) == null) {
++            return 0;
++        }
++
++        final Ticket[] snapshot = tickets.copyBackingArray();
++        for (final Ticket ticket : snapshot) {
++            if (ticket != null && ((ChunkSystemTicket<?>)(Object)ticket).moonrise$getRemoveDelay() == NO_TIMEOUT_MARKER) {
++                // pinned by a permanent ticket (active player, plugin, force load, pending task, ...) - never force unload
++                return 0;
++            }
++        }
++
++        final int levelBefore = getTicketLevelAt(tickets);
++        int removedCount = 0;
++        for (final Ticket ticket : snapshot) {
++            if (ticket == null) {
++                continue;
++            }
++            if (tickets.removeAndGet(ticket) != null) {
++                ++removedCount;
++                this.removeTicketCounter(ticket.getType(), chunkKey);
++            }
++        }
++        final int levelAfter = getTicketLevelAt(tickets);
++
++        if (tickets.isEmpty()) {
++            this.tickets.remove(chunkKey);
++        }
++        if (levelBefore != levelAfter) {
++            this.updateTicketLevel(chunkKey, levelAfter);
++        }
++
++        return removedCount;
++    }
++    // Canvas end - regionizer driven eviction
++
+     public JsonObject getDebugJson() {
+         final JsonObject ret = new JsonObject();
+ 

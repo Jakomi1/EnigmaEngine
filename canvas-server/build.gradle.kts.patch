@@ -118,6 +118,7 @@
 +            "Jsinco",
 +            "Biquaternions"
 +        )
++        archiveFileName.set("EnigmaEngine.jar") // EnigmaEngine - product jar name
          attributes(
              "Main-Class" to "org.bukkit.craftbukkit.Main",
 -            "Implementation-Title" to "Paper",
