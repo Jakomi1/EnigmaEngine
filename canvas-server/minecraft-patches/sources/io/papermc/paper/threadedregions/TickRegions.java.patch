@@ -1,0 +1,19 @@
+--- a/io/papermc/paper/threadedregions/TickRegions.java
++++ b/io/papermc/paper/threadedregions/TickRegions.java
+@@ -59,12 +_,10 @@
+     private static int getTickThreads(final GlobalConfiguration.@NonNull ThreadedRegions config) {
+         int tickThreads;
+         if (config.threads <= 0) {
+-            tickThreads = OSNuma.getNativeInstance().getTotalCores() / 2;
+-            if (tickThreads <= 4) {
+-                tickThreads = 1;
+-            } else {
+-                tickThreads =  tickThreads / 4;
+-            }
++            // Enigma start - multi core defaults: scale the default scheduler concurrency
++            // with the available processor count instead of assuming tiny servers
++            tickThreads = Math.max(2, OSNuma.getNativeInstance().getTotalCores() / 2);
++            // Enigma end - multi core defaults
+         } else {
+             tickThreads = config.threads;
+         }

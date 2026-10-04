@@ -8,10 +8,14 @@ import io.canvasmc.canvas.configuration.Resolver;
 import io.canvasmc.canvas.configuration.Style;
 import io.canvasmc.canvas.configuration.Undocumented;
 import io.canvasmc.canvas.configuration.Validator;
+import io.canvasmc.canvas.regionizer.RegionizerSettings;
+import io.canvasmc.canvas.regionizer.loadscaling.LoadScaling;
 import io.canvasmc.canvas.simd.SIMDDetection;
 import io.canvasmc.canvas.subcommands.MobCapsSubCommand;
 import io.canvasmc.canvas.subcommands.RegionBarSubCommand;
+import io.canvasmc.canvas.subcommands.RegionDataCommand;
 import io.canvasmc.canvas.subcommands.RegionTickSubCommand;
+import io.canvasmc.canvas.subcommands.RegionizerSubCommand;
 import io.canvasmc.canvas.subcommands.ReloadSubCommand;
 import io.canvasmc.canvas.subcommands.SetMaxPlayersSubCommand;
 import io.canvasmc.canvas.subcommands.WorldDistanceSubCommand;
@@ -166,6 +170,10 @@ public class GlobalConfiguration extends Part {
         // validate the configuration so users don't end up doing a stupid
         Validator.validateObject(configuration);
 
+        // refresh the regionizer snapshots from the freshly loaded configuration
+        RegionizerSettings.set(RegionizerSettings.fromGlobalConfiguration());
+        LoadScaling.reload();
+
         if (TickRegions.hasStarted()) {
 
             // if this is a reload, we may have things that need to be taken into effect now
@@ -248,11 +256,14 @@ public class GlobalConfiguration extends Part {
                 WorldDistanceSubCommand.class,
                 ReloadSubCommand.class,
                 MobCapsSubCommand.class,
-                RegionTickSubCommand.class // TODO - merge this into regiondata command
-                // RegionDataCommand.class // TODO - regiondata command
+                RegionTickSubCommand.class,
+                RegionizerSubCommand.class,
+                io.canvasmc.canvas.subcommands.InfoSubCommand.class,
+                io.canvasmc.canvas.subcommands.TickingChunkMapSubCommand.class,
+                RegionDataCommand.class
             );
 
-            broadcast("Registered all Canvas commands", INFO);
+            broadcast("Registered all Enigma commands", INFO);
         }
 
         // we do not want to allow larger unit values, nobody should autosave in units larger than
@@ -403,6 +414,112 @@ public class GlobalConfiguration extends Part {
         }
 
         public boolean preventExcessiveVelocityMoveOutOfRegion = false;
+    }
+
+    public Regionizer regionizer = new Regionizer();
+    public static class Regionizer extends Part {
+
+        {
+            option("enabled")
+                .docs(
+                    "Enables the Enigma adaptive regionizer. When enabled, the regionizer will aggressively",
+                    "avoid merging interacting regions together, keeping more, smaller ticking regions on",
+                    "multi core systems. When disabled, vanilla Canvas/Folia merge behavior is used."
+                );
+            option("mergeOverlapThreshold")
+                .docs(
+                    "The minimum merge score before two overlapping regions are allowed to merge with each other.",
+                    "A score of 1.0 means only extremely coupled regions may merge, while 0.0 merges everything."
+).between(0.0F, 1.0F);
+            option("mergeMinRegionSections")
+                .docs(
+                    "The maximum number of sections a region may have before it is exempt from the merge",
+                    "score requirement. Regions smaller than this always attempt to merge, guaranteeing the",
+                    "regionizer stays stable and does not fragment forever."
+                ).greaterThan(0.0F);
+            option("couplingWeight")
+                .docs("The weight applied to the entity interaction coupling between regions when computing the merge score").between(0.0F, 1.0F);
+            option("overlapWeight")
+                .docs("The weight applied to the overlap between two regions when computing the merge score").between(0.0F, 1.0F);
+            option("mergeCooldownMillis")
+                .docs("The minimum amount of time in milliseconds that must pass after a merge before the resulting region is a merge candidate again").greaterThanOrEqualTo(0.0F);
+            option("splitCooldownMillis")
+                .docs("The minimum amount of time in milliseconds that must pass after a region has been split before it is split again").greaterThanOrEqualTo(0.0F);
+
+            option("splitMinSize")
+                .docs(
+                    "The minimum amount of sections a region must have before it is considered for splitting.",
+                    "Regions below this size will never be split."
+                ).greaterThan(0.0F);
+            option("splitMaxSections")
+                .docs(
+                    "The maximum amount of sections a single region may have before the split system hard",
+                    "splits it, regardless of load. This bounds the worst case tick time of a single region."
+                ).greaterThan(0.0F);
+            option("splitHighLoadMspt")
+                .docs(
+                    "If a region ticks with an average MSPT at or above this value, it is marked as a high",
+                    "load region and becomes eligible for splitting."
+                ).greaterThanOrEqualTo(0.0F);
+            option("splitLowLoadPercent")
+                .docs(
+                    "The percentage of a region's section membership border chunks that must be idle before",
+                    "a high load region may be split. Guards against splitting hot regions whose load spans",
+                    "every chunk."
+                ).between(0.0F, 100.0F);
+            option("splitIdleSeconds")
+                .docs("The amount of time in seconds a region must be below the split high load threshold before the split pass may cooldown its split attempts").greaterThan(0.0F);
+            option("splitPassIntervalTicks")
+                .docs("How often, in ticks, the built-in split pass runs over all regions").greaterThan(0.0F);
+            option("instantUnloadEnabled")
+                .docs(
+                    "When enabled, the regionizer will force unload the remaining chunks of regions that have",
+                    "no players. Chunks are unloaded immediately without waiting for the exponential unload",
+                    "throttle, the one-tick soft delay tickets players leave behind, or the unload cooldown.",
+                    "This lets regions shrink back down to their active footprint quickly, turning more fully",
+                    "idle regions into inactive regions that release their tick thread."
+                );
+            option("instantUnloadActiveRegions")
+                .docs(
+                    "Whether the regionizer should also force unload idle chunks of regions that still have",
+                    "players inside them. The per-chunk player radius and permanent ticket checks keep chunks",
+                    "near players or pinned by plugins, force loads or pending tasks safe, so enabling this",
+                    "simply keeps every region compact. When disabled, only regions with no players are evicted."
+                );
+            option("instantUnloadIdleRadius")
+                .docs(
+                    "The radius, in chunks, around a chunk that must contain no players before the regionizer",
+                    "will force unload that chunk. Players within this radius protect nearby chunks from",
+                    "eviction even when they hold no load ticket for them. The radius is rounded up to the",
+                    "nearest available player map size (2, 3, 10 or 33 chunks). Set to 0 to rely purely on",
+                    "the ticket system (chunks with a permanent ticket are never force unloaded)."
+                ).greaterThanOrEqualTo(0.0F);
+            option("instantUnloadMaxChunksPerPass")
+                .docs(
+                    "The maximum amount of chunks the regionizer may force unload per idle region, per pass.",
+                    "Bounds the worst case work performed in a single region tick when a large region idles all",
+                    "at once. Remaining chunks drain in later passes and normal unload processing."
+                ).greaterThan(0.0F);
+        }
+
+        public boolean enabled = true;
+        public double mergeOverlapThreshold = 0.25D;
+        public int mergeMinRegionSections = 24;
+        public double couplingWeight = 0.7D;
+        public double overlapWeight = 0.3D;
+        public long mergeCooldownMillis = 60_000L;
+        public long splitCooldownMillis = 30_000L;
+
+        public int splitMinSize = 128;
+        public int splitMaxSections = 4096;
+        public double splitHighLoadMspt = 32.0D;
+        public int splitLowLoadPercent = 15;
+        public int splitIdleSeconds = 15;
+        public int splitPassIntervalTicks = 20;
+        public boolean instantUnloadEnabled = true;
+        public boolean instantUnloadActiveRegions = true;
+        public int instantUnloadIdleRadius = 16;
+        public int instantUnloadMaxChunksPerPass = 512;
     }
 
     public ChunkSystem chunkSystem = new ChunkSystem();

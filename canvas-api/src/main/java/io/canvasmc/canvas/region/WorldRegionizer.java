@@ -130,9 +130,9 @@ public interface WorldRegionizer {
          * chunk coordinate, represented as a single {@code long} value. This packed form combines the chunk's {@code x}
          * and {@code z} coordinates into one 64-bit long.
          *
-         * <pre>
+         * <pre>{@code
          *   long packed = ( (long) z & 0xFFFFFFFFL ) << 32 | ( (long) x & 0xFFFFFFFFL );
-         * </pre>
+         * }</pre>
          * <p>
          * This means:
          * <ul>
@@ -142,10 +142,10 @@ public interface WorldRegionizer {
          *
          * <p>To unpack a position:</p>
          *
-         * <pre>
+         * <pre>{@code
          *   int x = (int) (packed & 0xFFFFFFFFL);
          *   int z = (int) (packed >>> 32);
-         * </pre>
+         * }</pre>
          *
          * @return An array of packed chunk coordinates ({@code long}) owned by this region.
          */

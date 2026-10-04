@@ -74,7 +74,9 @@ import static net.kyori.adventure.text.format.NamedTextColor.GRAY;
 import static net.kyori.adventure.text.format.NamedTextColor.RED;
 import static net.kyori.adventure.text.format.NamedTextColor.WHITE;
 
-// TODO - contact Toffik about making this a patch
+// Canvas - region threading adds region aware behaviour to this module. The region profiler
+// integration would ideally live in an upstream spark patch rather than in a vendored copy, but
+// that requires upstream to accept it, so the changes stay here until then.
 public class SamplerModule implements CommandModule {
 
     @Override
@@ -340,7 +342,9 @@ public class SamplerModule implements CommandModule {
         if (!regionArgSet.isEmpty()) {
             // run region profiler
             if (!sender.isPlayer()) {
-                // TODO - console support?
+                // The regionized profiler pins its region ticket to a specific chunk and resolves
+                // "~" relative coordinates against a player, so it has no meaning from a console
+                // or command block. A player has to run it.
                 resp.replyPrefixed(text("To perform a regionized profiler, you must be a player", RED));
                 return;
             }

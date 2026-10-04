@@ -13,12 +13,13 @@
  
              while (this.running) {
                  final long tickStart = System.nanoTime(); // Paper - improve tick loop
-@@ -1837,6 +_,8 @@
+@@ -1837,6 +_,9 @@
          if (false) while (!this.processQueue.isEmpty()) { // Folia - region threading
              this.processQueue.remove().run();
          }
 +        region.world.getCurrentWorldData().getCanvasWorldData().tpsbar.tick(); // Canvas - tpsbar
 +        region.world.getCurrentWorldData().getCanvasWorldData().rambar.tick(); // Canvas - rambar
++        io.canvasmc.canvas.subcommands.TickingChunkMapSubCommand.tickRegion(region.world); // Canvas - ticking chunk map
  
          this.updateEffectiveRespawnData();
  

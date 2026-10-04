@@ -1,0 +1,26 @@
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/server/ServerEntityLookup.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/server/ServerEntityLookup.java
+@@ -73,6 +_,23 @@
+         if (entity instanceof ServerPlayer player) {
+             ((ChunkSystemServerLevel)this.serverWorld).moonrise$getNearbyPlayers().tickPlayer(player);
+         }
++        // Enigma start - region coupling: measure entity movement across regioniser sections
++        if (oldSectionX != newSectionX || oldSectionZ != newSectionZ) {
++            final io.papermc.paper.threadedregions.ThreadedRegionizer<?, ?> regionizer = this.serverWorld.regioniser;
++            if (regionizer != null) {
++                final int shift = regionizer.sectionChunkShift;
++                if ((oldSectionX >> shift) != (newSectionX >> shift) || (oldSectionZ >> shift) != (newSectionZ >> shift)) {
++                    final io.papermc.paper.threadedregions.ThreadedRegionizer.ThreadedRegion<?, ?> oldRegion =
++                        regionizer.getRegionAtUnsynchronised(oldSectionX, oldSectionZ);
++                    final io.papermc.paper.threadedregions.ThreadedRegionizer.ThreadedRegion<?, ?> newRegion =
++                        regionizer.getRegionAtUnsynchronised(newSectionX, newSectionZ);
++                    if (oldRegion != null && newRegion != null && oldRegion != newRegion) {
++                        io.canvasmc.canvas.regionizer.RegionCoupling.onCrossRegion(oldRegion.id, newRegion.id);
++                    }
++                }
++            }
++        }
++        // Enigma end - region coupling
+         if (entity instanceof ThrownEnderpearl enderpearl && (oldSectionX != newSectionX || oldSectionZ != newSectionZ)) {
+             // Folia start - region threading
+             this.removeEnderPearl(CoordinateUtils.getChunkKey(oldSectionX, oldSectionZ), enderpearl.getId());

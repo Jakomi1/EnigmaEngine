@@ -1,0 +1,45 @@
+--- a/io/canvasmc/canvas/threadedregions/scheduler/AffinitySchedulerThreadPool.java
++++ b/io/canvasmc/canvas/threadedregions/scheduler/AffinitySchedulerThreadPool.java
+@@ -357,17 +_,33 @@
+             best = globalHead;
+         }
+ 
+-        final TickThreadRunner stealingFrom = runners[nextSteal.getAndUpdate(v -> (v + 1) % runners.length)];
+-
+-        if (stealingFrom != runner) {
+-            final ScheduledState stealCandidate = stealingFrom.localQueue.peekEdf();
+-            if (stealCandidate != null && stealCandidate.isStealable(now)) {
+-                if (best == null ||
+-                    TICK_COMPARATOR_BY_TIME.compare(stealCandidate, best) < 0) {
+-                    return stealingFrom.localQueue.pollEdf();
++        // Enigma start - improve work stealing: scan every runner and steal the earliest available task
++        // instead of only considering the next runner in round robin order. this reduces both idle time
++        // and deadline misses when a few runners are overloaded while others are idle.
++        final int runnerCount = runners.length;
++        int stealIdx = this.nextSteal.getAndUpdate(v -> (v + 1) % runnerCount);
++        TickThreadRunner stealFrom = null;
++        ScheduledState stealCandidate = null;
++        for (int i = 0; i < runnerCount; ++i) {
++            final TickThreadRunner candidateRunner = runners[stealIdx];
++            if (candidateRunner != runner) {
++                final ScheduledState candidate = candidateRunner.localQueue.peekEdf();
++                if (candidate != null && candidate.isStealable(now)) {
++                    if (stealCandidate == null || TICK_COMPARATOR_BY_TIME.compare(candidate, stealCandidate) < 0) {
++                        stealCandidate = candidate;
++                        stealFrom = candidateRunner;
++                    }
+                 }
+             }
+-        }
++            if (++stealIdx == runnerCount) {
++                stealIdx = 0;
++            }
++        }
++        if (stealCandidate != null && stealFrom != null &&
++            (best == null || TICK_COMPARATOR_BY_TIME.compare(stealCandidate, best) < 0)) {
++            return stealFrom.localQueue.pollEdf();
++        }
++        // Enigma end - improve work stealing
+ 
+         if (best != null) {
+             return bestIsLocal ? runner.localQueue.pollEdf() : globalQueue.poll();

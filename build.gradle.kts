@@ -79,6 +79,12 @@ subprojects {
         endpoint = "https://patch-roulette.canvasmc.io/api"
     }
 
+    if (project.name == "canvas-server") {
+        tasks.named("jar") {
+            mustRunAfter(rootProject.tasks.named("applyAllPatches"))
+        }
+    }
+
     extensions.configure<PublishingExtension> {
         repositories {
             maven("https://maven.canvasmc.io/releases") {
@@ -114,4 +120,36 @@ subprojects {
 // patching scripts
 tasks.register("fixupMinecraftFilePatches") {
     dependsOn(":canvas-server:fixupMinecraftSourcePatches")
+}
+
+abstract class CopyPaperclipJar : DefaultTask() {
+    @get:InputDirectory
+    abstract val libsDir: DirectoryProperty
+
+    @get:OutputFile
+    abstract val outputFile: RegularFileProperty
+
+    @TaskAction
+    fun run() {
+        val paperclipFile = libsDir.get().asFile
+            .listFiles()
+            ?.filter { it.name.startsWith("canvas-paperclip") && it.name.endsWith(".jar") }
+            ?.maxByOrNull { it.lastModified() }
+            ?: error("Paperclip-Jar nicht gefunden in ${libsDir.get()}")
+
+        val target = outputFile.get().asFile
+        target.parentFile.mkdirs()
+        paperclipFile.copyTo(target, overwrite = true)
+        println("Server-Jar kopiert nach: ${target.absolutePath}")
+    }
+}
+
+tasks.register<CopyPaperclipJar>("buildEnigmaEngine") {
+    description = "Baut die Server-Jar und kopiert sie nach serverJar/EnigmaEngine.jar"
+    group = "build"
+
+    dependsOn(":canvas-server:createPaperclipJar")
+
+    libsDir.set(file("canvas-server/build/libs"))
+    outputFile.set(file("serverJar/EnigmaEngine.jar"))
 }

@@ -55,17 +55,73 @@ public class FoliaWorldInfoProvider implements WorldInfoProvider {
         final int players = this.server.getOnlinePlayers().size();
         int entities = 0;
         int chunks = 0;
-
-        // TODO - implement?
-        // we don't provide tile entity data because it's not thread-safe
         int tileEntities = 0;
 
         for (final World world : this.server.getWorlds()) {
             entities += world.getEntityCount();
             chunks += world.getChunkCount();
+            tileEntities += countTileEntities(world);
         }
 
         return new CountsResult(players, entities, tileEntities, chunks);
+    }
+
+    /**
+     * Tile entity counts cannot be read straight from the world because the chunk sections
+     * are owned by whichever region thread is currently ticking them, so reading them from
+     * the calling thread is a data race. Every region is therefore visited from inside its
+     * own tick task, which is the only place where its chunk data may be touched.
+     */
+    private static int countTileEntities(final World world) {
+        final ServerLevel level = ((CraftWorld) world).getHandle();
+        final List<CompletableFuture<Integer>> perRegion = new ArrayList<>();
+
+        // a single task is not enough here: the ticking chunks are region owned, so a world
+        // wide total has to be summed up from every region that currently owns chunks
+        level.regioniser.computeForAllRegionsUnsynchronised(region -> {
+            final ChunkPos center = region.getCenterChunk();
+            if (center == null) {
+                return;
+            }
+
+            final CompletableFuture<Integer> result = new CompletableFuture<>();
+            RegionizedServer.getInstance().taskQueue.queueOrExecuteTickTask(
+                level, center.x(), center.z(), () -> {
+                    final RegionizedWorldData worldData = level.getCurrentWorldData();
+
+                    // only block ticking chunks, matching what spark counts during global polling
+                    int count = 0;
+                    for (final LevelChunk tickingChunk : worldData.getTickingChunks()) {
+                        count += tickingChunk.getBlockEntitiesCount();
+                    }
+                    result.complete(count);
+                },
+                Priority.BLOCKING
+            );
+            perRegion.add(result);
+        });
+
+        if (perRegion.isEmpty()) {
+            return 0;
+        }
+
+        // every region is queried in parallel, so the poll costs roughly one region tick
+        // instead of one tick per region
+        try {
+            CompletableFuture.allOf(perRegion.toArray(CompletableFuture[]::new)).get(5, TimeUnit.SECONDS);
+        } catch (final InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            // a partial count is better than taking the whole spark poll down
+            return 0;
+        } catch (final Throwable thrown) {
+            return 0;
+        }
+
+        int total = 0;
+        for (final CompletableFuture<Integer> count : perRegion) {
+            total += count.join();
+        }
+        return total;
     }
 
     @Override

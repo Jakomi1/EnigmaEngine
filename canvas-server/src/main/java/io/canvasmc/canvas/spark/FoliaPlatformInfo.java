@@ -16,8 +16,8 @@ public record FoliaPlatformInfo(Server server) implements PlatformInfo {
     @Contract(pure = true)
     @Override
     public String getName() {
-        // TODO - should we change this to "Canvas"? We have an entirely custom implementation, may be worth it
-        return "Folia";
+        // Canvas has its own region implementation, it is not a Folia build.
+        return "Canvas";
     }
 
     @Override
