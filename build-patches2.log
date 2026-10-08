@@ -1,0 +1,33 @@
+Calculating task graph as no cached configuration is available for tasks: :canvas-server:fixupMinecraftSourcePatches :canvas-server:rebuildMinecraftSourcePatches
+Type-safe project accessors is an incubating feature.
+
+> Configure project :
+weaver-patcher v2.4.5 (running on 'Windows 11')
+
+> Configure project :canvas-server
+weaver-core v2.4.5 (running on 'Windows 11')
+
+> Task :canvas-server:sortFoliaATs UP-TO-DATE
+> Task :canvas-server:downloadMcManifest
+> Task :canvas-server:downloadMcVersionManifest UP-TO-DATE
+> Task :canvas-server:downloadServerJar UP-TO-DATE
+> Task :canvas-server:extractFromBundler UP-TO-DATE
+> Task :canvas-server:macheRemapJar UP-TO-DATE
+
+> Task :canvas-server:rebuildMinecraftBasePatches
+Formatting patches for java...
+Saved 7 patches for java to minecraft-patches\base/
+
+> Task :canvas-server:fixupMinecraftSourcePatches
+[main 82f7791] fixup! canvas File Patches
+ 4 files changed, 276 insertions(+), 38 deletions(-)
+ create mode 100644 io/canvasmc/canvas/commands/Style.java
+Rebasing (2/5)Updated tag 'file' from fb818361f460a27f6ec0a8c3ccafb4e3130173e9 to a390a42a6c02d747cc4a8b1f960e68b2c104457e
+Rebasing (3/5)Rebasing (4/5)Rebasing (5/5)Successfully rebased and updated refs/heads/main.
+
+> Task :canvas-server:rebuildMinecraftSourcePatches
+Rebuilt 136 patches
+
+BUILD SUCCESSFUL in 9s
+9 actionable tasks: 4 executed, 5 up-to-date
+Configuration cache entry stored.

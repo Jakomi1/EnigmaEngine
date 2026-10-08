@@ -74,10 +74,11 @@
      }
  
      public enum TicketOperationType {
-@@ -1651,6 +_,201 @@
+@@ -1650,6 +_,201 @@
+         );
          return future;
      }
- 
++
 +    // Canvas start - regionizer driven eviction
 +    /**
 +     * Force unloads the idle chunks of the region currently being ticked. Must be invoked on the region's tick thread.
@@ -272,7 +273,6 @@
 +        return removedCount;
 +    }
 +    // Canvas end - regionizer driven eviction
-+
+ 
      public JsonObject getDebugJson() {
          final JsonObject ret = new JsonObject();
- 

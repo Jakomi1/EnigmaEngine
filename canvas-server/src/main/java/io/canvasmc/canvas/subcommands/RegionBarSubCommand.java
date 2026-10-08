@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
+import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
 import io.canvasmc.canvas.world.RegionResourceBar;
 import java.util.Collection;
@@ -120,9 +121,11 @@ public class RegionBarSubCommand implements SubCommand {
         // update the display
         display.updateFromEntry(updated);
 
-        final String message = (updated.enabled() ? "Enabled " : "Disabled ") +
-            barType.name() + " for " + entityPlayer.getName().getString();
-        source.sendSuccess(() -> Component.literal(message), true);
+        Style.bullets()
+            .bullet(barType.name() + " for " + entityPlayer.getName().getString(),
+                updated.enabled() ? "enabled" : "disabled",
+                updated.enabled() ? Style.good() : Style.SECONDARY)
+            .send(source);
     }
 
     private static void setRegionBarPlacement(
@@ -142,9 +145,9 @@ public class RegionBarSubCommand implements SubCommand {
         // update the display
         display.updateFromEntry(updated);
 
-        final String message = "Set " + barType.name() + " bar placement for " + entityPlayer.getName().getString() +
-            " to " + argName;
-        source.sendSuccess(() -> Component.literal(message), true);
+        Style.bullets()
+            .bullet(barType.name() + " placement for " + entityPlayer.getName().getString(), argName, Style.INFORMATION)
+            .send(source);
     }
 
     private enum BarType {

@@ -1,0 +1,1 @@
+/setblock 8 64 8 minecraft:chest[facing=north]{Items:[{id:"minecraft:diamond",Count:1b,Slot:0b}]}

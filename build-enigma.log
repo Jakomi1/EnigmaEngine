@@ -1,0 +1,32 @@
+Calculating task graph as configuration cache cannot be reused because directory '.' has changed.
+Type-safe project accessors is an incubating feature.
+
+> Configure project :
+weaver-patcher v2.4.5 (running on 'Windows 11')
+
+> Configure project :canvas-server
+weaver-core v2.4.5 (running on 'Windows 11')
+
+> Task :canvas-api:generateApiVersioningFile UP-TO-DATE
+> Task :canvas-server:processLog4jPluginsResources NO-SOURCE
+> Task :canvas-api:processResources NO-SOURCE
+> Task :canvas-server:downloadMcManifest
+> Task :canvas-server:downloadMcVersionManifest UP-TO-DATE
+> Task :canvas-server:downloadServerJar UP-TO-DATE
+> Task :canvas-server:extractFromBundler UP-TO-DATE
+> Task :canvas-api:compileJava UP-TO-DATE
+> Task :canvas-api:classes UP-TO-DATE
+> Task :canvas-api:jar UP-TO-DATE
+> Task :canvas-server:compileLog4jPluginsJava UP-TO-DATE
+> Task :canvas-server:log4jPluginsClasses UP-TO-DATE
+> Task :canvas-server:processResources UP-TO-DATE
+> Task :canvas-server:compileJava UP-TO-DATE
+> Task :canvas-server:classes UP-TO-DATE
+> Task :canvas-server:jar UP-TO-DATE
+> Task :canvas-server:createBundlerJar UP-TO-DATE
+> Task :canvas-server:createPaperclipJar UP-TO-DATE
+> Task :buildEnigmaEngine UP-TO-DATE
+
+BUILD SUCCESSFUL in 10s
+14 actionable tasks: 1 executed, 13 up-to-date
+Configuration cache entry stored.

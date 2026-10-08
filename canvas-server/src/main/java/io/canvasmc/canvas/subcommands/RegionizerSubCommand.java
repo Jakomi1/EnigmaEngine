@@ -6,17 +6,19 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import io.canvasmc.canvas.GlobalConfiguration;
+import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
 import io.canvasmc.canvas.region.RegionTickData;
 import io.canvasmc.canvas.regionizer.loadscaling.LoadScaling;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.DimensionArgument;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -65,37 +67,39 @@ public class RegionizerSubCommand implements SubCommand {
         final CommandSourceStack source = context.getSource();
         final net.minecraft.server.MinecraftServer server = source.getServer();
 
-        source.sendSuccess(() -> Component.literal(""), false);
-        source.sendSuccess(() -> Component.literal("=== Enigma Engine Info ==="), false);
-        source.sendSuccess(() -> Component.literal(""), false);
+        final Style.Report report = Style.report("Enigma Engine Info");
 
-        // TPS / MSPT
+        // TPS 1m/5m/15m, each number coloured like /tps colours TPS.
         final double[] tps = server.getTPS();
-        final String tps1 = String.format(java.util.Locale.ROOT, "%.2f", Math.min(tps[0], 20.0));
-        final String tps5 = String.format(java.util.Locale.ROOT, "%.2f", Math.min(tps[1], 20.0));
-        final String tps15 = String.format(java.util.Locale.ROOT, "%.2f", Math.min(tps[2], 20.0));
-        source.sendSuccess(() -> Component.literal("TPS: 1m=" + tps1 + "  5m=" + tps5 + "  15m=" + tps15), false);
+        report.bullet("TPS 1m, 5m, 15m", Component.text()
+            .append(Style.tps(Math.min(tps[0], 20.0)))
+            .append(Component.text(", ", Style.LIST))
+            .append(Style.tps(Math.min(tps[1], 20.0)))
+            .append(Component.text(", ", Style.LIST))
+            .append(Style.tps(Math.min(tps[2], 20.0)))
+            .build());
 
-        final long[] mspt = server.getTickTimesNanos();
-        final double msptMs = mspt.length > 0 ? mspt[0] / 1_000_000.0 : 0.0;
-        source.sendSuccess(() -> Component.literal("MSPT: " + String.format(java.util.Locale.ROOT, "%.2f", msptMs) + " ms"), false);
-        source.sendSuccess(() -> Component.literal(""), false);
+        final double msptMs = server.getAverageTickTimeNanos() / 1_000_000.0;
+        report.bullet("MSPT", Style.mspt(msptMs));
 
-        // Load Scaling
-        source.sendSuccess(() -> Component.literal("LoadScaling: mode=" + LoadScaling.getMode().name()
-            + "  aggression=" + LoadScaling.getAggression() + "%"
-            + "  config=" + (LoadScaling.hasConfig() ? "enigma-load.yml" : "defaults")), false);
-        source.sendSuccess(() -> Component.literal(""), false);
+        // Load scaling.
+        report.bullet("Mode", LoadScaling.getMode().name());
+        report.bullet("Aggression", LoadScaling.getAggression() + "%");
+        report.bullet("Config", LoadScaling.hasConfig() ? "enigma-load.yml" : "defaults");
 
-        // Region stats per world
+        // Memory.
         final Runtime runtime = Runtime.getRuntime();
         final long usedMB = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
         final long maxMB = runtime.maxMemory() / (1024 * 1024);
+        report.bullet("Memory", Component.text()
+            .append(Style.value(usedMB))
+            .append(Component.text(" MB / ", Style.SECONDARY))
+            .append(Style.value(maxMB))
+            .append(Component.text(" MB", Style.SECONDARY))
+            .build());
 
-        source.sendSuccess(() -> Component.literal("Memory: " + usedMB + "MB / " + maxMB + "MB"), false);
-        source.sendSuccess(() -> Component.literal(""), false);
-
-        source.sendSuccess(() -> Component.literal("--- Region Stats ---"), false);
+        // Region stats per world.
+        report.subHeader("Region Stats");
 
         long totalRegions = 0;
         long totalTicking = 0;
@@ -126,36 +130,42 @@ public class RegionizerSubCommand implements SubCommand {
             totalCoupling += coupling[0];
 
             final String dimName = level.dimension().identifier().getPath();
-            source.sendSuccess(() -> Component.literal("  [" + dimName + "] total=" + worldTotal
-                + "  ticking=" + stateCounts[0]
-                + "  idle=" + stateCounts[1]
-                + "  coupling=" + coupling[0]), false);
+            report.bullet(dimName, Component.text()
+                .append(Style.value(worldTotal))
+                .append(Component.text(" regions, ", Style.SECONDARY))
+                .append(Component.text("ticking ", Style.SECONDARY))
+                .append(Style.value(stateCounts[0]))
+                .append(Component.text(", idle ", Style.SECONDARY))
+                .append(Style.value(stateCounts[1]))
+                .append(Component.text(", coupling ", Style.SECONDARY))
+                .append(Style.value(coupling[0]))
+                .build());
         }
 
-        final long fTotalRegions = totalRegions;
-        final long fTotalTicking = totalTicking;
-        final long fTotalIdle = totalIdle;
-        final long fTotalCoupling = totalCoupling;
-
-        source.sendSuccess(() -> Component.literal(""), false);
-        source.sendSuccess(() -> Component.literal("Total: " + fTotalRegions + " regions"
-            + "  (ticking=" + fTotalTicking
-            + ", idle=" + fTotalIdle
-            + ", saved=" + fTotalIdle
-            + ", coupling=" + fTotalCoupling + ")"), false);
+        report.bullet("Total", Component.text()
+            .append(Style.value(totalRegions))
+            .append(Component.text(" regions (ticking=", Style.SECONDARY))
+            .append(Style.value(totalTicking))
+            .append(Component.text(", idle=", Style.SECONDARY))
+            .append(Style.value(totalIdle))
+            .append(Component.text(", coupling=", Style.SECONDARY))
+            .append(Style.value(totalCoupling))
+            .append(Component.text(")", Style.SECONDARY))
+            .build());
 
         if (source.getEntity() instanceof final ServerPlayer player) {
             final String desc = LoadScaling.describeCurrent((ServerLevel) player.level());
             if (desc != null) {
-                source.sendSuccess(() -> Component.literal(""), false);
-                source.sendSuccess(() -> Component.literal("Your level: " + desc), false);
+                report.bullet("Your level", desc);
             }
         }
 
+        report.send(source);
         return Command.SINGLE_SUCCESS;
     }
 
     private static int mode(final CommandContext<CommandSourceStack> context) {
+        final CommandSourceStack source = context.getSource();
         final String value = StringArgumentType.getString(context, "mode").toUpperCase(Locale.ROOT);
         final LoadScaling.Mode mode = switch (value) {
             case "AUTO" -> LoadScaling.Mode.AUTO;
@@ -163,23 +173,28 @@ public class RegionizerSubCommand implements SubCommand {
             default -> null;
         };
         if (mode == null) {
-            context.getSource().sendFailure(Component.literal("Invalid mode, must be \"auto\" or \"manual\""));
+            Style.fail(source, "Invalid mode, must be \"auto\" or \"manual\"");
             return 0;
         }
         LoadScaling.setMode(mode);
+        Style.bullets().bullet("Mode", mode.name()).send(source);
         GlobalConfiguration.broadcast("Enigma regionizer mode set to " + mode.name(), GlobalConfiguration.INFO);
         return Command.SINGLE_SUCCESS;
     }
 
     private static int aggr(final CommandContext<CommandSourceStack> context) {
+        final CommandSourceStack source = context.getSource();
         final int percent = IntegerArgumentType.getInteger(context, "percent");
         LoadScaling.setAggression(percent);
+        Style.bullets().bullet("Aggression", percent + "%").send(source);
         GlobalConfiguration.broadcast("Enigma regionizer aggression set to " + percent + "%", GlobalConfiguration.INFO);
         return Command.SINGLE_SUCCESS;
     }
 
     private static int reload(final CommandContext<CommandSourceStack> context) {
+        final CommandSourceStack source = context.getSource();
         LoadScaling.reload();
+        Style.bullets().bullet("Load scaling config", "reloaded", Style.good()).send(source);
         GlobalConfiguration.broadcast("Reloaded Enigma load scaling configuration", GlobalConfiguration.INFO);
         return Command.SINGLE_SUCCESS;
     }
@@ -190,56 +205,76 @@ public class RegionizerSubCommand implements SubCommand {
 
         final int[] stateCounts = new int[2];
         final long[] sizes = new long[2];
-        final List<String> largest = new ArrayList<>();
+        final List<RegionRow> rows = new ArrayList<>();
         final double[] loads = new double[2];
         final long[] coupling = new long[1];
 
         level.regioniser.computeForAllChunkRegions((region) -> {
             final int sections = region.getOwnedPackedChunkPositions().length;
+            final double mspt = Math.max(0.0D, region.getTickData().getMSPT(RegionTickData.Frame._5_SECONDS));
             if (region.getState() == io.canvasmc.canvas.region.WorldRegionizer.ChunkRegion.State.TICKING) {
                 stateCounts[0]++;
                 sizes[0] += sections;
-                loads[0] += Math.max(0.0D, region.getTickData().getMSPT(RegionTickData.Frame._5_SECONDS));
+                loads[0] += mspt;
+                rows.add(new RegionRow(region.getId(), true, sections, mspt));
             } else {
                 stateCounts[1]++;
                 sizes[1] += sections;
+                rows.add(new RegionRow(region.getId(), false, sections, mspt));
             }
-            largest.add("id=" + region.getId() + " state=" + region.getState() + " sections=" + sections
-                + " mspt=" + String.format(java.util.Locale.ROOT, "%.2f", Math.max(0.0D, region.getTickData().getMSPT(RegionTickData.Frame._5_SECONDS))));
         });
         coupling[0] = io.canvasmc.canvas.regionizer.RegionCoupling.size();
 
         final long total = stateCounts[0] + stateCounts[1];
-        largest.sort((a, b) -> Integer.compare(extractSections(b), extractSections(a)));
+        rows.sort((a, b) -> Integer.compare(b.sections(), a.sections()));
 
-        source.sendSuccess(() -> Component.literal("Regions in " + level.dimension().identifier() + ": " + total
-            + " (ticking=" + stateCounts[0] + ", idle=" + stateCounts[1]
-            + ", coupling=" + coupling[0] + ")"), false);
-        source.sendSuccess(() -> Component.literal("Avg sections ticking="
-            + (stateCounts[0] == 0 ? "-" : (sizes[0] / stateCounts[0]))
-            + ", avg mspt=" + (stateCounts[0] == 0 ? "-" : String.format(java.util.Locale.ROOT, "%.2f", loads[0] / stateCounts[0]))
-            + ", avg sections idle=" + (stateCounts[1] == 0 ? "-" : (sizes[1] / stateCounts[1]))), false);
+        final Style.Report report = Style.report("Regions in " + level.dimension().identifier().getPath());
+        report.bullet("Total", Component.text()
+            .append(Style.value(total))
+            .append(Component.text(" regions (ticking=", Style.SECONDARY))
+            .append(Style.value(stateCounts[0]))
+            .append(Component.text(", idle=", Style.SECONDARY))
+            .append(Style.value(stateCounts[1]))
+            .append(Component.text(", coupling=", Style.SECONDARY))
+            .append(Style.value(coupling[0]))
+            .append(Component.text(")", Style.SECONDARY))
+            .build());
+        report.bullet("Average sections", Component.text()
+            .append(stateCounts[0] == 0 ? Component.text("-", Style.SECONDARY) : Style.value(sizes[0] / stateCounts[0]))
+            .append(Component.text(" ticking, ", Style.SECONDARY))
+            .append(stateCounts[1] == 0 ? Component.text("-", Style.SECONDARY) : Style.value(sizes[1] / stateCounts[1]))
+            .append(Component.text(" idle", Style.SECONDARY))
+            .build());
+        report.bullet("Average MSPT (ticking)", stateCounts[0] == 0
+            ? Component.text("-", Style.SECONDARY)
+            : Style.mspt(loads[0] / stateCounts[0]));
 
-        for (int i = 0, len = Math.min(10, largest.size()); i < len; i++) {
-            final String line = largest.get(i);
-            source.sendSystemMessage(Component.literal("  " + line));
+        final int shown = Math.min(10, rows.size());
+        if (shown > 0) {
+            report.gap();
+            report.subHeader("Top " + shown + " regions by sections");
+            for (int i = 0; i < shown; i++) {
+                final RegionRow row = rows.get(i);
+                report.line(Component.text()
+                    .append(Component.text(" - ", Style.LIST, TextDecoration.BOLD))
+                    .append(Component.text("Region ", Style.PRIMARY))
+                    .append(Style.value(row.id()))
+                    .append(Component.text(", ", Style.SECONDARY))
+                    .append(Component.text(row.ticking() ? "ticking" : "idle",
+                        row.ticking() ? Style.good() : Style.SECONDARY))
+                    .append(Component.text(", ", Style.SECONDARY))
+                    .append(Style.value(row.sections()))
+                    .append(Component.text(" sections, ", Style.SECONDARY))
+                    .append(Style.mspt(row.mspt()))
+                    .append(Component.text(" MSPT", Style.SECONDARY))
+                    .build());
+            }
         }
+
+        report.send(source);
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int extractSections(final String line) {
-        final int idx = line.indexOf("sections=");
-        if (idx < 0) {
-            return 0;
-        }
-        int end = line.indexOf(' ', idx);
-        if (end < 0) {
-            end = line.length();
-        }
-        try {
-            return Integer.parseInt(line.substring(idx + 9, end));
-        } catch (final NumberFormatException ignored) {
-            return 0;
-        }
+    private record RegionRow(long id, boolean ticking, int sections, double mspt) {
     }
 }

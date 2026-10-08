@@ -17,7 +17,7 @@ public record FoliaPlatformInfo(Server server) implements PlatformInfo {
     @Override
     public String getName() {
         // Canvas has its own region implementation, it is not a Folia build.
-        return "Canvas";
+        return "EnigmaEngine";
     }
 
     @Override

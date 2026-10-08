@@ -9,6 +9,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
+import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
 import io.canvasmc.canvas.threadedregions.commands.AbstractCommandExecution;
 import io.canvasmc.canvas.util.StringSuggestionProvider;
@@ -101,10 +102,9 @@ public class MobCapsSubCommand implements SubCommand {
 
                 // this **should** be thread-safe
                 craftServer.spawnCategoryLimit.put(category, resetValue);
-                css.sendSuccess(
-                    () -> Component.literal("Reset limit of \"" + category + "\" to default value, " + resetValue),
-                    false
-                );
+                Style.bullets()
+                    .bullet("Limit (" + category + ")", "reset to " + resetValue)
+                    .send(css);
 
                 return Command.SINGLE_SUCCESS;
             }, css
@@ -126,10 +126,9 @@ public class MobCapsSubCommand implements SubCommand {
 
                 // this **should** be thread-safe
                 MinecraftServer.getServer().server.spawnCategoryLimit.put(category, value);
-                css.sendSuccess(
-                    () -> Component.literal("Set limit of \"" + category + "\" to " + value),
-                    false
-                );
+                Style.bullets()
+                    .bullet("Limit (" + category + ")", String.valueOf(value))
+                    .send(css);
 
                 return Command.SINGLE_SUCCESS;
             }, css
@@ -144,10 +143,9 @@ public class MobCapsSubCommand implements SubCommand {
                 final SpawnCategory category = getCategory(ctx);
                 final int value = MinecraftServer.getServer().server.getSpawnLimitUnsafe(category);
 
-                css.sendSuccess(
-                    () -> Component.literal("Category by name of \"" + category + "\" has a limit of " + value),
-                    false
-                );
+                Style.bullets()
+                    .bullet("Limit (" + category + ")", String.valueOf(value))
+                    .send(css);
 
                 return Command.SINGLE_SUCCESS;
             }, css

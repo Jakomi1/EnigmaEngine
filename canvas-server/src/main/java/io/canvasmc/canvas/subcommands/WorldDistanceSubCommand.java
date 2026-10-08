@@ -9,6 +9,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import io.canvasmc.canvas.GlobalConfiguration;
+import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
 import io.canvasmc.canvas.util.Util;
 import io.canvasmc.canvas.world.PerWorldDistanceConfig;
@@ -108,10 +109,9 @@ public class WorldDistanceSubCommand implements SubCommand {
     private static int getAndReturnDistance(final CommandContext<CommandSourceStack> context, final Type type, final ServerLevel level) {
         final int distance = type.get(level);
 
-        context.getSource().sendSuccess(
-            () -> Component.literal(type.name + " distance of level \"" + Util.getLevelName(level) + "\" is " + distance),
-            false
-        );
+        Style.bullets()
+            .bullet(type.name + " distance of level \"" + Util.getLevelName(level) + "\"", (long) distance)
+            .send(context.getSource());
         return distance;
     }
 

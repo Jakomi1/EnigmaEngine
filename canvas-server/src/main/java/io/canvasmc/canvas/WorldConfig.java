@@ -48,7 +48,7 @@ public class WorldConfig extends Part {
     // we have a logger internally here for level-config related things, and should not be used globally. the global
     // config class should be the logger publicly used
 
-    private static final Logger LOGGER = LoggerFactory.getLogger("CanvasWorlds");
+    private static final Logger LOGGER = LoggerFactory.getLogger("EnigmaWorlds");
 
     private static final Path BASE_FILE = Path.of("config/canvas-worlds.yml").toAbsolutePath().normalize();
 
@@ -63,7 +63,7 @@ public class WorldConfig extends Part {
             reload();
         } catch (final Throwable thrown) {
             // we at least need to make sure this is logged
-            LOGGER.error("Couldn't load Canvas worlds default configuration", thrown);
+            LOGGER.error("Couldn't load EnigmaEngine worlds default configuration", thrown);
             throw thrown;
         }
     }
@@ -96,16 +96,16 @@ public class WorldConfig extends Part {
                 }
             },
             Style.create()
-                .literal("Worlds default configuration file for CanvasMC").endLine()
+                .literal("Worlds default configuration file for EnigmaEngine").endLine()
                 .blank()
                 .wordWrap(
-                    "This is the defaults for the per-world configuration file for CanvasMC.",
+                    "This is the defaults for the per-world configuration file for EnigmaEngine.",
                     "Each option can be overridden by the patch variant in each dimension folder. You are",
                     "free to modify, add, or remove comments as you please."
                 ).endLine()
                 .blank()
                 .wordWrap(
-                    "You may refresh this configuration at runtime using the \"/canvas reload\" command, however",
+                    "You may refresh this configuration at runtime using the \"/enigma reload\" command, however",
                     "it is not recommended to do this during production, as this can cause issues like unexpected crashes",
                     "or unintended behavior."
                 ).endLine()
@@ -113,13 +113,12 @@ public class WorldConfig extends Part {
                 .wordWrap(
                     "All defaults for the options provided in this configuration are configured for upstream",
                     "compatibility over performance. You must do some manual configuration to get some of the performance",
-                    "benefits Canvas provides."
+                    "benefits EnigmaEngine provides."
                 ).endLine()
                 .blank()
                 .wordWrap(
-                    "If you have questions about certain configuration options please reach out in our discord"
+                    "If you have questions about certain configuration options, please consult the EnigmaEngine documentation."
                 ).endLine()
-                .literal("https://canvasmc.io/discord")
                 .compile(60)
         );
 
@@ -145,7 +144,7 @@ public class WorldConfig extends Part {
             BASE_FILE,
             WorldConfig::new,
             instance -> {
-                LOGGER.info("Loaded Canvas config patch for level {}", dimension.identifier());
+                LOGGER.info("Loaded EnigmaEngine config patch for level {}", dimension.identifier());
 
                 result[0] = instance;
 
@@ -210,13 +209,13 @@ public class WorldConfig extends Part {
     public static class RegionBars extends Part {
 
         {
-            option("enableTpsBar").docs("Enables a regionized TPS-Bar implementation for Canvas.");
+            option("enableTpsBar").docs("Enables a regionized TPS-Bar implementation for EnigmaEngine.");
             option("tpsBarFormat")
                 .docs(
                     "MiniMessage-formatted line for the TPS bar. Placeholders are <tps>, <mspt>, <util>, and <players>.",
                     "Legacy tokens(%tps%, %mspt%, %util%, %players%) are also accepted and auto-converted."
                 ).greedyString();
-            option("enableRamBar").docs("Enables a regionized RAM-Bar implementation for Canvas.");
+            option("enableRamBar").docs("Enables a regionized RAM-Bar implementation for EnigmaEngine.");
             option("ramBarFormat")
                 .docs(
                     "MiniMessage-formatted line for the RAM bar. Placeholders are <used>, <xmx>, <percent>.",
@@ -563,9 +562,8 @@ public class WorldConfig extends Part {
     {
         option("waypointUpdateScale")
             .docs(
-                "Controls how quickly Canvas' waypoints system falls off with distance between players.",
-                "You can read more about how this new system works and play around with this configuration",
-                "here: https://docs.canvasmc.io/canvas/info/waypoints/"
+                "Controls how quickly EnigmaEngine's waypoints system falls off with distance between players.",
+                "You can read more about how this new system works and play around with this configuration"
             );
         option("disableCriterionTrigger").docs("Disables all criterion triggers. Advancements will not work!");
         option("cactusCheckSurvivalBeforeGrowth").docs("Check if a cactus can survive before growing. Heavily optimizes cacti farms");

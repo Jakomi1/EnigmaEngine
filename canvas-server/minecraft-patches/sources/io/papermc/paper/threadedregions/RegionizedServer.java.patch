@@ -1,12 +1,19 @@
 --- a/io/papermc/paper/threadedregions/RegionizedServer.java
 +++ b/io/papermc/paper/threadedregions/RegionizedServer.java
-@@ -299,6 +_,9 @@
+@@ -299,6 +_,16 @@
  
          // player list
          minecraftServer.getPlayerList().tick();
 +        // Enigma start - adaptive regionizer maintenance pass
 +        io.canvasmc.canvas.regionizer.loadscaling.RegionMaintenance.tick();
 +        // Enigma end - adaptive regionizer maintenance pass
++        // Enigma start - distributed runtime tick
++        // Only touch the runtime when it was actually enabled, so a normal single-node server does
++        // not construct the bootstrap (and with it an instance identity) just to tick a no-op.
++        if (io.canvasmc.canvas.distributed.config.EnigmaDistributedConfig.current().enabled) {
++            io.canvasmc.canvas.distributed.DistributedBootstrap.getInstance().tick();
++        }
++        // Enigma end - distributed runtime tick
          // Canvas start - region threading
  
          // gui tick

@@ -153,3 +153,19 @@ tasks.register<CopyPaperclipJar>("buildEnigmaEngine") {
     libsDir.set(file("canvas-server/build/libs"))
     outputFile.set(file("serverJar/EnigmaEngine.jar"))
 }
+
+tasks.register<Exec>("buildEnigmaClient") {
+    description = "Baut die EnigmaClient-Fabric-Mod (enigma-client/)"
+    group = "build"
+
+    workingDir = layout.projectDirectory.dir("enigma-client").asFile
+    commandLine("cmd", "/c", "gradlew.bat", "build", "--console=plain")
+
+    inputs.dir(layout.projectDirectory.dir("enigma-client/src"))
+    inputs.files(
+        layout.projectDirectory.file("enigma-client/build.gradle.kts"),
+        layout.projectDirectory.file("enigma-client/settings.gradle.kts"),
+        layout.projectDirectory.file("enigma-client/gradle.properties")
+    )
+    outputs.dir(layout.projectDirectory.dir("enigma-client/build/libs"))
+}
