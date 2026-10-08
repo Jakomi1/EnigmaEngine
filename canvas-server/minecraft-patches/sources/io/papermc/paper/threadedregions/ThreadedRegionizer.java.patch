@@ -1,6 +1,6 @@
 --- a/io/papermc/paper/threadedregions/ThreadedRegionizer.java
 +++ b/io/papermc/paper/threadedregions/ThreadedRegionizer.java
-@@ -268,6 +_,254 @@
+@@ -268,6 +_,326 @@
          }
      }
  
@@ -160,6 +160,78 @@
 +    }
 +
 +    /**
++     * Garbage collects regions that no longer own a single chunk. Regions whose section shells are
++     * fully dead are released and dropped; regions that merely lost their chunks but still back the
++     * regionizer's adjacency grid (empty sections with alive, populated neighbours) are retained and
++     * reported as structural. Runs entirely under the write lock, so the shared reads below are safe.
++     *
++     * @return the number of regions that were dropped
++     */
++    public int enigma$garbageCollectRegions() {
++        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
++        if (!settings.enabled()) {
++            return 0;
++        }
++        final List<ThreadedRegion<R, S>> candidates = new ArrayList<>();
++        // Take an unsynchronised snapshot first so the write lock is only ever held while actually
++        // mutating. Dead or transient entries in the snapshot are re-checked under the lock.
++        this.computeForAllRegionsUnsynchronised(candidates::add);
++
++        int released = 0;
++        int retainedStructural = 0;
++        int retainedStructuralSections = 0;
++
++        this.acquireWriteLock();
++        try {
++            for (final ThreadedRegion<R, S> region : candidates) {
++                if (region.isDead() || region.state != ThreadedRegion.STATE_READY) {
++                    continue;
++                }
++
++                final int totalSections = region.sectionByKey.size();
++                final int deadSections = region.deadSections.size();
++                final boolean ownsChunks = !region.getOwnedChunks().isEmpty();
++                if (ownsChunks) {
++                    continue;
++                }
++
++                if (totalSections == 0 || deadSections == totalSections) {
++                    // Every section is dead or the region is a bare husk: let the normal release
++                    // machinery drain and drop it.
++                    try {
++                        this.onRegionRelease(region);
++                        released++;
++                        continue;
++                    } catch (final Throwable t) {
++                        LOGGER.warn("Region GC could not release fully-dead region {}: {}",
++                                region.id, t.toString());
++                    }
++                }
++
++                // The region kept alive, empty boundary sections that neighbouring regions
++                // rely on for adjacency. It is not garbage, just structural.
++                retainedStructural++;
++                retainedStructuralSections += totalSections;
++            }
++        } finally {
++            this.releaseWriteLock();
++        }
++
++        if (released > 0) {
++            LOGGER.info("Region GC {}: released {} empty region(s), retained {} structural ({} boundary sections)",
++                    this.world.dimension().identifier().getPath(), released, retainedStructural,
++                    retainedStructuralSections);
++        } else if (retainedStructural > 0) {
++            // Retaining boundary sections is the normal outcome, not news: this runs on a timer and
++            // at INFO it spams the log once per pass per world.
++            LOGGER.debug("Region GC {}: nothing to release, retained {} structural ({} boundary sections)",
++                    this.world.dimension().identifier().getPath(), retainedStructural,
++                    retainedStructuralSections);
++        }
++        return released;
++    }
++
++    /**
 +     * Splits the given alive region into multiple regions based on its section clusters. Must be called while holding
 +     * the write lock and while the region is in the ready state.
 +     *
@@ -255,6 +327,30 @@
      /**
       * Adds a chunk to the regioniser. Note that it is illegal to add a chunk unless
       * addChunk has not been called for it or removeChunk has been previously called.
+@@ -287,7 +_,11 @@
+         {
+             final ThreadedRegionSection<R, S> existing = this.sections.get(sectionKey);
+             if (existing != null && !existing.isEmpty()) {
+-                existing.addChunk(chunkX, chunkZ);
++                // Idempotency: a distributed region handover registers chunks here while Moonrise's
++                // own chunk-load path may still add the same chunk. A repeat registration is fine.
++                if (!existing.containsChunk(chunkX, chunkZ)) {
++                    existing.addChunk(chunkX, chunkZ);
++                }
+                 return;
+             } // else: just acquire the write lock
+         }
+@@ -304,7 +_,9 @@
+                 this.sections.put(sectionKey, section);
+                 newSections.add(section);
+             } else {
+-                section.addChunk(chunkX, chunkZ);
++                if (!section.containsChunk(chunkX, chunkZ)) {
++                    section.addChunk(chunkX, chunkZ);
++                }
+             }
+             // due to the fast check from above, we know the section is empty whether we needed to create it or not
+ 
 @@ -412,6 +_,13 @@
                          continue;
                      }
@@ -269,6 +365,24 @@
                      if (!region.killAndMergeInto(regionOfInterest)) {
                          // note: the region may already be a merge target
                          regionOfInterest.mergeIntoLater(region);
+@@ -461,7 +_,16 @@
+         // we can avoid the lock IF the section exists AND it has a chunk count > 1
+         final ThreadedRegionSection<R, S> section = this.sections.get(sectionKey);
+         if (section == null) {
+-            throw new IllegalStateException("Chunk (" + chunkX + "," + chunkZ + ") has no section");
++            // Enigma: the chunk was already released to a Compute Host (migration handover). The
++            // ChunkHolder keeps existing until Moonrise unloads it, and that deletion must not
++            // crash the region that just gave the chunk away.
++            LOGGER.debug("Chunk ({},{}) has no section, already released", chunkX, chunkZ);
++            return;
++        }
++        if (!section.containsChunk(chunkX, chunkZ)) {
++            LOGGER.debug("Chunk ({},{}) is not part of section {}, already released",
++                    chunkX, chunkZ, section);
++            return;
+         }
+         if (!section.hasOnlyOneChunk()) {
+             // chunk will not go empty, so we don't need to acquire the lock
 @@ -785,6 +_,11 @@
          private final ReferenceOpenHashSet<ThreadedRegion<R, S>> mergeIntoLater = new ReferenceOpenHashSet<>();
          private final ReferenceOpenHashSet<ThreadedRegion<R, S>> expectingMergeFrom = new ReferenceOpenHashSet<>();
@@ -302,3 +416,18 @@
              final boolean add1, add2;
              if ((add1 = this.mergeIntoLater.add(region)) != (add2 = region.expectingMergeFrom.add(this))) {
                  throw new IllegalStateException("Inconsistent state between target merge " + region + " and this " + this + ": add1,add2:" + add1 + "," + add2);
+@@ -1217,6 +_,14 @@
+ 
+         private boolean isEmpty() {
+             return this.chunkCount == 0;
++        }
++
++        /**
++         * Returns whether this section already holds the chunk, without mutating anything.
++         */
++        private boolean containsChunk(final int chunkX, final int chunkZ) {
++            final int index = this.getChunkIndex(chunkX, chunkZ);
++            return (this.chunksBitset[index >>> 6] & (1L << (index & (Long.SIZE - 1)))) != 0L;
+         }
+ 
+         private boolean hasOnlyOneChunk() {

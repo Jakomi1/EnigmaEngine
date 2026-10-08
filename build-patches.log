@@ -1,0 +1,26 @@
+Calculating task graph as no cached configuration is available for tasks: :canvas-server:rebuildMinecraftSourcePatches
+Type-safe project accessors is an incubating feature.
+
+> Configure project :
+weaver-patcher v2.4.5 (running on 'Windows 11')
+
+> Configure project :canvas-server
+weaver-core v2.4.5 (running on 'Windows 11')
+
+> Task :canvas-server:sortFoliaATs
+> Task :canvas-server:downloadMcManifest
+> Task :canvas-server:downloadMcVersionManifest UP-TO-DATE
+> Task :canvas-server:downloadServerJar UP-TO-DATE
+> Task :canvas-server:extractFromBundler UP-TO-DATE
+> Task :canvas-server:macheRemapJar UP-TO-DATE
+
+> Task :canvas-server:rebuildMinecraftBasePatches
+Formatting patches for java...
+Saved 7 patches for java to minecraft-patches\base/
+
+> Task :canvas-server:rebuildMinecraftSourcePatches
+Rebuilt 135 patches
+
+BUILD SUCCESSFUL in 12s
+8 actionable tasks: 4 executed, 4 up-to-date
+Configuration cache entry stored.

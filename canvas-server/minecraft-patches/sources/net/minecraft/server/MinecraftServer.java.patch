@@ -1,5 +1,34 @@
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
+@@ -1156,6 +_,28 @@
+         this.halt(wait, false);
+     }
+     public void halt(final boolean wait, final boolean isRestarting) {
++        // Enigma start - return forwarded regions before stopping
++        // A World Host that still has regions out on Compute Hosts must bring them back (and thereby
++        // their compute-held state) before it stops. This funnels every stop path: console "stop",
++        // RCON, plugins and the /prepare-stop command all land here. The run is driven from the
++        // global tick (see DistributedBootstrap.tick), and once it finishes the server halts for real.
++        if (io.canvasmc.canvas.distributed.config.EnigmaDistributedConfig.current().enabled
++                && io.canvasmc.canvas.distributed.config.EnigmaDistributedConfig.current().isWorldHost()) {
++            final io.canvasmc.canvas.distributed.DistributedBootstrap bootstrap =
++                    io.canvasmc.canvas.distributed.DistributedBootstrap.getInstance();
++            final io.canvasmc.canvas.distributed.runtime.RemoteRegionExecutor executor = bootstrap.getRegionExecutor();
++            if (executor != null && (executor.handedOverCount() > 0 || executor.recoveringRegionCount() > 0)) {
++                if (!bootstrap.isPreparingStop()) {
++                    LOGGER.warn("Stop requested while regions are still forwarded to Compute Hosts; "
++                            + "returning them to the World Host first");
++                    bootstrap.prepareStop();
++                }
++                // Duplicate stops during the run are swallowed; the pending halt fires once the
++                // returns are done.
++                return;
++            }
++        }
++        // Enigma end - return forwarded regions before stopping
+         this.isRestarting = isRestarting;
+         this.hasLoggedStop = true; // Paper - Debugging
+         if (this.isDebugging()) io.papermc.paper.util.TraceUtil.dumpTraceForThread("Server stopped"); // Paper - Debugging
 @@ -1325,11 +_,7 @@
                  LOGGER.info("*************************************************************************************");
              }

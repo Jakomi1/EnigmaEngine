@@ -1,0 +1,82 @@
+Starting org.bukkit.craftbukkit.Main
+[18:25:54 INFO]: [bootstrap] Running Java 25 (OpenJDK 64-Bit Server VM 25+36-3489; Oracle Corporation null) on Windows 11 10.0 (amd64)
+[18:25:54 INFO]: [bootstrap] Loading Canvas 26.2-DEV-main@174bdcc (1970-01-01T00:00:00Z) for Minecraft 26.2
+[18:25:54 INFO]: [PluginInitializerManager] Initializing plugins...
+[18:25:54 INFO]: [PluginInitializerManager] Initialized 0 plugins
+[18:25:55 INFO]: [CanvasMC] Loading Canvas server configuration
+[18:25:55 INFO]: [EnigmaDistributedConfig] Enigma distributed config loaded from -Denigma.distributed.* system properties, identity key at C:\Users\jakob_vowie\Desktop\Coding Projekte\Java\EnigmaEngine\test\world-host\config\enigma_identity.key
+[18:25:55 WARN]: [EnigmaLoad] No enigma-load.yml present, using built-in defaults
+[18:25:55 WARN]: [CanvasMC] SIMD operations are available for your server, but are not configured!
+[18:25:55 WARN]: [CanvasMC] To enable additional optimizations, add "--add-modules=jdk.incubator.vector" to your startup flags, BEFORE the "-jar".
+[18:25:55 WARN]: [CanvasMC] If you have already added this flag, then SIMD operations are not supported on your JVM or CPU.
+[18:25:55 WARN]: [CanvasMC] Debug: Java: 25, test run: true
+[18:25:55 INFO]: [CanvasMC] Registered all Enigma commands
+[18:25:55 INFO]: [CanvasMC] Enigma distributed runtime is enabled as WORLD_HOST (will start once the server is up)
+[18:25:55 INFO]: [CanvasMC] Server will autosave enabled selection every 5m
+[18:25:55 INFO]: [CanvasMC] Using 20.0 as default tick rate
+[18:25:58 INFO]: [ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry] Initialising converters for DataConverter...
+[18:25:58 INFO]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, profilesHost=https://api.mojang.com, name=PROD]
+[18:25:58 INFO]: [ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry] Finished initialising converters for DataConverter in 326,1ms
+[18:25:59 INFO]: Loaded 1585 recipes
+[18:25:59 INFO]: Loaded 1688 advancements
+[18:26:00 INFO]: Starting minecraft server version 26.2
+[18:26:00 INFO]: Loading properties
+[18:26:00 INFO]: This server is running Canvas version 26.2-DEV-main@174bdcc (1970-01-01T00:00:00Z) (Implementing API version 26.2.local-SNAPSHOT)
+[18:26:00 INFO]: [spark] This server bundles the spark profiler. For more information please visit https://docs.papermc.io/paper/profiling
+[18:26:00 INFO]: Server Ping Player Sample Count: 12
+[18:26:00 INFO]: Using 4 threads for Netty based IO
+[18:26:00 INFO]: [MoonriseCommon] Setting up Paper chunk system
+[18:26:00 INFO]: [MoonriseCommon] Canvas is using 7 worker threads, 1 I/O threads
+[18:26:00 INFO]: [TickRegions] Initialised EDF Folia scheduler with initial 14 target thread(s)
+[18:26:00 INFO]: Default game type: SURVIVAL
+[18:26:00 INFO]: Generating keypair
+[18:26:00 INFO]: Starting Minecraft server on 127.0.0.1:4001
+[18:26:00 INFO]: Paper: Using Java compression from Velocity.
+[18:26:00 INFO]: Paper: Using Java cipher from Velocity.
+[18:26:00 INFO]: Preparing level "world"
+[18:26:01 INFO]: [CanvasWorlds] Loaded Canvas config patch for level minecraft:overworld
+[18:26:01 INFO]: [CanvasWorlds] Loaded Canvas config patch for level minecraft:the_nether
+[18:26:01 INFO]: [CanvasWorlds] Loaded Canvas config patch for level minecraft:the_end
+[18:26:01 INFO]: Loading 0 persistent chunks for level 'minecraft:overworld'...
+[18:26:01 INFO]: Prepared spawn area in 0 ms
+[18:26:01 INFO]: Loading 0 persistent chunks for level 'minecraft:the_nether'...
+[18:26:01 INFO]: Prepared spawn area in 0 ms
+[18:26:01 INFO]: Loading 0 persistent chunks for level 'minecraft:the_end'...
+[18:26:01 INFO]: Prepared spawn area in 0 ms
+[18:26:01 INFO]: Done preparing level "world" (0.378s)
+[18:26:01 INFO]: [spark] Starting background profiler...
+[18:26:01 INFO]: [spark] The async-profiler engine is not supported for your os/arch (windows11/amd64), so the built-in Java engine will be used instead.
+[18:26:01 INFO]: Starting remote control listener
+[18:26:01 INFO]: Thread RCON Listener started
+[18:26:01 INFO]: RCON running on 127.0.0.1:25575
+[18:26:01 INFO]: Saving chunks for level 'ServerLevel[world]'/minecraft:overworld
+[18:26:01 INFO]: Saving chunks for level 'ServerLevel[world]'/minecraft:the_nether
+[18:26:01 INFO]: Saving chunks for level 'ServerLevel[world]'/minecraft:the_end
+[18:26:01 INFO]: ThreadedAnvilChunkStorage (world): All chunks are saved
+[18:26:01 INFO]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[18:26:01 INFO]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[18:26:01 INFO]: ThreadedAnvilChunkStorage: All dimensions are saved
+[18:26:01 INFO]: [TickRegionScheduler] Starting EDF region scheduler
+[18:26:01 WARN]: [TickRegionScheduler] Region profiling not supported in this environment
+[18:26:01 INFO]: Done (7.804s)! For help, type "help"
+[18:26:01 WARN]: [CanvasMC] You are running a development version of Canvas, which may not be production-ready, be very careful!
+[18:26:01 INFO]: [EnigmaIdentity] Loaded Enigma instance identity: d5bc77b0-8307-4bf8-906e-8cbeaad0f7fe (C:\Users\jakob_vowie\Desktop\Coding Projekte\Java\EnigmaEngine\test\world-host\config\enigma_identity.key)
+[18:26:01 INFO]: [EnigmaDistributed] Starting EnigmaEngine as WORLD_HOST (instanceId=d5bc77b0-8307-4bf8-906e-8cbeaad0f7fe, bind=/0.0.0.0:25560)
+[18:26:01 INFO]: [EnigmaRemoteExecutor] RemoteRegionExecutor started for instance d5bc77b0-8307-4bf8-906e-8cbeaad0f7fe
+[18:26:01 INFO]: [EnigmaDistributed] World Host listening on /0.0.0.0:25560
+[18:26:05 INFO]: [EnigmaDistributed] Compute Host connected from /127.0.0.1:41852 (awaiting handshake)
+[18:26:05 INFO]: [EnigmaPlayerRouter] Compute Host connected for player routing
+[18:26:05 INFO]: [EnigmaDistributed] Compute Host -8753739619662216310 registered from /127.0.0.1:41852
+[18:26:05 INFO]: [EnigmaRemoteExecutor] Compute Host -8753739619662216310 is ready to receive migrations
+[18:28:45 INFO]: Thread RCON Client /127.0.0.1 started
+[18:28:47 INFO]: Thread RCON Client /127.0.0.1 shutting down
+[18:52:31 INFO]: UUID of player Jakomi1 is d6fa4a1b-6e3c-4e3e-a8f8-f7dd4c9ba290
+[18:52:32 INFO]: Jakomi1 joined the game
+[18:52:32 INFO]: Jakomi1[/127.0.0.1:14086] logged in with entity id 63 at ([minecraft:overworld]-2811.2938662715333, -57.83172987357312, 1386.6079103476563)
+[18:52:52 INFO]: Jakomi1 issued server command: /enigma distributed migrations
+[18:52:55 INFO]: Jakomi1 issued server command: /enigma distributed info
+[18:53:04 INFO]: Jakomi1 issued server command: /enigma distributed migrate 1 2
+[18:53:11 INFO]: Jakomi1 issued server command: /enigma distributed
+[18:53:12 INFO]: Jakomi1 issued server command: /enigma distributed
+[18:55:30 INFO]: Jakomi1 lost connection: Disconnected
+[18:55:30 INFO]: Jakomi1 left the game

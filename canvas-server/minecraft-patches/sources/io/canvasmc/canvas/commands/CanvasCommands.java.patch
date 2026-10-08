@@ -1,0 +1,39 @@
+--- a/io/canvasmc/canvas/commands/CanvasCommands.java
++++ b/io/canvasmc/canvas/commands/CanvasCommands.java
+@@ -22,13 +_,15 @@
+      */
+     public static final String ROOT = "enigma";
+ 
+-    static final TextColor HEADER = TextColor.color(160, 90, 245);
+-    static final TextColor PRIMARY = TextColor.color(118, 52, 212);
+-    static final TextColor SECONDARY = TextColor.color(182, 118, 248);
+-    static final TextColor INFORMATION = TextColor.color(208, 168, 252);
+-    static final TextColor LIST = TextColor.color(62, 18, 148);
+-    static final TextColor ACCENT = TextColor.color(230, 200, 255);
+-    static final TextColor MUTED = TextColor.color(98, 52, 172);
++    // Same palette Folia's /tps report uses (see Style), so chat feedback, the help output
++    // and the dialogs all share one colour scheme.
++    static final TextColor HEADER = TextColor.color(79, 164, 240);
++    static final TextColor PRIMARY = TextColor.color(48, 145, 237);
++    static final TextColor SECONDARY = TextColor.color(104, 177, 240);
++    static final TextColor INFORMATION = TextColor.color(145, 198, 243);
++    static final TextColor LIST = TextColor.color(33, 97, 188);
++    static final TextColor ACCENT = TextColor.color(215, 236, 255);
++    static final TextColor MUTED = TextColor.color(74, 133, 200);
+ 
+     static {
+         INSTANCE = new CanvasCommands();
+@@ -109,5 +_,13 @@
+ 
+         HelpCommand.constructHelpSystem(base, () -> this.subCommands);
+         dispatcher.register(base);
++
++        // Root-level convenience alias for the distributed return-and-stop sequence, so operators do
++        // not need to build the whole /enigma tree just to shut a World Host down cleanly. It shares
++        // the exact logic and permission node of /enigma distributed prepare-stop.
++        dispatcher.register(literal("prepare-stop")
++                .requires(source -> source.hasPermission(Permissions.COMMANDS_ADMIN,
++                        ROOT + ".command.distributed.prepare-stop"))
++                .executes(io.canvasmc.canvas.distributed.command.DistributedSubCommand::executePrepareStop));
+     }
+ }

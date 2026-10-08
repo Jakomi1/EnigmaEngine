@@ -4,18 +4,17 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import io.canvasmc.canvas.GlobalConfiguration;
 import io.canvasmc.canvas.WorldConfig;
+import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
 import io.canvasmc.canvas.util.Util;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.network.chat.Component;
-import net.minecraft.util.CommonColors;
 
 public class ReloadSubCommand implements SubCommand {
 
     @Override
     public String getDescription() {
-        return "Reloads the CanvasMC configuration";
+        return "Reloads the EnigmaEngine configuration";
     }
 
     @Override
@@ -26,19 +25,17 @@ public class ReloadSubCommand implements SubCommand {
 
             // warn the source, as technically this can cause issues and should
             // only be used for development purposes
-            source.sendSystemMessage(
-                Component.literal("Some configuration options cannot be changed at runtime or may work incorrectly after reloading.").withColor(CommonColors.RED)
-            );
-            source.sendSystemMessage(
-                Component.literal("This command is unsupported. If you encounter issues, please run /stop").withColor(CommonColors.RED)
-            );
+            Style.fail(source, "Some configuration options cannot be changed at runtime or may work incorrectly after reloading.");
+            Style.fail(source, "This command is unsupported. If you encounter issues, please run /stop");
 
             // reload global and world configs
             GlobalConfiguration.reload();
             WorldConfig.reload();
 
+            final String took = Util.formatNanosToLargestWholeUnit(System.nanoTime() - start);
+            Style.bullets().bullet("Configs", "reloaded in " + took, Style.good()).send(source);
             GlobalConfiguration.broadcast(
-                "Reloaded all Canvas solid and patch configurations in " + Util.formatNanosToLargestWholeUnit(System.nanoTime() - start),
+                "Reloaded all EnigmaEngine solid and patch configurations in " + took,
                 GlobalConfiguration.INFO
             );
             return Command.SINGLE_SUCCESS;

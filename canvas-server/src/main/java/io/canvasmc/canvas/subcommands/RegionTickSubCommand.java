@@ -14,6 +14,7 @@ import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
 import io.canvasmc.canvas.threadedregions.ScheduledHandleTickState;
 import io.papermc.paper.threadedregions.RegionizedServer;
@@ -68,7 +69,9 @@ public class RegionTickSubCommand implements SubCommand {
     public LiteralArgumentBuilder<CommandSourceStack> construct(final LiteralArgumentBuilder<CommandSourceStack> base, final CommandBuildContext buildContext) {
         return base
             .then(literal("rate").then(argument("rate", FloatArgumentType.floatArg(0.0F)).executes((context) -> {
-                TickRegionScheduler.setTickRate(FloatArgumentType.getFloat(context, "rate"));
+                final float rate = FloatArgumentType.getFloat(context, "rate");
+                TickRegionScheduler.setTickRate(rate);
+                Style.bullets().bullet("Tick rate", Style.value(rate)).send(context.getSource());
                 return Command.SINGLE_SUCCESS;
             })))
             // we cap it at 100k ticks to sprint, because yes... people do this... and it causes issues
@@ -79,7 +82,7 @@ public class RegionTickSubCommand implements SubCommand {
                     postActionTo(StringArgumentType.getString(context, "handle"), context.getSource().getPlayer(), (scheduleHandle) -> {
                         scheduleHandle.getTickManager().postAction(new ScheduledHandleTickState.Action.StartSprinting(ticksToSprint));
                     });
-                    context.getSource().sendSuccess(() -> Component.literal(String.format("Posted to marked schedule handles to sprint for %s ticks", ticksToSprint)), true);
+                    Style.bullets().bullet("Sprint", "posted to marked schedule handles for " + ticksToSprint + " ticks", Style.good()).send(context.getSource());
 
                     return Command.SINGLE_SUCCESS;
                 }))
@@ -91,7 +94,7 @@ public class RegionTickSubCommand implements SubCommand {
                             scheduleHandle.getTickManager().postAction(new ScheduledHandleTickState.Action.StopSprinting());
                         }
                     });
-                    context.getSource().sendSuccess(() -> Component.literal("Posted to marked schedule handles to stop sprinting"), true);
+                    Style.bullets().bullet("Walk", "stop sprinting posted to marked schedule handles", Style.good()).send(context.getSource());
                     return Command.SINGLE_SUCCESS;
                 })))
             .then(literal("pause")
@@ -99,7 +102,7 @@ public class RegionTickSubCommand implements SubCommand {
                     postActionTo(context.getArgument("handle", String.class), context.getSource().getPlayer(), (scheduleHandle) -> {
                         scheduleHandle.getTickManager().postAction(new ScheduledHandleTickState.Action.Pause());
                     });
-                    context.getSource().sendSuccess(() -> Component.literal("Posted to marked schedule handles to pause running game elements"), true);
+                    Style.bullets().bullet("Pause", "posted to marked schedule handles", Style.good()).send(context.getSource());
                     return Command.SINGLE_SUCCESS;
                 })))
             .then(literal("play")
@@ -107,7 +110,7 @@ public class RegionTickSubCommand implements SubCommand {
                     postActionTo(context.getArgument("handle", String.class), context.getSource().getPlayer(), (scheduleHandle) -> {
                         scheduleHandle.getTickManager().postAction(new ScheduledHandleTickState.Action.Play());
                     });
-                    context.getSource().sendSuccess(() -> Component.literal("Posted to marked schedule handles to run game elements"), true);
+                    Style.bullets().bullet("Play", "posted to marked schedule handles", Style.good()).send(context.getSource());
                     return Command.SINGLE_SUCCESS;
                 })));
     }

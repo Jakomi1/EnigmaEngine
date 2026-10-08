@@ -1,0 +1,231 @@
+--- /dev/null
++++ b/io/canvasmc/canvas/commands/Style.java
+@@ -1,0 +_,228 @@
++package io.canvasmc.canvas.commands;
++
++import io.papermc.paper.threadedregions.TickRegionScheduler;
++import io.papermc.paper.threadedregions.commands.CommandUtil;
++import net.kyori.adventure.text.Component;
++import net.kyori.adventure.text.TextComponent;
++import net.kyori.adventure.text.format.NamedTextColor;
++import net.kyori.adventure.text.format.TextColor;
++import net.kyori.adventure.text.format.TextDecoration;
++import net.minecraft.commands.CommandSourceStack;
++import org.jspecify.annotations.Nullable;
++
++import java.text.DecimalFormat;
++
++/**
++ * Chat formatting for every {@code /enigma} command, mirroring Folia's {@code /tps} server
++ * health report: a bold header line, {@code " - "} bullets with {@code Label: value} pairs and
++ * values coloured the same way {@code /tps} colours them (continuous green&rarr;red HSV gradient
++ * for TPS/MSPT/utilisation instead of hard thresholds).
++ *
++ * <p>Numbers are formatted with the same {@link DecimalFormat} patterns Folia uses
++ * ({@code #,##0.00}, {@code #,##0.0}, {@code #,##0}) so thousands are grouped consistently.</p>
++ */
++public final class Style {
++
++    // Palette copied verbatim from Folia's CommandServerHealth (/tps).
++    public static final TextColor HEADER = TextColor.color(79, 164, 240);
++    public static final TextColor PRIMARY = TextColor.color(48, 145, 237);
++    public static final TextColor SECONDARY = TextColor.color(104, 177, 240);
++    public static final TextColor INFORMATION = TextColor.color(145, 198, 243);
++    public static final TextColor LIST = TextColor.color(33, 97, 188);
++
++    public static final ThreadLocal<DecimalFormat> TWO_DECIMAL_PLACES = ThreadLocal.withInitial(() -> new DecimalFormat("#,##0.00"));
++    public static final ThreadLocal<DecimalFormat> ONE_DECIMAL_PLACES = ThreadLocal.withInitial(() -> new DecimalFormat("#,##0.0"));
++    public static final ThreadLocal<DecimalFormat> NO_DECIMAL_PLACES = ThreadLocal.withInitial(() -> new DecimalFormat("#,##0"));
++
++    private Style() {
++    }
++
++    // ---------------------------------------------------------------------
++    // Gradient colours, same source as /tps (CommandUtil's HSV ramp)
++    // ---------------------------------------------------------------------
++
++    /**
++     * The colour {@code /tps} would give a fully healthy value (green end of the ramp).
++     */
++    public static TextColor good() {
++        return CommandUtil.getColourForTPS(TickRegionScheduler.getTickRate());
++    }
++
++    /**
++     * Mid ramp colour for values that are degraded but still running (yellow/orange).
++     */
++    public static TextColor warn() {
++        return CommandUtil.getColourForTPS(TickRegionScheduler.getTickRate() * 0.75D);
++    }
++
++    /**
++     * The colour {@code /tps} would give a dead value (red end of the ramp).
++     */
++    public static TextColor bad() {
++        return CommandUtil.getColourForTPS(0.0D);
++    }
++
++    // ---------------------------------------------------------------------
++    // Value components
++    // ---------------------------------------------------------------------
++
++    public static Component value(final String raw) {
++        return Component.text(raw, INFORMATION);
++    }
++
++    public static Component value(final long raw) {
++        return Component.text(NO_DECIMAL_PLACES.get().format(raw), INFORMATION);
++    }
++
++    public static Component value(final double raw) {
++        return Component.text(TWO_DECIMAL_PLACES.get().format(raw), INFORMATION);
++    }
++
++    /**
++     * A TPS number coloured exactly like {@code /tps} colours TPS.
++     */
++    public static Component tps(final double raw) {
++        return Component.text(TWO_DECIMAL_PLACES.get().format(raw), CommandUtil.getColourForTPS(raw));
++    }
++
++    /**
++     * An MSPT number (plus its unit) coloured exactly like {@code /tps} colours MSPT.
++     */
++    public static Component mspt(final double millis) {
++        return Component.text(TWO_DECIMAL_PLACES.get().format(millis) + " ms", CommandUtil.getColourForMSPT(millis));
++    }
++
++    /**
++     * A utilisation fraction (0..1) coloured exactly like {@code /tps} colours utilisation.
++     */
++    public static Component util(final double fraction) {
++        return Component.text(ONE_DECIMAL_PLACES.get().format(fraction * 100.0) + "%",
++                CommandUtil.getUtilisationColourRegion(fraction));
++    }
++
++    /**
++     * Boolean state words: {@code on} in the healthy green, {@code off} in a calm grey so an
++     * intentionally disabled setting does not read like an error.
++     */
++    public static Component onOff(final boolean on) {
++        return on ? Component.text("on", good()) : Component.text("off", NamedTextColor.GRAY);
++    }
++
++    // ---------------------------------------------------------------------
++    // Sending
++    // ---------------------------------------------------------------------
++
++    public static void send(final CommandSourceStack source, final Component message) {
++        source.getBukkitSender().sendMessage(message);
++    }
++
++    /**
++     * Error feedback in the red end of the gradient, for the plain {@code sendFailure} style
++     * one-liners.
++     */
++    public static void fail(final CommandSourceStack source, final String message) {
++        source.getBukkitSender().sendMessage(Component.text(message, bad()));
++    }
++
++    // ---------------------------------------------------------------------
++    // Reports
++    // ---------------------------------------------------------------------
++
++    /**
++     * A multi-line report with a bold header and {@code " - "} bullets, e.g.
++     * <pre>
++     * Enigma Distributed Status
++     *  - Enabled: on
++     *  - Role: WORLD_HOST
++     * </pre>
++     */
++    public static Report report(final String title) {
++        return new Report(Component.text(title, HEADER, TextDecoration.BOLD));
++    }
++
++    /**
++     * Same as {@link #report(String)} but with a pre-built header component, for titles that
++     * mix colours such as {@code Region #1 (id=0) → Compute Host 123}.
++     */
++    public static Report report(final Component title) {
++        return new Report(title);
++    }
++
++    /**
++     * The same bullet formatting without a header line, for single-line feedback such as
++     * {@code  - Region GC: released 3 empty region(s)}.
++     */
++    public static Report bullets() {
++        return new Report(null);
++    }
++
++    public static final class Report {
++
++        private final TextComponent.Builder builder = Component.text();
++
++        private Report(final @Nullable Component title) {
++            if (title != null) {
++                this.builder.append(title)
++                        .appendNewline();
++            }
++        }
++
++        /**
++         * {@code  - Label: value} where the label is primary blue and the value keeps the
++         * colour it was built with.
++         */
++        public Report bullet(final String label, final Component value) {
++            this.builder.append(Component.text(" - ", LIST, TextDecoration.BOLD))
++                    .append(Component.text(label + ": ", PRIMARY))
++                    .append(value)
++                    .appendNewline();
++            return this;
++        }
++
++        public Report bullet(final String label, final String value) {
++            return bullet(label, value(value));
++        }
++
++        public Report bullet(final String label, final String value, final TextColor valueColour) {
++            return bullet(label, Component.text(value, valueColour));
++        }
++
++        public Report bullet(final String label, final long value) {
++            return bullet(label, value(value));
++        }
++
++        /**
++         * A raw line (indented sub-rows, warnings, ...). The caller owns the styling.
++         */
++        public Report line(final Component content) {
++            this.builder.append(content).appendNewline();
++            return this;
++        }
++
++        /**
++         * A bold header-sized sub-section inside a report, like {@code /tps} uses for
++         * "Highest N utilisation regions".
++         */
++        public Report subHeader(final String text) {
++            this.builder.append(Component.text(text, HEADER, TextDecoration.BOLD))
++                    .appendNewline();
++            return this;
++        }
++
++        /**
++         * An empty spacer line between report sections.
++         */
++        public Report gap() {
++            this.builder.appendNewline();
++            return this;
++        }
++
++        public Component build() {
++            return this.builder.build();
++        }
++
++        public void send(final CommandSourceStack source) {
++            Style.send(source, build());
++        }
++    }
++}

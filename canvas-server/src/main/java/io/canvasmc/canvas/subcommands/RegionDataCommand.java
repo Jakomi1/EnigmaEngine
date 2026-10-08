@@ -3,6 +3,7 @@ package io.canvasmc.canvas.subcommands;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
 import io.canvasmc.canvas.region.RegionTickData;
 import io.canvasmc.canvas.regionizer.RegionizerLagPriority;
@@ -18,10 +19,11 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -53,7 +55,7 @@ public class RegionDataCommand implements SubCommand {
                 final ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> region =
                     level.regioniser.getRegionAtUnsynchronised(sourceChunk.x(), sourceChunk.z());
                 if (region == null) {
-                    source.sendFailure(Component.literal("No region exists at the given coordinates"));
+                    Style.fail(source, "No region exists at the given coordinates");
                     return 0;
                 }
 
@@ -105,16 +107,14 @@ public class RegionDataCommand implements SubCommand {
                         averageTickMillis()
                     );
 
-                    for (final String line : result.describe(decision)) {
-                        source.sendSuccess(() -> Component.literal(line), false);
-                    }
+                    Style.send(source, result.describe(decision));
                     return Command.SINGLE_SUCCESS;
                 } catch (final InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    source.sendFailure(Component.literal("Interrupted while reading region data"));
+                    Style.fail(source, "Interrupted while reading region data");
                     return 0;
                 } catch (final Exception thrown) {
-                    source.sendFailure(Component.literal("Could not read region data: " + thrown.getMessage()));
+                    Style.fail(source, "Could not read region data: " + thrown.getMessage());
                     return 0;
                 }
             }))
@@ -133,13 +133,15 @@ public class RegionDataCommand implements SubCommand {
                     });
                 }
 
+                final Style.Report report = Style.report("Players by region");
                 if (perRegion.isEmpty()) {
-                    source.sendSuccess(() -> Component.literal("No regions are currently active"), false);
-                    return Command.SINGLE_SUCCESS;
+                    report.bullet("Active regions", Component.text("none", Style.SECONDARY));
+                } else {
+                    perRegion.forEach((key, count) ->
+                        report.bullet(key, count + " player" + (count == 1 ? "" : "s"))
+                    );
                 }
-                for (final Map.Entry<String, Integer> entry : perRegion.entrySet()) {
-                    source.sendSuccess(() -> Component.literal(entry.getKey() + ": " + entry.getValue() + " player(s)"), false);
-                }
+                report.send(source);
                 return Command.SINGLE_SUCCESS;
             }))
             // Entity breakdown of the region the source is in, with an optional type filter.
@@ -166,14 +168,14 @@ public class RegionDataCommand implements SubCommand {
                 final double globalMspt = averageTickMillis();
                 final RegionizerLagPriority policy = RegionizerLagPriority.from(settings);
 
-                source.sendSuccess(() -> Component.literal("Regionizer settings:"), false);
-                source.sendSuccess(() -> Component.literal("  split enabled: " + settings.enabled()), false);
-                source.sendSuccess(() -> Component.literal("  split high load mspt: " + settings.splitHighLoadMspt()), false);
-                source.sendSuccess(() -> Component.literal("  split max sections: " + settings.splitMaxSections()), false);
-                source.sendSuccess(() -> Component.literal("  split min size: " + settings.splitMinSize()), false);
-                source.sendSuccess(() -> Component.literal("  global mspt: " + String.format(Locale.ROOT, "%.2f", globalMspt)), false);
+                final Style.Report report = Style.report("Regionizer scheduling");
+                report.bullet("Split enabled", Style.onOff(settings.enabled()));
+                report.bullet("Split high load MSPT", String.valueOf(settings.splitHighLoadMspt()));
+                report.bullet("Split max sections", settings.splitMaxSections());
+                report.bullet("Split min size", settings.splitMinSize());
+                report.bullet("Global MSPT", Style.mspt(globalMspt));
 
-                final List<String> lines = new ArrayList<>();
+                final List<RegionDecision> decisions = new ArrayList<>();
                 for (final ServerLevel level : MinecraftServer.getServer().getAllLevels()) {
                     level.regioniser.computeForAllRegionsUnsynchronised(region -> {
                         final ChunkPos center = region.getCenterChunk();
@@ -181,19 +183,31 @@ public class RegionDataCommand implements SubCommand {
                             return;
                         }
                         final double mspt = region.getData().getMSPT(RegionTickData.Frame._5_SECONDS);
-                        lines.add(String.format(
-                            Locale.ROOT,
-                            "  %s mspt=%.2f density=n/a decision=%s",
+                        decisions.add(new RegionDecision(
                             regionKey(level, center.getMiddleBlockX(), center.getMiddleBlockZ()),
                             mspt,
-                            policy.decide(region.id, 0, 0, mspt, globalMspt).priority()
+                            String.valueOf(policy.decide(region.id, 0, 0, mspt, globalMspt).priority())
                         ));
                     });
                 }
+                decisions.sort((a, b) -> a.key().compareTo(b.key()));
 
-                lines.stream().sorted().forEach(line ->
-                    source.sendSuccess(() -> Component.literal(line), false)
-                );
+                if (decisions.isEmpty()) {
+                    report.bullet("Regions", Component.text("none active", Style.SECONDARY));
+                } else {
+                    report.gap();
+                    report.subHeader("Region decisions");
+                    for (final RegionDecision decision : decisions) {
+                        report.line(Component.text()
+                            .append(Component.text(" - ", Style.LIST, TextDecoration.BOLD))
+                            .append(Component.text(decision.key() + ": ", Style.PRIMARY))
+                            .append(Style.mspt(decision.mspt()))
+                            .append(Component.text(" MSPT, decision ", Style.SECONDARY))
+                            .append(Style.value(decision.priority()))
+                            .build());
+                    }
+                }
+                report.send(source);
                 return Command.SINGLE_SUCCESS;
             }));
     }
@@ -210,7 +224,7 @@ public class RegionDataCommand implements SubCommand {
         final ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> region =
             level.regioniser.getRegionAtUnsynchronised(sourceChunk.x(), sourceChunk.z());
         if (region == null) {
-            source.sendFailure(Component.literal("No region exists at the given coordinates"));
+            Style.fail(source, "No region exists at the given coordinates");
             return 0;
         }
 
@@ -237,20 +251,22 @@ public class RegionDataCommand implements SubCommand {
 
         try {
             final Map<String, Integer> result = counts.get(5, TimeUnit.SECONDS);
+            final Style.Report report = Style.report(filter == null
+                ? "Entities in this region"
+                : "Entities matching '" + filter + "' in this region");
             if (result.isEmpty()) {
-                source.sendSuccess(() -> Component.literal("No matching entities in this region"), false);
-                return Command.SINGLE_SUCCESS;
+                report.bullet("Matches", Component.text("none", Style.SECONDARY));
+            } else {
+                result.forEach((name, count) -> report.bullet(name, count));
             }
-            for (final Map.Entry<String, Integer> entry : result.entrySet()) {
-                source.sendSuccess(() -> Component.literal(entry.getKey() + ": " + entry.getValue()), false);
-            }
+            report.send(source);
             return Command.SINGLE_SUCCESS;
         } catch (final InterruptedException ie) {
             Thread.currentThread().interrupt();
-            source.sendFailure(Component.literal("Interrupted while reading entities"));
+            Style.fail(source, "Interrupted while reading entities");
             return 0;
         } catch (final Exception thrown) {
-            source.sendFailure(Component.literal("Could not read entities: " + thrown.getMessage()));
+            Style.fail(source, "Could not read entities: " + thrown.getMessage());
             return 0;
         }
     }
@@ -289,21 +305,23 @@ public class RegionDataCommand implements SubCommand {
         double mspt
     ) {
 
-        List<String> describe(final RegionizerLagPriority.Decision decision) {
-            final List<String> lines = new ArrayList<>();
-            lines.add("Region " + this.id + ":");
-            lines.add("  sections: " + this.sections);
-            lines.add("  players: " + this.players);
-            lines.add("  entities: " + this.entities);
-            lines.add("  chunks: " + this.chunks);
-            lines.add("  tile entities: " + this.tileEntities);
-            lines.add(String.format(Locale.ROOT, "  mspt (5s): %.2f", this.mspt));
-            lines.add(String.format(Locale.ROOT, "  load ratio: %.2f", decision.loadRatio()));
-            lines.add(String.format(Locale.ROOT, "  density: %.2f", decision.density()));
-            lines.add("  split factor: " + decision.splitFactor());
-            lines.add("  priority: " + decision.priority());
-            lines.add("  isolate: " + decision.isolate());
-            return lines;
+        Component describe(final RegionizerLagPriority.Decision decision) {
+            return Style.report("Region " + this.id)
+                .bullet("Sections", this.sections)
+                .bullet("Players", this.players)
+                .bullet("Entities", this.entities)
+                .bullet("Chunks", this.chunks)
+                .bullet("Tile entities", this.tileEntities)
+                .bullet("MSPT 5s", Style.mspt(this.mspt))
+                .bullet("Load ratio", Style.value(decision.loadRatio()))
+                .bullet("Density", Style.value(decision.density()))
+                .bullet("Split factor", String.valueOf(decision.splitFactor()))
+                .bullet("Priority", String.valueOf(decision.priority()))
+                .bullet("Isolate", String.valueOf(decision.isolate()))
+                .build();
         }
+    }
+
+    private record RegionDecision(String key, double mspt, String priority) {
     }
 }

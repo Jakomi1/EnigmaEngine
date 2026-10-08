@@ -34,6 +34,7 @@ public final class RegionMaintenance {
         }
         for (final ServerLevel level : server.getAllLevels()) {
             level.regioniser.enigma$runRegionMaintenance();
+            level.regioniser.enigma$garbageCollectRegions();
         }
         RegionCoupling.decay();
     }

@@ -1,0 +1,91 @@
+--- a/io/canvasmc/canvas/commands/HelpCommand.java
++++ b/io/canvasmc/canvas/commands/HelpCommand.java
+@@ -21,7 +_,6 @@
+ import net.kyori.adventure.text.event.ClickCallback;
+ import net.kyori.adventure.text.event.ClickEvent;
+ import net.kyori.adventure.text.event.HoverEvent;
+-import net.kyori.adventure.text.format.NamedTextColor;
+ import net.kyori.adventure.text.format.TextColor;
+ import net.kyori.adventure.text.format.TextDecoration;
+ import net.minecraft.commands.CommandSourceStack;
+@@ -51,7 +_,7 @@
+             craftPlayer.performCommand(CanvasCommands.ROOT + " help");
+         }
+         else {
+-            audience.sendMessage(Component.text("You do not have the required permissions to run this command", NamedTextColor.RED));
++            audience.sendMessage(Component.text("You do not have the required permissions to run this command", Style.bad()));
+         }
+     };
+ 
+@@ -64,6 +_,9 @@
+         final LiteralArgumentBuilder<CommandSourceStack> base,
+         final Supplier<List<SubCommand>> commands
+     ) {
++        // Bare "/enigma" would otherwise be an "Unknown or incomplete command" error; both the
++        // console and the dialog output below already skip sub commands the sender may not use.
++        base.executes(context -> executeHelp(commands, context));
+         base.then(literal("help").requires(CanvasCommands.permission("help"))
+             .executes(context -> executeHelp(commands, context)));
+     }
+@@ -99,9 +_,7 @@
+         final CommandSender bukkitSender,
+         final TextComponent.Builder builder
+     ) {
+-        builder.append(Component.text("----", SECONDARY, TextDecoration.BOLD))
+-            .append(Component.text("Enigma Engine Commands", HEADER, TextDecoration.BOLD))
+-            .append(Component.text("----", SECONDARY, TextDecoration.BOLD))
++        builder.append(Component.text("Enigma Engine Commands", HEADER, TextDecoration.BOLD))
+             .appendNewline();
+ 
+         for (final SubCommand subCommand : commands.get()) {
+@@ -116,17 +_,13 @@
+ 
+             final Component detailComponent = buildTextOut(subCommand);
+ 
+-            final Component entry = Component.text()
+-                .append(Component.text("- ").color(LIST))
+-                .append(Component.text("/").color(SECONDARY))
++            builder.append(Component.text(" - ", LIST, TextDecoration.BOLD))
++                .append(Component.text("/" + CanvasCommands.ROOT + " ", SECONDARY))
+                 .append(Component.text(name, PRIMARY)
+                     .decorate(TextDecoration.UNDERLINED)
+                     .hoverEvent(HoverEvent.showText(hoverText))
+                     .clickEvent(ClickEvent.callback((audience) -> audience.sendMessage(detailComponent))))
+-                .appendNewline()
+-                .build();
+-
+-            builder.append(entry);
++                .appendNewline();
+         }
+     }
+ 
+@@ -186,25 +_,10 @@
+         final String name = subCommand.getName();
+         final String description = subCommand.getDescription();
+ 
+-        final TextComponent.Builder builder = Component.text()
+-            .append(Component.text("----", SECONDARY, TextDecoration.BOLD))
+-            .append(Component.text("/" + CanvasCommands.ROOT + " " + name, HEADER, TextDecoration.BOLD))
+-            .append(Component.text("----", SECONDARY, TextDecoration.BOLD))
+-            .appendNewline()
+-            .appendNewline();
+-
+-        builder.append(Component.text("  Description  ", MUTED).decorate(TextDecoration.BOLD))
+-            .append(Component.text(description != null ? description : "No description provided.", ACCENT))
+-            .appendNewline();
+-
+-        builder.append(Component.text("  Permission   ", MUTED).decorate(TextDecoration.BOLD))
+-            .append(Component.text(CanvasCommands.ROOT + ".command." + name, ACCENT))
+-            .appendNewline()
+-            .appendNewline();
+-
+-        builder.append(Component.text("-".repeat(16 + name.length() - 1), SECONDARY, TextDecoration.BOLD));
+-
+-        return builder.append(Component.text("-----------------------", SECONDARY, TextDecoration.BOLD)).build();
++        return Style.report("/" + CanvasCommands.ROOT + " " + name)
++            .bullet("Description", description != null ? description : "No description provided.")
++            .bullet("Permission", CanvasCommands.ROOT + ".command." + name)
++            .build();
+     }
+ 
+     @Unmodifiable

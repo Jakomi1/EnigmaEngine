@@ -6,6 +6,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
 import io.canvasmc.canvas.region.WorldRegionizer;
 import java.util.ArrayList;
@@ -20,10 +21,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
@@ -168,8 +172,7 @@ public class TickingChunkMapSubCommand implements SubCommand {
                 render(player, settings, snapshot);
             } catch (final Throwable thrown) {
                 ENABLED.remove(uuid);
-                player.sendSystemMessage(Component.literal("Ticking chunk map stopped after an internal error: " + thrown)
-                    .withStyle(ChatFormatting.RED));
+                send(player, Component.text("Ticking chunk map stopped after an internal error: " + thrown, Style.bad()));
             }
         }
     }
@@ -187,12 +190,10 @@ public class TickingChunkMapSubCommand implements SubCommand {
         SETTINGS.put(player.getUUID(), settings);
         ENABLED.add(player.getUUID());
 
-        player.sendSystemMessage(Component.empty()
-            .append(Component.literal("Ticking chunk map ").withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD))
-            .append(Component.literal("enabled").withStyle(ChatFormatting.GREEN))
-            .append(Component.literal(" (radius " + settings.radius() + " chunks, 1s update).")
-                .withStyle(ChatFormatting.GRAY))
-        );
+        send(player, Style.bullets()
+            .bullet("Ticking chunk map",
+                "enabled (radius " + settings.radius() + " chunks, 1s update)", Style.good())
+            .build());
         sendLegend(player, settings);
         return Command.SINGLE_SUCCESS;
     }
@@ -200,12 +201,10 @@ public class TickingChunkMapSubCommand implements SubCommand {
     private static int disable(final CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         final ServerPlayer player = player(context);
         if (!ENABLED.remove(player.getUUID())) {
-            player.sendSystemMessage(Component.literal("Ticking chunk map is not enabled.")
-                .withStyle(ChatFormatting.RED));
+            send(player, Component.text("Ticking chunk map is not enabled.", Style.bad()));
             return Command.SINGLE_SUCCESS;
         }
-        player.sendSystemMessage(Component.literal("Ticking chunk map disabled.")
-            .withStyle(ChatFormatting.YELLOW));
+        send(player, Style.bullets().bullet("Ticking chunk map", "disabled", Style.warn()).build());
         return Command.SINGLE_SUCCESS;
     }
 
@@ -214,8 +213,7 @@ public class TickingChunkMapSubCommand implements SubCommand {
         final int radius = IntegerArgumentType.getInteger(context, "chunks");
         final Settings previous = SETTINGS.getOrDefault(player.getUUID(), new Settings(DEFAULT_RADIUS, true));
         SETTINGS.put(player.getUUID(), new Settings(radius, previous.labels()));
-        player.sendSystemMessage(Component.literal("Ticking chunk map radius set to " + radius + " chunks.")
-            .withStyle(ChatFormatting.AQUA));
+        send(player, Style.bullets().bullet("Radius", radius + " chunks").build());
         return Command.SINGLE_SUCCESS;
     }
 
@@ -227,8 +225,7 @@ public class TickingChunkMapSubCommand implements SubCommand {
         };
         final Settings previous = SETTINGS.getOrDefault(player.getUUID(), new Settings(DEFAULT_RADIUS, true));
         SETTINGS.put(player.getUUID(), new Settings(previous.radius(), enabled));
-        player.sendSystemMessage(Component.literal("Region labels " + (enabled ? "enabled" : "disabled") + ".")
-            .withStyle(ChatFormatting.AQUA));
+        send(player, Style.bullets().bullet("Region labels", Style.onOff(enabled)).build());
         return Command.SINGLE_SUCCESS;
     }
 
@@ -242,21 +239,23 @@ public class TickingChunkMapSubCommand implements SubCommand {
     private static int stats(final CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         final ServerPlayer player = player(context);
         if (!ENABLED.contains(player.getUUID())) {
-            player.sendSystemMessage(Component.literal("Ticking chunk map is not enabled.")
-                .withStyle(ChatFormatting.RED));
+            send(player, Component.text("Ticking chunk map is not enabled.", Style.bad()));
             return Command.SINGLE_SUCCESS;
         }
 
         final Settings settings = SETTINGS.getOrDefault(player.getUUID(), new Settings(DEFAULT_RADIUS, true));
         final Snapshot snapshot = collect(player.level(), player.chunkPosition(), settings.radius());
 
-        line(player, "ticking chunks:   ", String.valueOf(snapshot.counts.ticking), ChatFormatting.GREEN);
-        line(player, "ready (unticked): ", String.valueOf(snapshot.counts.ready), ChatFormatting.YELLOW);
-        line(player, "transient:        ", String.valueOf(snapshot.counts.transientChunks), ChatFormatting.GOLD);
-        line(player, "dying:            ", String.valueOf(snapshot.counts.dead), ChatFormatting.RED);
-        line(player, "not loaded:       ", String.valueOf(snapshot.counts.unloaded), ChatFormatting.DARK_GRAY);
-        line(player, "ticking regions:  ", String.valueOf(snapshot.counts.tickingRegions), ChatFormatting.AQUA);
-        line(player, "colours in use:   ", snapshot.visibleRegionIds.size() + "/" + REGION_COLOURS.length, ChatFormatting.WHITE);
+        final Style.Report report = Style.report("Ticking chunk map stats");
+        report.bullet("Ticking chunks", Component.text(snapshot.counts.ticking, Style.good()));
+        report.bullet("Ready (unticked)", Component.text(snapshot.counts.ready, Style.warn()));
+        report.bullet("Transient", Component.text(snapshot.counts.transientChunks, NamedTextColor.GOLD));
+        report.bullet("Dying", Component.text(snapshot.counts.dead, Style.bad()));
+        report.bullet("Not loaded", Component.text(snapshot.counts.unloaded, NamedTextColor.DARK_GRAY));
+        report.bullet("Ticking regions", Component.text(snapshot.counts.tickingRegions, Style.SECONDARY));
+        report.bullet("Colours in use", Component.text(
+            snapshot.visibleRegionIds.size() + "/" + REGION_COLOURS.length, Style.INFORMATION));
+        send(player, report.build());
         return Command.SINGLE_SUCCESS;
     }
 
@@ -264,87 +263,90 @@ public class TickingChunkMapSubCommand implements SubCommand {
         return context.getSource().getPlayerOrException();
     }
 
-    private static void line(final ServerPlayer player, final String label, final String value, final ChatFormatting style) {
-        player.sendSystemMessage(Component.empty()
-            .append(Component.literal("  " + label).withStyle(ChatFormatting.GRAY))
-            .append(Component.literal(value).withStyle(style))
-        );
+    /**
+     * The commands in this class work off a {@link ServerPlayer} instead of a
+     * {@code CommandSourceStack}, so the styled messages go through the bukkit entity.
+     */
+    private static void send(final ServerPlayer player, final Component message) {
+        player.getBukkitEntity().sendMessage(message);
     }
 
     private static void sendLegend(final ServerPlayer player, final Settings settings) {
-        player.sendSystemMessage(Component.empty()
-            .append(Component.literal("--- Ticking chunk map ---").withStyle(ChatFormatting.DARK_PURPLE, ChatFormatting.BOLD))
-        );
+        final Style.Report report = Style.report("Ticking chunk map");
 
         final Snapshot snapshot = collect(player.level(), player.chunkPosition(), settings.radius());
         if (snapshot.visibleRegionIds.isEmpty()) {
-            player.sendSystemMessage(Component.empty()
-                .append(Component.literal("no ticking region covers this area right now").withStyle(ChatFormatting.GRAY))
-            );
+            report.bullet("Ticking regions",
+                Component.text("none covers this area right now", Style.SECONDARY));
         } else {
-            player.sendSystemMessage(Component.literal("ticking regions near you:").withStyle(ChatFormatting.GRAY));
+            report.subHeader("Ticking regions near you");
             for (final long regionId : snapshot.visibleRegionIds) {
-                final ChatFormatting colour = colourFor(regionId);
-                player.sendSystemMessage(Component.empty()
-                    .append(Component.literal("  ■ ").withStyle(colour, ChatFormatting.BOLD))
-                    .append(Component.literal(regionId + " ").withStyle(colour))
-                    .append(Component.literal("(" + (REGION_COLOURS.length - freeSlots()) + " colours available)")
-                        .withStyle(ChatFormatting.DARK_GRAY))
-                );
+                final TextColor colour = textColourFor(regionId);
+                report.line(Component.text()
+                    .append(Component.text("    ", Style.PRIMARY))
+                    .append(Component.text("■ ", colour, TextDecoration.BOLD))
+                    .append(Component.text(regionId + " ", colour))
+                    .append(Component.text("(" + (REGION_COLOURS.length - freeSlots()) + " colours available)",
+                        Style.SECONDARY))
+                    .build());
             }
         }
 
-        player.sendSystemMessage(Component.empty()
-            .append(Component.literal("■").withStyle(ChatFormatting.WHITE))
-            .append(Component.literal(" ticking, in the region's own colour").withStyle(ChatFormatting.GRAY))
-        );
-        player.sendSystemMessage(Component.empty()
-            .append(Component.literal("▒").withStyle(ChatFormatting.YELLOW))
-            .append(Component.literal(" loaded but unticked: kept in memory, pulled out of the ticking region to keep it small")
-                .withStyle(ChatFormatting.GRAY))
-        );
-        player.sendSystemMessage(Component.empty()
-            .append(Component.literal("░").withStyle(ChatFormatting.GOLD))
-            .append(Component.literal(" transient: region is being created, split or merged").withStyle(ChatFormatting.GRAY))
-        );
-        player.sendSystemMessage(Component.empty()
-            .append(Component.literal("x").withStyle(ChatFormatting.RED))
-            .append(Component.literal(" dying: region is scheduled for removal").withStyle(ChatFormatting.GRAY))
-        );
-        player.sendSystemMessage(Component.empty()
-            .append(Component.literal("·").withStyle(ChatFormatting.DARK_GRAY))
-            .append(Component.literal(" not loaded: no regionizer region owns this chunk").withStyle(ChatFormatting.GRAY))
-        );
-        player.sendSystemMessage(Component.empty()
-            .append(Component.literal("N").withStyle(ChatFormatting.WHITE, ChatFormatting.BOLD))
-            .append(Component.literal(" you, ").withStyle(ChatFormatting.GRAY))
-            .append(Component.literal(settings.labels()
+        report.gap();
+        report.subHeader("Legend");
+        report.line(legendKey("■", NamedTextColor.WHITE, "ticking, in the region's own colour"));
+        report.line(legendKey("▒", NamedTextColor.YELLOW, "loaded but unticked: kept in memory, pulled out of the ticking region to keep it small"));
+        report.line(legendKey("░", NamedTextColor.GOLD, "transient: region is being created, split or merged"));
+        report.line(legendKey("x", NamedTextColor.RED, "dying: region is scheduled for removal"));
+        report.line(legendKey("·", NamedTextColor.DARK_GRAY, "not loaded: no regionizer region owns this chunk"));
+        report.line(Component.text()
+            .append(Component.text("    ", Style.PRIMARY))
+            .append(Component.text("N", Style.INFORMATION, TextDecoration.BOLD))
+            .append(Component.text(" you, ", Style.SECONDARY))
+            .append(Component.text(settings.labels()
                 ? "region ids shown in the header"
-                : "region ids hidden (use /enigma chunks labels on)").withStyle(ChatFormatting.GRAY))
-        );
+                : "region ids hidden (use /enigma chunks labels on)", Style.SECONDARY))
+            .build());
+
+        send(player, report.build());
+    }
+
+    private static Component legendKey(final String glyph, final TextColor colour, final String description) {
+        return Component.text()
+            .append(Component.text("    ", Style.PRIMARY))
+            .append(Component.text(glyph + " ", colour, TextDecoration.BOLD))
+            .append(Component.text(description, Style.SECONDARY))
+            .build();
     }
 
     private static void render(final ServerPlayer player, final Settings settings, final Snapshot snapshot) {
         final ChunkPos center = player.chunkPosition();
         final int radius = settings.radius();
 
-        final StringBuilder header = new StringBuilder();
-        header.append("§8Chunks §7@ §f").append(center.x()).append("§8, §f").append(center.z());
-        header.append(" §8| §7ticking §f").append(snapshot.counts.ticking);
-        header.append(" §8| §7unticked §f").append(snapshot.counts.ready);
-        header.append(" §8| §7regions §f").append(snapshot.counts.tickingRegions);
+        final var header = Component.text()
+            .append(Component.text("Chunks ", Style.HEADER, TextDecoration.BOLD))
+            .append(Component.text("@ " + center.x() + ", " + center.z(), Style.INFORMATION))
+            .append(Component.text(" | ", Style.LIST))
+            .append(Component.text("ticking ", Style.PRIMARY))
+            .append(Style.value(snapshot.counts.ticking))
+            .append(Component.text(" | ", Style.LIST))
+            .append(Component.text("unticked ", Style.PRIMARY))
+            .append(Style.value(snapshot.counts.ready))
+            .append(Component.text(" | ", Style.LIST))
+            .append(Component.text("regions ", Style.PRIMARY))
+            .append(Style.value(snapshot.counts.tickingRegions));
         if (settings.labels() && !snapshot.visibleRegionIds.isEmpty()) {
-            header.append(" §8| §7");
+            header.append(Component.text(" | ", Style.LIST));
             final int shown = Math.min(MAX_HEADER_REGIONS, snapshot.visibleRegionIds.size());
             for (int i = 0; i < shown; i++) {
                 final long regionId = snapshot.visibleRegionIds.get(i);
-                header.append("§").append(colourCode(colourFor(regionId))).append(regionId).append("§7 ");
+                header.append(Component.text(regionId + " ", textColourFor(regionId)));
             }
             if (snapshot.visibleRegionIds.size() > shown) {
-                header.append("§8+").append(snapshot.visibleRegionIds.size() - shown).append("§7 ");
+                header.append(Component.text("+" + (snapshot.visibleRegionIds.size() - shown), Style.SECONDARY));
             }
         }
-        player.sendSystemMessage(Component.literal(header.toString()));
+        send(player, header.build());
 
         for (int dz = -radius; dz <= radius; dz++) {
             final StringBuilder row = new StringBuilder();
@@ -365,8 +367,38 @@ public class TickingChunkMapSubCommand implements SubCommand {
                     case UNLOADED -> "§8·";
                 });
             }
-            player.sendSystemMessage(Component.literal(row.toString()));
+            player.sendSystemMessage(net.minecraft.network.chat.Component.literal(row.toString()));
         }
+    }
+
+    /**
+     * The same region colour as {@link #colourFor(long)}, but as an adventure colour so the
+     * styled header and legend can use it. This ChatFormatting copy only carries the legacy
+     * code, so the classic {@code §} palette is mapped by hand.
+     */
+    private static TextColor textColourFor(final long regionId) {
+        return rgbFor(colourFor(regionId).code);
+    }
+
+    private static TextColor rgbFor(final char legacyCode) {
+        return switch (legacyCode) {
+            case '0' -> TextColor.color(0x000000);
+            case '1' -> TextColor.color(0x0000AA);
+            case '2' -> TextColor.color(0x00AA00);
+            case '3' -> TextColor.color(0x00AAAA);
+            case '4' -> TextColor.color(0xAA0000);
+            case '5' -> TextColor.color(0xAA00AA);
+            case '6' -> TextColor.color(0xFFAA00);
+            case '7' -> TextColor.color(0xAAAAAA);
+            case '8' -> TextColor.color(0x555555);
+            case '9' -> TextColor.color(0x5555FF);
+            case 'a' -> TextColor.color(0x55FF55);
+            case 'b' -> TextColor.color(0x55FFFF);
+            case 'c' -> TextColor.color(0xFF5555);
+            case 'd' -> TextColor.color(0xFF55FF);
+            case 'e' -> TextColor.color(0xFFFF55);
+            default -> TextColor.color(0xFFFFFF);
+        };
     }
 
     private static String colourCode(final ChatFormatting formatting) {

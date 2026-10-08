@@ -1,15 +1,11 @@
 package io.canvasmc.canvas.util.version;
 
 import com.destroystokyo.paper.util.VersionFetcher;
-import io.canvasmc.canvas.ClientV2;
-import io.canvasmc.canvas.GlobalConfiguration;
-import io.canvasmc.canvas.util.Util;
 import io.papermc.paper.ServerBuildInfo;
 import io.papermc.paper.ServerBuildInfoImpl;
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.List;
-import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -79,23 +75,14 @@ public class CanvasVersionFetcher implements VersionFetcher {
             .reduce((a, b) -> a.append(Component.newline()).append(b))
             .orElse(Component.empty());
 
-        TextComponent brandHoverText = Component.textOfChildren(
-            text(buildInfo.brandName(), HEADER, TextDecoration.BOLD),
-            text(" made by ", PRIMARY),
-            text(buildInfo.brandVendor().orElse("Unknown Vendor"), HEADER, TextDecoration.BOLD),
-            text("\nOther Contributors:\n", PRIMARY),
-            contributors
-        );
-        TextComponent brandComponent = text(buildInfo.brandName(), HEADER, TextDecoration.BOLD);
-        if (buildInfo.brandWebsite().isPresent()) {
-            brandHoverText = brandHoverText.append(
-                text("\n"),
-                text(buildInfo.brandWebsite().get(), INFORMATION, TextDecoration.UNDERLINED),
-                text(" - Click to open", PRIMARY)
-            );
-            brandComponent = brandComponent.clickEvent(ClickEvent.openUrl(buildInfo.brandWebsite().get()));
-        }
-        brandComponent = brandComponent.hoverEvent(HoverEvent.showText(brandHoverText));
+        final TextComponent brandComponent = text(buildInfo.brandName(), HEADER, TextDecoration.BOLD)
+            .hoverEvent(HoverEvent.showText(Component.textOfChildren(
+                text(buildInfo.brandName(), HEADER, TextDecoration.BOLD),
+                text(" made by ", PRIMARY),
+                text(buildInfo.brandVendor().orElse("Unknown Vendor"), HEADER, TextDecoration.BOLD),
+                text("\nOther Contributors:\n", PRIMARY),
+                contributors
+            )));
 
         builder.append(brandComponent);
         builder.append(text("] ", LIST, TextDecoration.BOLD));
@@ -109,16 +96,10 @@ public class CanvasVersionFetcher implements VersionFetcher {
             builder.append(text(buildInfo.buildNumber().getAsInt(), SECONDARY));
             builder.append(text(" [", HEADER));
 
-            String url = "https://github.com/CraftCanvasMC/Canvas/";
-            String commit = buildInfo.gitCommit().orElse("Unknown Commit");
-
-            if (buildInfo.gitCommit().isPresent()) {
-                url = url + "commit/" + commit;
-            }
+            final String commit = buildInfo.gitCommit().orElse("Unknown Commit");
 
             builder.append(text(commit, INFORMATION)
-                .hoverEvent(HoverEvent.showText(text("Click to view commit", SECONDARY)))
-                .clickEvent(ClickEvent.openUrl(url))
+                .hoverEvent(HoverEvent.showText(text("EnigmaEngine commit", SECONDARY)))
             );
             builder.append(text("]", HEADER));
         }
@@ -204,28 +185,8 @@ public class CanvasVersionFetcher implements VersionFetcher {
     }
 
     private Status computeStatus() {
-        final ServerBuildInfo buildInfo = ServerBuildInfo.buildInfo();
-        final OptionalInt buildNumber = buildInfo.buildNumber();
-
-        if (buildNumber.isEmpty()) {
-            return new LocalStatus();
-        }
-
-        final int localNum = buildNumber.getAsInt();
-        try {
-            ClientV2.Build build = Util.CANVAS_CLIENT.getLatestBuild(buildInfo.minecraftVersionId(), true);
-            final int distance = build.buildNumber() - localNum;
-
-            return switch (GlobalConfiguration.getBuildStatus()) {
-                case LOCAL -> new LocalStatus();
-                case STABLE -> new StableStatus(distance);
-                case EXPERIMENTAL -> new BetaStatus(distance);
-                case UNKNOWN -> new ErrorStatus();
-            };
-        } catch (Throwable thrown) {
-            GlobalConfiguration.LOGGER.error("Error parsing version information from CanvasMC's Jenkins API", thrown);
-            return new ErrorStatus();
-        }
+        // EnigmaEngine does not check builds against an upstream API; local builds always show DEV.
+        return new LocalStatus();
     }
 
     private static TextComponent formatList(final List<String> inputArguments) {

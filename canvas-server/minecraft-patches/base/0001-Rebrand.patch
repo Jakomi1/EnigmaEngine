@@ -6,7 +6,7 @@ Subject: [PATCH] Rebrand
 
 diff --git a/io/canvasmc/canvas/commands/CanvasCommands.java b/io/canvasmc/canvas/commands/CanvasCommands.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..c777f4416680da6ec868a5bb40805e5075406f1f
+index 0000000000000000000000000000000000000000..13ad50d451d7842202d67f020c756dc37dc6de1d
 --- /dev/null
 +++ b/io/canvasmc/canvas/commands/CanvasCommands.java
 @@ -0,0 +1,113 @@
@@ -125,7 +125,7 @@ index 0000000000000000000000000000000000000000..c777f4416680da6ec868a5bb40805e50
 +}
 diff --git a/io/canvasmc/canvas/commands/HelpCommand.java b/io/canvasmc/canvas/commands/HelpCommand.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a44e14a3ac
+index 0000000000000000000000000000000000000000..569d66ac195e566a780aef96b47a71c09ca8cc2b
 --- /dev/null
 +++ b/io/canvasmc/canvas/commands/HelpCommand.java
 @@ -0,0 +1,334 @@
@@ -465,7 +465,7 @@ index 0000000000000000000000000000000000000000..47f1d62d868ddddcf5aab05d82db48a4
 +}
 diff --git a/io/canvasmc/canvas/commands/SubCommand.java b/io/canvasmc/canvas/commands/SubCommand.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..558295060366f2590b3ebbdbfc53604d5d3fab2b
+index 0000000000000000000000000000000000000000..7307d36aff49bde5bdaeffc5ee65c47d7c375dc1
 --- /dev/null
 +++ b/io/canvasmc/canvas/commands/SubCommand.java
 @@ -0,0 +1,87 @@

@@ -1,0 +1,27 @@
+
+> Configure project :
+Fabric Loom: 1.17.21
+
+> Task :compileJava
+Hinweis: C:\Users\jakob_vowie\Desktop\Coding Projekte\Java\EnigmaEngine\enigma-client\src\main\java\io\canvasmc\canvas\distributed\config\EnigmaDistributedConfig.java verwendet nicht geprüfte oder unsichere Vorgänge.
+Hinweis: Wiederholen Sie die Kompilierung mit -Xlint:unchecked, um Details zu erhalten.
+
+> Task :processResources UP-TO-DATE
+> Task :classes
+> Task :processIncludeJars UP-TO-DATE
+> Task :jar
+> Task :sourcesJar
+> Task :assemble
+> Task :compileTestJava NO-SOURCE
+> Task :processTestResources NO-SOURCE
+> Task :testClasses UP-TO-DATE
+> Task :test NO-SOURCE
+> Task :validateAccessWidener NO-SOURCE
+> Task :check UP-TO-DATE
+> Task :build
+
+[Incubating] Problems report is available at: file:///C:/Users/jakob_vowie/Desktop/Coding%20Projekte/Java/EnigmaEngine/enigma-client/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 7s
+5 actionable tasks: 3 executed, 2 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.1/userguide/configuration_cache_enabling.html
