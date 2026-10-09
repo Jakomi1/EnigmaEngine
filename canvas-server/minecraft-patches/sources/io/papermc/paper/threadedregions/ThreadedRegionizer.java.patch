@@ -68,12 +68,22 @@
 +                this.regionLock.readLock();
 +            }
 +            int sectionCount;
++            long anchorSectionKey = -1L;
 +            try {
 +                sectionCount = region.sectionByKey.size();
++                final LongIterator anchorIterator = region.getOwnedSectionsUnsynchronised();
++                if (anchorIterator.hasNext()) {
++                    anchorSectionKey = anchorIterator.nextLong();
++                }
 +            } finally {
 +                if (lock) {
 +                    this.regionLock.tryUnlockRead();
 +                }
++            }
++
++            if (anchorSectionKey == -1L) {
++                // region owns no sections, nothing to split
++                continue;
 +            }
 +
 +            final boolean hardSplit = sectionCount > settings.splitMaxSections();
@@ -93,17 +103,28 @@
 +                }
 +            }
 +
-+            this.acquireWriteLock();
-+            try {
-+                if (region.isDead() || region.state != ThreadedRegion.STATE_READY) {
-+                    continue;
++            // Enigma - region topology may only change on the owning region's tick thread. Splitting a
++            // live region from the global server tick races an in-flight tick (fluid spread, block
++            // physics) that touches sections which have just been reassigned to a new region; that
++            // produces the "Thread failed main thread check: Adding block without owning region" crash
++            // in CollectingNeighborUpdater. Defer the split to the region's own thread via its task
++            // queue; the re-check under the write lock keeps it idempotent.
++            final ThreadedRegion<R, S> splitCandidate = region;
++            final int anchorChunkX = CoordinateUtils.getChunkX(anchorSectionKey) << this.sectionChunkShift;
++            final int anchorChunkZ = CoordinateUtils.getChunkZ(anchorSectionKey) << this.sectionChunkShift;
++            RegionizedServer.getInstance().taskQueue.queueOrExecuteTickTask(this.world, anchorChunkX, anchorChunkZ, () -> {
++                this.acquireWriteLock();
++                try {
++                    if (splitCandidate.isDead() || splitCandidate.state != ThreadedRegion.STATE_READY) {
++                        return;
++                    }
++                    if (this.enigma$splitRegion(splitCandidate)) {
++                        splitCandidate.enigma$lastSplitTime = System.currentTimeMillis();
++                    }
++                } finally {
++                    this.releaseWriteLock();
 +                }
-+                if (this.enigma$splitRegion(region)) {
-+                    region.enigma$lastSplitTime = System.currentTimeMillis();
-+                }
-+            } finally {
-+                this.releaseWriteLock();
-+            }
++            });
 +        }
 +
 +        // Enigma start - regionizer driven eviction
