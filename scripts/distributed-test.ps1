@@ -1,7 +1,9 @@
 # EnigmaEngine distributed runtime test harness.
 # Drives the local test servers (world-host + compute-host) over RCON.
-# Uses a FRESH flat test world so the entity guard is deterministic:
-#   S0  fresh world + boot + connect + doMobSpawning off
+# Deterministic entity guard via FRESH flat world + forceload materialisation:
+#   S0  boot + connect + doMobSpawning off, then forceload a far chunk grid so
+#       the regionizer creates a real (entity-free) region despite the fresh
+#       world having no spawn sections
 #   S1  entity guard: 3 tagged "fake players" (armor stands) block migration
 #   S2  kill the fake players -> entity count 0 -> successful migration
 #       (verify / release / install / local ticking / forwarded / status)
@@ -192,6 +194,11 @@ function Wait-EntitiesLe([hashtable]$srv2, $rcon, [int]$regionNum, [int]$max, [i
 
 # ---------------------------------------------------------------- preflight
 Write-Output '== preflight =='
+# Robust vs stale test servers (also catches ones left behind by a killed
+# harness that no longer holds their MC/RCON ports).
+Get-CimInstance Win32_Process -Filter "Name='java.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match 'EnigmaEngine\.jar' } |
+    ForEach-Object { Write-Output ("  stopping stale server pid {0}" -f $_.ProcessId); Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 foreach ($prt in 4001, 4002, 25567, 25575, 25576, 25577) {
     try {
         $c = Get-NetTCPConnection -LocalPort $prt -State Listen -ErrorAction Stop
@@ -225,23 +232,20 @@ $chHash  = (Get-FileHash (Join-Path $Ch.Dir 'EnigmaEngine.jar')).Hash
 Add-Check 'servers run same jar as serverJar' ($jarHash -eq $whHash -and $jarHash -eq $chHash)
     ('wh {0} / ch {1}' -f ($(if($whHash -eq $jarHash){'ok'}else{'DIFF'}), $(if($chHash -eq $jarHash){'ok'}else{'DIFF'})))
 
-# ---------------------------------------------------------------- S0: fresh world + boot
-Write-Output '== S0: fresh world + boot =='
-foreach ($d in 'world', 'world_nether', 'world_the_end') {
-    Remove-Item (Join-Path $WhDir $d) -Recurse -Force -ErrorAction SilentlyContinue
-}
+# ---------------------------------------------------------------- S0: boot + region materialisation
+Write-Output '== S0: boot + region materialisation =='
 
-$null = Start-Target $Wh @('-Xmx2G', '-Denigma.distributed.enabled=true',
+$null = Start-Target $Wh @('-Xmx1G', '-XX:ActiveProcessorCount=6', '-Denigma.distributed.enabled=true',
     '-Denigma.distributed.role=WORLD_HOST', '-Denigma.distributed.autoMigrate=false',
     '-Denigma.distributed.debugLogging=true', '-jar', 'EnigmaEngine.jar', 'nogui')
 Add-Check 'WH booted' (Wait-Log $Wh 'Done \(' 180)
 Add-Check 'WH distributed started' (Wait-Log $Wh 'Starting EnigmaEngine as WORLD_HOST' 60)
-Add-Check 'WH distributed listener' (Wait-Log $Wh 'World Host listening on' 30)
+Add-Check 'WH distributed listener' (Wait-Log $Wh 'listening on' 30)
 $whRcon = New-Rcon '127.0.0.1' $Wh.RconPort 'ensematest'
 Add-Check 'WH rcon auth' ($null -ne $whRcon)
 $null = Invoke-Rcon $whRcon 'gamerule doMobSpawning false'
 
-$null = Start-Target $Ch @('-Xmx2G', '-Denigma.distributed.enabled=true',
+$null = Start-Target $Ch @('-Xmx1G', '-XX:ActiveProcessorCount=6', '-Denigma.distributed.enabled=true',
     '-Denigma.distributed.role=COMPUTE_HOST', '-Denigma.distributed.worldHost=127.0.0.1',
     '-Denigma.distributed.debugLogging=true', '-jar', 'EnigmaEngine.jar', 'nogui')
 Add-Check 'CH booted' (Wait-Log $Ch 'Done \(' 180)
@@ -252,22 +256,39 @@ Add-Check 'CH ready for migrations' ($null -ne $ready) $ready
 $chRcon = New-Rcon '127.0.0.1' $Ch.RconPort 'ensematest'
 Add-Check 'CH rcon auth' ($null -ne $chRcon)
 
+# A FRESH world has no sections on the regionizer at boot (spawn area is
+# generated but not added via regionizer.addChunk). The FIRST added chunk
+# merges all pending spawn sections into region id=0 (the spawn region, never
+# migratable). Force-loading a SECOND, far-away chunk grid creates a distinct
+# non-spawn region (id>0) that we can migrate.
+$null = Invoke-Rcon $whRcon 'execute in minecraft:overworld run forceload add 100 100'
+foreach ($cell in @('3000 3000', '3002 3000', '3000 3002')) {
+    $null = Invoke-Rcon $whRcon "execute in minecraft:overworld run forceload add $cell"
+}
+Start-Sleep -Seconds 6
 $regs = Invoke-Rcon $whRcon 'enigma distributed regions'
 Save-Txt (Join-Path $Art 'regions-1.txt') $regs
 $rows = @(Get-RegionRows $regs)
-$local = @(@($rows | Where-Object { -not $_.Forwarded }) | Sort-Object Chunks -Descending)
-Add-Check 'WH has local regions' ($local.Count -ge 1) ('local=' + $local.Count)
-$tgt = $local | Select-Object -First 1
+$local = @(@($rows | Where-Object { -not $_.Forwarded }))
+Add-Check 'WH has >=2 local regions (spawn + far)' ($local.Count -ge 2) ('local=' + $local.Count)
+$spawn = @($local | Sort-Object Id | Select-Object -First 1) | Select-Object -First 1
+$tgt = @($local | Sort-Object Id | Select-Object -Last 1) | Select-Object -First 1
 Add-Check 'migration target picked (#N id chunks)' ($null -ne $tgt -and $tgt.Chunks -gt 0) $(if($tgt){"#$($tgt.Num) (id=$($tgt.Id)) chunks=$($tgt.Chunks)"}else{''})
+Add-Check 'spawn region identified (#N id)' ($null -ne $spawn) $(if($spawn){"#$($spawn.Num) (id=$($spawn.Id))"}else{''})
 
 # ---------------------------------------------------------------- S1: entity guard
 Write-Output '== S1: entity guard (fake players) =='
+if ($spawn) {
+    $respS = Invoke-Rcon $whRcon "enigma distributed migrate $($spawn.Num)"
+    Save-Txt (Join-Path $Art 'migrate-spawn-guard.txt') $respS
+    Add-Check 'spawn region refused by spawn guard' ((Clean-Txt $respS) -match 'contains the world spawn') $respS
+}
 if ($tgt) {
     $eBase = EntitiesOf (Invoke-Rcon $whRcon "enigma distributed info $($tgt.Num)")
     Add-Check 'baseline entity count is 0' ($eBase -eq 0) ("baseline Entities=$eBase")
 
-    foreach ($x in 640, 680, 720) {
-        $null = Invoke-Rcon $whRcon ('summon armor_stand ' + $x + ' 320 640 {Tags:["enigma_fake"]}')
+    foreach ($x in 48006, 48010, 48014) {
+        $null = Invoke-Rcon $whRcon ('execute in minecraft:overworld run summon armor_stand ' + $x + ' 320 48006 {Tags:["enigma_fake"]}')
         Start-Sleep -Seconds 2
     }
     Start-Sleep -Seconds 8
@@ -297,8 +318,8 @@ if ($tgt) {
 # ---------------------------------------------------------------- S2: cleanup + successful migration
 Write-Output '== S2: kill fake players, then migrate =='
 if ($tgt) {
-    foreach ($x in 640, 680, 720) {
-        $null = Invoke-Rcon $whRcon "execute in minecraft:overworld positioned $x 320 640 run kill @e[type=armor_stand,distance=0..2]"
+    foreach ($x in 48006, 48010, 48014) {
+        $null = Invoke-Rcon $whRcon "execute in minecraft:overworld positioned $x 320 48006 run kill @e[type=armor_stand,distance=0..40]"
         Start-Sleep -Seconds 2
     }
     $eClean = Wait-EntitiesLe $Wh $whRcon $tgt.Num 0 45
