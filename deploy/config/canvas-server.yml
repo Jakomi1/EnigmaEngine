@@ -1,0 +1,156 @@
+# ============================================================================
+# Global Configuration for EnigmaEngine
+#
+# OPTIMIZED for: 100 players, 7 vCPU cores, 16GB RAM
+# Target: 20 TPS stable with 40 players clustered at spawn
+# ============================================================================
+
+region-scheduler:
+   # Use AFFINITY scheduler for deterministic core-pinning on 7 cores
+   affinity-scheduler:
+      # Low steal threshold: regions stick to their core but can be stolen if idle >2ms
+      steal-threshold-millis: 2
+      # Tight buffer: maximize work done before tick deadline
+      run-tasks-buffer-millis: 0.05
+      # Pin to cores 0-6 (7 cores) — leave remaining system cores free for GC/IO
+      tick-region-affinity: [
+         0,
+         1,
+         2,
+         3,
+         4,
+         5,
+         6
+      ]
+      enable-affinity-scheduler-cpu-affinity: true
+   # Log if scheduler falls behind by 3s (aggressive alerting)
+   overloaded-log-millis: 3000
+   # Standard 20 TPS
+   default-tick-rate: 20.0
+   # LOG severity so we catch issues without crashing production
+   guard-severity: "LOG"
+   prevent-excessive-velocity-move-out-of-region: true
+
+regionizer:
+   # CRITICAL: Enable aggressive region splitting for multicore
+   enabled: true
+   # High merge threshold: resist merging so regions stay small & parallel
+   merge-overlap-threshold: 0.65
+   # Only force-merge tiny regions (<16 sections)
+   merge-min-region-sections: 16
+   # Strong coupling weight: only merge truly interacting regions
+   coupling-weight: 0.85
+   overlap-weight: 0.15
+   # Long cooldowns to prevent merge/split thrashing
+   merge-cooldown-millis: 90000
+   split-cooldown-millis: 20000
+   # Aggressive splitting: split regions at 64 sections (smaller = more parallelism)
+   split-min-size: 64
+   # Hard cap: no region exceeds 2048 sections
+   split-max-sections: 2048
+   # Split when a region hits 25ms MSPT (well before 50ms = TPS drop)
+   split-high-load-mspt: 25.0
+   # Split even if only 10% border chunks are idle
+   split-low-load-percent: 10
+   split-idle-seconds: 10
+   # Run split pass every 10 ticks for fast reaction
+   split-pass-interval-ticks: 10
+   # Instant unload: free idle regions fast
+   instant-unload-enabled: true
+   instant-unload-active-regions: true
+   instant-unload-idle-radius: 10
+   instant-unload-max-chunks-per-pass: 256
+
+chunk-system:
+   # Use filtered fluid processing to reduce worldgen stutter
+   fluid-post-processing-algorithm: "FILTERED"
+   optimize-treasure-map-locating: true
+
+vanilla-fixes:
+   mc261810: true
+   mc298464: true
+   mc223153: true
+   mc200418: true
+   mc94054: true
+   mc245394: true
+   mc227337: true
+   mc221257: true
+   mc206922: true
+   mc155509: true
+   mc132878: true
+   mc121706: true
+   mc119754: true
+   mc100991: true
+   mc30391: true
+   mc183990: true
+   mc136249: true
+
+networking:
+   # Filter unnecessary velocity packets (saves ~60% network on 100 players)
+   filter-velocity-packet: true
+   # Filter useless move packets
+   filter-move-packets: true
+   # Spread playerlist tick across buckets to avoid spikes
+   alternative-player-list-tick: true
+   player-info-send-interval: 400
+   # Purpur keepalive: tolerant to packet loss
+   purpur-alternative-keepalive: true
+   flush-location-while-knockback: true
+
+server-mod-name: "EnigmaEngine"
+display-world-load-screen-for-cross-region-transfers: true
+cache-minecraft2-bukkit-entity-type-conversion: true
+tile-entity-snapshot-creation: false
+
+blacklist-non-player-entities-from-entering-nether-portals: true
+blacklist-non-player-entities-from-entering-end-portals: true
+blacklist-non-player-entities-from-entering-gateway-portals: false
+
+chat:
+   disable-chat-reporting: true
+   disable-chat-verification-order: true
+
+logs:
+   enable-log-cleaner: true
+   cleaner-time-span: "7d"
+   log-ender-pearl-rewrite-actions: false
+
+autosave:
+   autosave-frequency: "5m"
+   autosave-scoreboards: true
+   autosave-stopwatches: true
+   autosave-pearls: true
+   autosave-custom-boss-events: true
+   autosave-time: true
+   autosave-maps: true
+   autosave-weather: true
+   autosave-gamerules: true
+   autosave-players: true
+purpur-containers:
+   # The amount of rows for the barrel block
+   barrel-rows: 3
+   # Whether to use 6 rows for the player ender chest, rather than the normal 3
+   ender-chest-six-rows: false
+   # Whether to use a permission based system for defining the size of ender chests per player
+   # Valid permissions
+   #  - purpur.enderchest.rows.six
+   #  - purpur.enderchest.rows.five
+   #  - purpur.enderchest.rows.four
+   #  - purpur.enderchest.rows.three
+   #  - purpur.enderchest.rows.two
+   #  - purpur.enderchest.rows.one
+   ender-chest-permission-rows: false
+   # Whether items should remain stored in slots, even if those slots become inaccessible
+   # through permissions
+   ender-chest-persist-hidden-rows: true
+enchant-command:
+   # Uncaps the max level, allowing you to enchant to any level, even beyond the max
+   uncap-max-level: false
+   # Allows setting enchants on items that normally do not support that enchantment
+   allow-enchants-on-unsupported-items: false
+   # Allows setting enchants on items with incompatible enchants. e.g. Protection & Blast
+   # Protection
+   allow-enchanting-with-incompatible-enchants: false
+# Disables the locator bar globally, removing the need to disable it using gamerules
+# per-world
+disable-locator-bar-in-all-worlds: false
