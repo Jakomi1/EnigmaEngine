@@ -193,7 +193,7 @@
                  continue;
              }
              // Folia end - region threading
-@@ -1289,6 +_,7 @@
+@@ -1292,6 +_,7 @@
      }
  
      public boolean verifyChatTrusted(final PlayerChatMessage message) {
@@ -201,7 +201,7 @@
          return message.hasSignature() && !message.hasExpiredServer(Instant.now());
      }
  
-@@ -1349,7 +_,12 @@
+@@ -1352,7 +_,12 @@
          //this.broadcastAll(new ClientboundSetChunkCacheRadiusPacket(viewDistance)); // Paper - rewrite chunk system
  
          for (ServerLevel level : this.server.getAllLevels()) {
@@ -215,7 +215,7 @@
          }
      }
  
-@@ -1358,7 +_,12 @@
+@@ -1361,7 +_,12 @@
          //this.broadcastAll(new ClientboundSetSimulationDistancePacket(simulationDistance)); // Paper - rewrite chunk system
  
          for (ServerLevel level : this.server.getAllLevels()) {
