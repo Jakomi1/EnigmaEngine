@@ -1,0 +1,13 @@
+name: EnigmaPerformanceBar
+version: 1.0.0
+main: io.enigma.perf.EnigmaPerformanceBar
+api-version: '1.20'
+folia-supported: true
+description: Real-time TPS and 7-Core CPU Leistungsbar for EnigmaEngine
+author: Antigravity
+
+commands:
+  perfbar:
+    description: Toggle the performance and CPU bossbars
+    permission: enigma.perfbar
+    usage: /perfbar
