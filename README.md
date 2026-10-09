@@ -59,6 +59,16 @@ classify as, so we just call ourselves a Folia fork since that's just easier to 
 - Java 25
 - Git (configured with name/email)
 
+---
+
+## Production Deployment & Multi-Core Optimization
+
+For deploying EnigmaEngine in production on multi-core topologies (e.g. 7-core VPS), refer to:
+- [`deploy/`](./deploy): Ready-to-run deployment package with validated `start.sh`, `stop.sh`, `monitor.sh`, and configs.
+- [`deploy/DEPLOYMENT.md`](./deploy/DEPLOYMENT.md): Step-by-step migration guide for deployment agents and administrators.
+- [`BENCHMARK_REPORT.md`](./BENCHMARK_REPORT.md): 100-player multicore stress test results and architectural analysis.
+
+
 **Common build commands:**
 
 ```bash
