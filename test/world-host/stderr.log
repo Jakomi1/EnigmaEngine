@@ -1,5 +1,0 @@
-2026-10-08T16:25:54.573518800Z ServerMain WARN Advanced terminal features are not available in this environment
-WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
-WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.joml.MemUtil$MemUtilUnsafe (file:/C:/Users/jakob_vowie/Desktop/Coding%20Projekte/Java/EnigmaEngine/test/world-host/libraries/org/joml/joml/1.10.8/joml-1.10.8.jar)
-WARNING: Please consider reporting this to the maintainers of class org.joml.MemUtil$MemUtilUnsafe
-WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release

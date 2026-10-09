@@ -1,3 +1,0 @@
-@echo off
-rem Beendet den EnigmaEngine WORLD_HOST Testserver.
-@powershell -NoProfile -ExecutionPolicy Bypass -Command "$hits = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'java.exe' -and $_.CommandLine -match 'EnigmaEngine\.jar' -and $_.CommandLine -match 'WORLD_HOST' }; if ($hits) { $hits | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; Write-Host ('Stopped PID ' + $_.ProcessId) } } else { Write-Host 'Kein laufender WORLD_HOST gefunden.' }"
