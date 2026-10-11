@@ -125,7 +125,7 @@
 +            "Implementation-Title" to "EnigmaEngine",
              "Implementation-Version" to implementationVersion,
              "Implementation-Vendor" to date,
--            "Specification-Title" to "EnigmaEngine",
+-            "Specification-Title" to "Paper",
 +            "Specification-Title" to "EnigmaEngine",
              "Specification-Version" to project.version,
 -            "Specification-Vendor" to "Paper Team",

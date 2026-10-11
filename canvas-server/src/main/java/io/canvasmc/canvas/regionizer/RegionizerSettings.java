@@ -21,6 +21,8 @@ public final class RegionizerSettings {
     private final boolean instantUnloadActiveRegions;
     private final int instantUnloadIdleRadius;
     private final int instantUnloadMaxChunksPerPass;
+    private final int aggression;
+    private final int targetSections;
 
     private static volatile RegionizerSettings INSTANCE = fromGlobalConfiguration();
 
@@ -43,6 +45,50 @@ public final class RegionizerSettings {
         final int instantUnloadIdleRadius,
         final int instantUnloadMaxChunksPerPass
     ) {
+        this(
+            enabled,
+            mergeOverlapThreshold,
+            mergeMinRegionSections,
+            couplingWeight,
+            overlapWeight,
+            mergeCooldownMillis,
+            splitCooldownMillis,
+            splitMinSize,
+            splitMaxSections,
+            splitHighLoadMspt,
+            splitLowLoadPercent,
+            splitIdleSeconds,
+            splitPassIntervalTicks,
+            instantUnloadEnabled,
+            instantUnloadActiveRegions,
+            instantUnloadIdleRadius,
+            instantUnloadMaxChunksPerPass,
+            100,
+            Math.max(1, mergeMinRegionSections)
+        );
+    }
+
+    public RegionizerSettings(
+        final boolean enabled,
+        final double mergeOverlapThreshold,
+        final int mergeMinRegionSections,
+        final double couplingWeight,
+        final double overlapWeight,
+        final long mergeCooldownMillis,
+        final long splitCooldownMillis,
+        final int splitMinSize,
+        final int splitMaxSections,
+        final double splitHighLoadMspt,
+        final int splitLowLoadPercent,
+        final int splitIdleSeconds,
+        final int splitPassIntervalTicks,
+        final boolean instantUnloadEnabled,
+        final boolean instantUnloadActiveRegions,
+        final int instantUnloadIdleRadius,
+        final int instantUnloadMaxChunksPerPass,
+        final int aggression,
+        final int targetSections
+    ) {
         this.enabled = enabled;
         this.mergeOverlapThreshold = mergeOverlapThreshold;
         this.mergeMinRegionSections = mergeMinRegionSections;
@@ -60,6 +106,8 @@ public final class RegionizerSettings {
         this.instantUnloadActiveRegions = instantUnloadActiveRegions;
         this.instantUnloadIdleRadius = instantUnloadIdleRadius;
         this.instantUnloadMaxChunksPerPass = instantUnloadMaxChunksPerPass;
+        this.aggression = Math.max(0, Math.min(100, aggression));
+        this.targetSections = Math.max(1, targetSections);
     }
 
     public static RegionizerSettings fromGlobalConfiguration() {
@@ -81,7 +129,9 @@ public final class RegionizerSettings {
             c.instantUnloadEnabled,
             c.instantUnloadActiveRegions,
             c.instantUnloadIdleRadius,
-            c.instantUnloadMaxChunksPerPass
+            c.instantUnloadMaxChunksPerPass,
+            100,
+            2
         );
     }
 
@@ -98,29 +148,84 @@ public final class RegionizerSettings {
         final int worldMergeMinRegionSections,
         final double worldMergeThreshold
     ) {
-        final int sections = worldMergeMinRegionSections <= 0 ? base.mergeMinRegionSections : worldMergeMinRegionSections;
-        final double threshold = worldMergeThreshold < 0.0D ? base.mergeOverlapThreshold : worldMergeThreshold;
-        if (sections == base.mergeMinRegionSections && threshold == base.mergeOverlapThreshold) {
-            return base;
+        return forWorld(base, worldMergeMinRegionSections, 100);
+    }
+
+    /**
+     * Creates world settings adapting all thresholds based strictly on aggression.
+     *
+     * @param base base settings from configuration
+     * @param worldRegionizerSections configured sections per region target (from load config)
+     * @param aggression aggression percentage (0 - 100)
+     * @return dynamic world regionizer settings
+     */
+    public static RegionizerSettings forWorld(
+        final RegionizerSettings base,
+        final int worldRegionizerSections,
+        final int aggression
+    ) {
+        final int aggr = Math.max(0, Math.min(100, aggression));
+        final double a = aggr / 100.0D;
+
+        final int baseTarget = worldRegionizerSections > 0 ? worldRegionizerSections : 2;
+
+        // At 100% aggression: target is 1 section per region (maximum parallelization).
+        // At 0% aggression: conservative sizing.
+        final int targetSections;
+        if (aggr >= 90) {
+            targetSections = 1;
+        } else {
+            targetSections = Math.max(1, (int) Math.round(baseTarget + (1.0D - a) * Math.max(2, baseTarget * 2)));
         }
+
+        // splitMinSize: minimum sections a region must have before it is considered for splitting.
+        // At 100% aggression: 2 sections (1 section cannot be split).
+        // At 0% aggression: 32 sections.
+        final int splitMinSize = Math.max(2, (int) Math.round(32 - 30 * a));
+
+        // splitMaxSections: hard split limit.
+        // At 100% aggression: 2 sections (any region with > 2 sections is hard-split).
+        // At 0% aggression: 128 sections.
+        final int splitMaxSections = Math.max(splitMinSize, (int) Math.round(128 - (128 - Math.max(2, targetSections * 2)) * a));
+
+        // splitHighLoadMspt:
+        // At 100% aggression: 0.5 MSPT (any loaded region can split to spread load across threads).
+        // At 0% aggression: 15.0 MSPT.
+        final double splitHighLoadMspt = 15.0D * (1.0D - a) + 0.5D * a;
+
+        // mergeMinRegionSections:
+        // At 100% aggression: 1 section (regions never auto-merge just for being small).
+        // At 0% aggression: 16 sections.
+        final int mergeMinRegionSections = Math.max(1, (int) Math.round(16 - 15 * a));
+
+        // mergeOverlapThreshold:
+        // At 100% aggression: 0.90 (refuses almost all merges unless coupling is extreme).
+        // At 0% aggression: 0.30.
+        final double mergeOverlapThreshold = 0.30D + 0.60D * a;
+
+        final long mergeCooldownMillis = base.mergeCooldownMillis();
+        final long splitCooldownMillis = base.splitCooldownMillis();
+
         return new RegionizerSettings(
-            base.enabled,
-            threshold,
-            sections,
-            base.couplingWeight,
-            base.overlapWeight,
-            base.mergeCooldownMillis,
-            base.splitCooldownMillis,
-            base.splitMinSize,
-            base.splitMaxSections,
-            base.splitHighLoadMspt,
-            base.splitLowLoadPercent,
-            base.splitIdleSeconds,
-            base.splitPassIntervalTicks,
-            base.instantUnloadEnabled,
-            base.instantUnloadActiveRegions,
-            base.instantUnloadIdleRadius,
-            base.instantUnloadMaxChunksPerPass
+            base.enabled(),
+            mergeOverlapThreshold,
+            mergeMinRegionSections,
+            base.couplingWeight(),
+            base.overlapWeight(),
+            mergeCooldownMillis,
+            splitCooldownMillis,
+            splitMinSize,
+            splitMaxSections,
+            splitHighLoadMspt,
+            base.splitLowLoadPercent(),
+            base.splitIdleSeconds(),
+            base.splitPassIntervalTicks(),
+            base.instantUnloadEnabled(),
+            base.instantUnloadActiveRegions(),
+            base.instantUnloadIdleRadius(),
+            base.instantUnloadMaxChunksPerPass(),
+            aggr,
+            targetSections
         );
     }
 
@@ -190,5 +295,13 @@ public final class RegionizerSettings {
 
     public int instantUnloadMaxChunksPerPass() {
         return this.instantUnloadMaxChunksPerPass;
+    }
+
+    public int aggression() {
+        return this.aggression;
+    }
+
+    public int targetSections() {
+        return this.targetSections;
     }
 }

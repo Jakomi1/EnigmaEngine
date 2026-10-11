@@ -40,7 +40,7 @@ public final class LoadScaling {
 
     private static final AtomicReference<Map<String, LastApplied>> lastAppliedByWorld = new AtomicReference<>(Map.of());
 
-    private record LastApplied(int viewDistance, int simulationDistance, int regionizerSections) {
+    private record LastApplied(int viewDistance, int simulationDistance, int regionizerSections, int aggression) {
     }
 
     public static final class WorldSettings {
@@ -264,21 +264,21 @@ public final class LoadScaling {
         final Map.Entry<Integer, WorldSettings> base = baseLevel(playerCount);
         final String dimensionName = level.dimension().identifier().getPath();
         final WorldSettings worldOverride = worldOverrides.get(dimensionName);
-        final double factor = mode == Mode.AUTO ? 1.0D : aggression / 100.0D;
 
         final LastApplied last = lastAppliedByWorld.get().get(dimensionName);
 
-        final int viewDistance = clampDistance(scaledInt(
-            base.getValue().viewDistance, selected.getValue().viewDistance, factor, applyOverride(worldOverride == null ? -1 : worldOverride.viewDistance)
-        ));
-        final int simulationDistance = clampDistance(scaledInt(
-            base.getValue().simulationDistance, selected.getValue().simulationDistance, factor, applyOverride(worldOverride == null ? -1 : worldOverride.simulationDistance)
-        ));
-        final int regionizerSections = scaledInt(
-            base.getValue().regionizerSections, selected.getValue().regionizerSections, factor, applyOverride(worldOverride == null ? -1 : worldOverride.regionizerSections)
-        );
+        // View and simulation distance are strictly governed by player-count load scaling and overrides,
+        // and NEVER altered by the regionizer aggression slider.
+        final int rawView = worldOverride != null && worldOverride.viewDistance > 0 ? worldOverride.viewDistance : selected.getValue().viewDistance;
+        final int rawSim = worldOverride != null && worldOverride.simulationDistance > 0 ? worldOverride.simulationDistance : selected.getValue().simulationDistance;
+        final int viewDistance = clampDistance(rawView);
+        final int simulationDistance = clampDistance(rawSim);
 
-        if (last == null || last.viewDistance != viewDistance || last.simulationDistance != simulationDistance || last.regionizerSections != regionizerSections) {
+        final int configuredSections = worldOverride != null && worldOverride.regionizerSections > 0 ? worldOverride.regionizerSections : selected.getValue().regionizerSections;
+        final int currentAggression = aggression;
+
+        if (last == null || last.viewDistance != viewDistance || last.simulationDistance != simulationDistance
+            || last.regionizerSections != configuredSections || last.aggression != currentAggression) {
             if (viewDistance > 0) {
                 FeatureHooks.setViewDistance(level, viewDistance);
             }
@@ -286,13 +286,14 @@ public final class LoadScaling {
                 FeatureHooks.setSimulationDistance(level, simulationDistance);
             }
 
-            final RegionizerSettings worldSettings = RegionizerSettings.forWorld(RegionizerSettings.get(), regionizerSections, -1.0D);
+            final RegionizerSettings worldSettings = RegionizerSettings.forWorld(RegionizerSettings.get(), configuredSections, currentAggression);
             level.enigma$regionizerSettings = worldSettings;
 
+            final double factor = 1.0D;
             applySpawnLimits(io.papermc.paper.threadedregions.RegionizedServer.getInstance(), level, selected, base, factor, worldOverride);
             applyTicksPerSpawn(level, selected, base, factor, worldOverride);
 
-            updateLastApplied(dimensionName, new LastApplied(viewDistance, simulationDistance, regionizerSections));
+            updateLastApplied(dimensionName, new LastApplied(viewDistance, simulationDistance, configuredSections, currentAggression));
         }
     }
 
@@ -429,19 +430,13 @@ public final class LoadScaling {
         if (selected == null) {
             return null;
         }
-        final Map.Entry<Integer, WorldSettings> base = baseLevel(playerCount);
         final String dimensionName = level.dimension().identifier().getPath();
         final WorldSettings override = worldOverrides.get(dimensionName);
-        final double factor = mode == Mode.AUTO ? 1.0D : aggression / 100.0D;
-        final int view = clampDistance(scaledInt(
-            base.getValue().viewDistance, selected.getValue().viewDistance, factor, applyOverride(override == null ? -1 : override.viewDistance)
-        ));
-        final int sim = clampDistance(scaledInt(
-            base.getValue().simulationDistance, selected.getValue().simulationDistance, factor, applyOverride(override == null ? -1 : override.simulationDistance)
-        ));
-        final int sections = scaledInt(
-            base.getValue().regionizerSections, selected.getValue().regionizerSections, factor, applyOverride(override == null ? -1 : override.regionizerSections)
-        );
-        return "Level " + selected.getKey() + " players, view=" + view + ", sim=" + sim + ", regionizerSections=" + sections;
+        final int rawView = override != null && override.viewDistance > 0 ? override.viewDistance : selected.getValue().viewDistance;
+        final int rawSim = override != null && override.simulationDistance > 0 ? override.simulationDistance : selected.getValue().simulationDistance;
+        final int view = clampDistance(rawView);
+        final int sim = clampDistance(rawSim);
+        final int sections = override != null && override.regionizerSections > 0 ? override.regionizerSections : selected.getValue().regionizerSections;
+        return "Level " + selected.getKey() + " players, view=" + view + ", sim=" + sim + ", regionizerSections=" + sections + ", aggr=" + aggression + "%";
     }
 }
