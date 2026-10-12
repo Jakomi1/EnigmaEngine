@@ -33,8 +33,12 @@ public final class RegionMaintenance {
             return;
         }
         for (final ServerLevel level : server.getAllLevels()) {
-            level.regioniser.enigma$runRegionMaintenance();
-            level.regioniser.enigma$garbageCollectRegions();
+            try {
+                level.regioniser.enigma$runRegionMaintenance();
+                level.regioniser.enigma$garbageCollectRegions();
+            } catch (final Throwable t) {
+                MinecraftServer.LOGGER.error("Failed to run region maintenance for level " + level.dimension().identifier(), t);
+            }
         }
         RegionCoupling.decay();
     }
