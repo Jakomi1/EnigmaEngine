@@ -217,10 +217,21 @@ public final class LoadScaling {
 
     private static NavigableMap<Integer, WorldSettings> defaultLevels() {
         final NavigableMap<Integer, WorldSettings> defaults = new TreeMap<>();
-        defaults.put(0, new WorldSettings(12, 10, 24, Map.of(), Map.of()));
-        defaults.put(10, new WorldSettings(8, 6, 14, Map.of("monster", 32), Map.of("monster", 1)));
-        defaults.put(25, new WorldSettings(6, 4, 8, Map.of("monster", 16), Map.of("monster", 1)));
-        defaults.put(50, new WorldSettings(5, 3, 6, Map.of("monster", 10), Map.of("monster", 1)));
+        defaults.put(0, new WorldSettings(12, 10, 24, Map.of("monster", 70, "animal", 10, "water_animal", 5), Map.of("monster", 1)));
+        defaults.put(5, new WorldSettings(11, 9, 23, Map.of("monster", 56, "animal", 8, "water_animal", 5), Map.of("monster", 1)));
+        defaults.put(10, new WorldSettings(11, 9, 22, Map.of("monster", 46, "animal", 7, "water_animal", 4), Map.of("monster", 2)));
+        defaults.put(15, new WorldSettings(10, 8, 20, Map.of("monster", 38, "animal", 6, "water_animal", 3), Map.of("monster", 2)));
+        defaults.put(20, new WorldSettings(9, 7, 19, Map.of("monster", 31, "animal", 5, "water_animal", 3), Map.of("monster", 3)));
+        defaults.put(25, new WorldSettings(9, 7, 17, Map.of("monster", 25, "animal", 4, "water_animal", 2), Map.of("monster", 3)));
+        defaults.put(30, new WorldSettings(8, 6, 16, Map.of("monster", 19, "animal", 3, "water_animal", 2), Map.of("monster", 4)));
+        defaults.put(35, new WorldSettings(7, 5, 15, Map.of("monster", 15, "animal", 3, "water_animal", 2), Map.of("monster", 4)));
+        defaults.put(40, new WorldSettings(6, 4, 14, Map.of("monster", 12, "animal", 2, "water_animal", 1), Map.of("monster", 5)));
+        defaults.put(45, new WorldSettings(6, 4, 13, Map.of("monster", 9, "animal", 2, "water_animal", 1), Map.of("monster", 5)));
+        defaults.put(50, new WorldSettings(5, 3, 12, Map.of("monster", 7, "animal", 1, "water_animal", 1), Map.of("monster", 6)));
+        defaults.put(60, new WorldSettings(5, 3, 11, Map.of("monster", 5, "animal", 1, "water_animal", 1), Map.of("monster", 7)));
+        defaults.put(75, new WorldSettings(4, 2, 10, Map.of("monster", 4, "animal", 1, "water_animal", 1), Map.of("monster", 8)));
+        defaults.put(100, new WorldSettings(4, 2, 8, Map.of("monster", 3, "animal", 1, "water_animal", 1), Map.of("monster", 9)));
+        defaults.put(150, new WorldSettings(4, 2, 6, Map.of("monster", 2, "animal", 1, "water_animal", 1), Map.of("monster", 10)));
         return Collections.unmodifiableNavigableMap(defaults);
     }
 
@@ -289,12 +300,12 @@ public final class LoadScaling {
             final RegionizerSettings worldSettings = RegionizerSettings.forWorld(RegionizerSettings.get(), configuredSections, currentAggression);
             level.enigma$regionizerSettings = worldSettings;
 
-            final double factor = 1.0D;
-            applySpawnLimits(io.papermc.paper.threadedregions.RegionizedServer.getInstance(), level, selected, base, factor, worldOverride);
-            applyTicksPerSpawn(level, selected, base, factor, worldOverride);
-
             updateLastApplied(dimensionName, new LastApplied(viewDistance, simulationDistance, configuredSections, currentAggression));
         }
+
+        final double factor = 1.0D;
+        applySpawnLimits(io.papermc.paper.threadedregions.RegionizedServer.getInstance(), level, selected, base, factor, worldOverride);
+        applyTicksPerSpawn(level, selected, base, factor, worldOverride);
     }
 
     private static int applyOverride(final int override) {
