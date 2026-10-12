@@ -1,6 +1,6 @@
 --- a/io/papermc/paper/threadedregions/ThreadedRegionizer.java
 +++ b/io/papermc/paper/threadedregions/ThreadedRegionizer.java
-@@ -268,6 +_,347 @@
+@@ -268,6 +_,333 @@
          }
      }
  
@@ -11,19 +11,52 @@
 +            // upstream behavior
 +            return true;
 +        }
-+        if (from.sectionByKey.size() < settings.mergeMinRegionSections()) {
-+            // regions smaller than this always merge to keep the regioniser stable
-+            return true;
-+        }
++
 +        final long now = System.currentTimeMillis();
++        // Strict cooldown check on BOTH merges and splits to prevent split-merge oscillation
 +        if (now - from.enigma$lastMergeTime < settings.mergeCooldownMillis()
-+            || now - into.enigma$lastMergeTime < settings.mergeCooldownMillis()) {
++            || now - into.enigma$lastMergeTime < settings.mergeCooldownMillis()
++            || now - from.enigma$lastSplitTime < settings.splitCooldownMillis()
++            || now - into.enigma$lastSplitTime < settings.splitCooldownMillis()) {
 +            return false;
 +        }
++
++        // Never merge if the combined region exceeds splitMaxSections (avoids immediate re-split)
++        final int combinedSections = from.sectionByKey.size() + into.sectionByKey.size();
++        if (combinedSections > settings.splitMaxSections()) {
++            return false;
++        }
++
++        // At high aggression (>= 90%), preserve independent small regions down to 1 section
++        if (settings.aggression() >= 90) {
++            final double coupling = io.canvasmc.canvas.regionizer.RegionCoupling.getNormalized(from.id, into.id);
++            return coupling >= settings.mergeOverlapThreshold();
++        }
++
 +        final double coupling = io.canvasmc.canvas.regionizer.RegionCoupling.getNormalized(from.id, into.id);
 +        final double overlap = this.enigma$computeOverlap(from, into);
 +        final double score = (settings.couplingWeight() * coupling) + (settings.overlapWeight() * overlap);
-+        return score >= settings.mergeOverlapThreshold();
++
++        if (score >= settings.mergeOverlapThreshold()) {
++            return true;
++        }
++
++        // Only merge small regions below mergeMinRegionSections if they are low load/idle and actually touch
++        if ((from.sectionByKey.size() < settings.mergeMinRegionSections() || into.sectionByKey.size() < settings.mergeMinRegionSections())
++            && overlap > 0.0D) {
++            double msptFrom = -1.0D, msptInto = -1.0D;
++            if (from.data instanceof TickRegions.TickRegionData td) {
++                msptFrom = td.getMSPT(io.canvasmc.canvas.region.RegionTickData.Frame._5_SECONDS);
++            }
++            if (into.data instanceof TickRegions.TickRegionData td) {
++                msptInto = td.getMSPT(io.canvasmc.canvas.region.RegionTickData.Frame._5_SECONDS);
++            }
++            if (msptFrom < 1.0D && msptInto < 1.0D) {
++                return true;
++            }
++        }
++
++        return false;
 +    }
 +
 +    private double enigma$computeOverlap(final ThreadedRegion<R, S> a, final ThreadedRegion<R, S> b) {
@@ -41,14 +74,18 @@
 +            if (large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x - 1, z))
 +                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x + 1, z))
 +                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x, z - 1))
-+                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x, z + 1))) {
++                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x, z + 1))
++                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x - 1, z - 1))
++                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x + 1, z - 1))
++                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x - 1, z + 1))
++                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x + 1, z + 1))) {
 +                ++boundary;
 +            }
 +        }
 +        if (boundary == 0) {
 +            return 0.0D;
 +        }
-+        return Math.min(1.0D, boundary / 4.0D);
++        return Math.min(1.0D, (double) boundary / (double) Math.max(1, small.sectionByKey.size()));
 +    }
 +
 +    public void enigma$runRegionMaintenance() {
@@ -56,81 +93,13 @@
 +        if (!settings.enabled()) {
 +            return;
 +        }
-+        final List<ThreadedRegion<R, S>> candidates = new ArrayList<>();
-+        this.computeForAllRegionsUnsynchronised(candidates::add);
-+
-+        for (final ThreadedRegion<R, S> region : candidates) {
-+            if (region.isDead()) {
-+                continue;
-+            }
-+            final boolean lock = this.writeLockOwner != Thread.currentThread();
-+            if (lock) {
-+                this.regionLock.readLock();
-+            }
-+            int sectionCount;
-+            long anchorSectionKey = -1L;
-+            try {
-+                sectionCount = region.sectionByKey.size();
-+                final LongIterator anchorIterator = region.getOwnedSectionsUnsynchronised();
-+                if (anchorIterator.hasNext()) {
-+                    anchorSectionKey = anchorIterator.nextLong();
-+                }
-+            } finally {
-+                if (lock) {
-+                    this.regionLock.tryUnlockRead();
-+                }
-+            }
-+
-+            if (anchorSectionKey == -1L) {
-+                // region owns no sections, nothing to split
-+                continue;
-+            }
-+
-+            final boolean hardSplit = sectionCount > settings.splitMaxSections();
-+            if (!hardSplit) {
-+                if (sectionCount < settings.splitMinSize()) {
-+                    continue;
-+                }
-+                if (System.currentTimeMillis() - region.enigma$lastSplitTime < settings.splitCooldownMillis()) {
-+                    continue;
-+                }
-+                double mspt = -1.0D;
-+                if (region.data instanceof TickRegions.TickRegionData tickData) {
-+                    mspt = tickData.getMSPT(io.canvasmc.canvas.region.RegionTickData.Frame._5_SECONDS);
-+                }
-+                if (mspt < settings.splitHighLoadMspt()) {
-+                    continue;
-+                }
-+            }
-+
-+            // Enigma - region topology may only change on the owning region's tick thread. Splitting a
-+            // live region from the global server tick races an in-flight tick (fluid spread, block
-+            // physics) that touches sections which have just been reassigned to a new region; that
-+            // produces the "Thread failed main thread check: Adding block without owning region" crash
-+            // in CollectingNeighborUpdater. Defer the split to the region's own thread via its task
-+            // queue; the re-check under the write lock keeps it idempotent.
-+            final ThreadedRegion<R, S> splitCandidate = region;
-+            final int anchorChunkX = CoordinateUtils.getChunkX(anchorSectionKey) << this.sectionChunkShift;
-+            final int anchorChunkZ = CoordinateUtils.getChunkZ(anchorSectionKey) << this.sectionChunkShift;
-+            RegionizedServer.getInstance().taskQueue.queueOrExecuteTickTask(this.world, anchorChunkX, anchorChunkZ, () -> {
-+                this.acquireWriteLock();
-+                try {
-+                    if (splitCandidate.isDead() || splitCandidate.state != ThreadedRegion.STATE_READY) {
-+                        return;
-+                    }
-+                    if (this.enigma$splitRegion(splitCandidate)) {
-+                        splitCandidate.enigma$lastSplitTime = System.currentTimeMillis();
-+                    }
-+                } finally {
-+                    this.releaseWriteLock();
-+                }
-+            });
-+        }
 +
 +        // Enigma start - regionizer driven eviction
 +        // Force unloading the leftover chunks of idle regions lets them shrink back to their active footprint
 +        // quickly so that fully idle regions can go inactive and stop consuming a tick thread.
 +        if (settings.instantUnloadEnabled() && settings.instantUnloadMaxChunksPerPass() > 0) {
++            final List<ThreadedRegion<R, S>> candidates = new ArrayList<>();
++            this.computeForAllRegionsUnsynchronised(candidates::add);
 +            final int idleRadius = settings.instantUnloadIdleRadius();
 +            final int perRegionBudget = settings.instantUnloadMaxChunksPerPass();
 +            final ca.spottedleaf.moonrise.patches.chunk_system.scheduling.ChunkTaskScheduler chunkTaskScheduler =
@@ -252,6 +221,35 @@
 +        return released;
 +    }
 +
++    private boolean enigma$shouldSplit(final ThreadedRegion<R, S> region) {
++        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
++        if (!settings.enabled()) {
++            return false;
++        }
++        final int sectionCount = region.sectionByKey.size();
++        if (sectionCount <= 1) {
++            return false;
++        }
++        if (sectionCount > settings.splitMaxSections()) {
++            return true;
++        }
++        if (sectionCount < settings.splitMinSize()) {
++            return false;
++        }
++        if (System.currentTimeMillis() - region.enigma$lastSplitTime < settings.splitCooldownMillis()) {
++            return false;
++        }
++        double mspt = 0.0D;
++        if (region.data instanceof TickRegions.TickRegionData tickData) {
++            try {
++                mspt = tickData.getMSPT(io.canvasmc.canvas.region.RegionTickData.Frame._5_SECONDS);
++            } catch (final Throwable ignored) {
++                mspt = 0.0D;
++            }
++        }
++        return mspt >= settings.splitHighLoadMspt();
++    }
++
 +    /**
 +     * Splits the given alive region into multiple regions based on its section clusters. Must be called while holding
 +     * the write lock and while the region is in the ready state.
@@ -269,43 +267,27 @@
 +            region.deadSections.clear();
 +        }
 +
-+        final Long2ReferenceOpenHashMap<ThreadedRegionSection<R, S>> recalculateSections = region.sectionByKey.clone();
-+        if (recalculateSections.size() <= 1) {
-+            region.state = ThreadedRegion.STATE_READY;
++        if (region.sectionByKey.size() <= 1) {
 +            return false;
 +        }
 +
-+        final int mergeRadius = Math.max(this.regionSectionMergeRadius, this.emptySectionCreateRadius);
-+        final List<List<ThreadedRegionSection<R, S>>> newRegions = new ArrayList<>();
-+        while (!recalculateSections.isEmpty()) {
-+            final List<ThreadedRegionSection<R, S>> currRegion = new ArrayList<>();
-+            final Iterator<ThreadedRegionSection<R, S>> firstIterator = recalculateSections.values().iterator();
-+            currRegion.add(firstIterator.next());
-+            firstIterator.remove();
-+            search_loop:
-+            for (int idx = 0; idx < currRegion.size(); ++idx) {
-+                final ThreadedRegionSection<R, S> curr = currRegion.get(idx);
-+                for (int dz = -mergeRadius; dz <= mergeRadius; ++dz) {
-+                    for (int dx = -mergeRadius; dx <= mergeRadius; ++dx) {
-+                        if ((dx | dz) == 0) {
-+                            continue;
-+                        }
-+                        final ThreadedRegionSection<R, S> section =
-+                            recalculateSections.remove(CoordinateUtils.getChunkKey(dx + curr.sectionX, dz + curr.sectionZ));
-+                        if (section == null) {
-+                            continue;
-+                        }
-+                        currRegion.add(section);
-+                        if (recalculateSections.isEmpty()) {
-+                            break search_loop;
-+                        }
-+                    }
-+                }
-+            }
-+            newRegions.add(currRegion);
++        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
++        if (!settings.enabled()) {
++            return false;
 +        }
 +
-+        if (newRegions.size() == 1) {
++        final int maxParallelism = Math.max(2, Math.min(16, Runtime.getRuntime().availableProcessors()));
++        final List<List<ThreadedRegionSection<R, S>>> newRegions = io.canvasmc.canvas.regionizer.DynamicRegionPartitioner.partition(
++            region.sectionByKey.values(),
++            s -> s.sectionX,
++            s -> s.sectionZ,
++            s -> Math.max(1, s.chunkCount),
++            settings.targetSections(),
++            settings.splitMaxSections(),
++            maxParallelism
++        );
++
++        if (newRegions.size() <= 1) {
 +            return false;
 +        }
 +
@@ -336,7 +318,11 @@
 +
 +        region.split(newRegionsMap, newRegionsSet);
 +
++        final long now = System.currentTimeMillis();
++        region.enigma$lastSplitTime = now;
++
 +        for (final ThreadedRegion<R, S> newRegion : newRegionsSet) {
++            newRegion.enigma$lastSplitTime = now;
 +            newRegion.state = ThreadedRegion.STATE_READY;
 +            newRegion.onCreate();
 +            this.callbacks.onRegionActive(newRegion);
@@ -404,6 +390,32 @@
          }
          if (!section.hasOnlyOneChunk()) {
              // chunk will not go empty, so we don't need to acquire the lock
+@@ -560,6 +_,12 @@
+         // if we removed dead sections, we should check if the region can be split into smaller ones
+         // otherwise, the region remains alive
+         if (!removedDeadSections) {
++            // Enigma start - dynamic split on release
++            if (this.enigma$shouldSplit(region) && this.enigma$splitRegion(region)) {
++                return;
++            }
++            // Enigma end - dynamic split on release
++
+             // didn't remove dead sections, don't check for split
+             region.state = ThreadedRegion.STATE_READY;
+             if (!region.expectingMergeFrom.isEmpty() || !region.mergeIntoLater.isEmpty()) {
+@@ -624,6 +_,12 @@
+         // now we have split the regions into separate parts, we can split recalculate
+ 
+         if (newRegions.size() == 1) {
++            // Enigma start - dynamic split on release
++            if (this.enigma$shouldSplit(region) && this.enigma$splitRegion(region)) {
++                return;
++            }
++            // Enigma end - dynamic split on release
++
+             // no need to split anything, we're done here
+             region.state = ThreadedRegion.STATE_READY;
+             if (!region.expectingMergeFrom.isEmpty() || !region.mergeIntoLater.isEmpty()) {
 @@ -785,6 +_,11 @@
          private final ReferenceOpenHashSet<ThreadedRegion<R, S>> mergeIntoLater = new ReferenceOpenHashSet<>();
          private final ReferenceOpenHashSet<ThreadedRegion<R, S>> expectingMergeFrom = new ReferenceOpenHashSet<>();

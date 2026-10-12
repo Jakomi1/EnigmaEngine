@@ -17,3 +17,79 @@
          } else {
              tickThreads = config.threads;
          }
+@@ -224,43 +_,54 @@
+             return new ServerRegionTickManager.ServerRegionHandle(region.getData().getRegionSchedulingHandle().getTickManager());
+         }
+ 
++        private static ca.spottedleaf.common.time.TickData.TickReportData getReport(
++            final TickRegionScheduler.RegionScheduleHandle scheduleHandle,
++            final RegionTickData.Frame timeFrame,
++            final long nanos
++        ) {
++            if (scheduleHandle == null) {
++                return null;
++            }
++            return switch (timeFrame) {
++                case _5_SECONDS -> scheduleHandle.getTickReport5s(nanos);
++                case _15_SECONDS -> scheduleHandle.getTickReport15s(nanos);
++                case _1_MINUTE -> scheduleHandle.getTickReport1m(nanos);
++                case _5_MINUTES -> scheduleHandle.getTickReport5m(nanos);
++                case _15_MINUTES -> scheduleHandle.getTickReport15m(nanos);
++            };
++        }
++
+         @Override
+         public double getMSPT(final RegionTickData.@NonNull Frame timeFrame) {
+             final TickRegionScheduler.RegionScheduleHandle scheduleHandle = getRegionSchedulingHandle();
+             final long nanos = System.nanoTime();
+-            return switch (timeFrame) {
+-                case _5_SECONDS -> scheduleHandle.getTickReport5s(nanos).timePerTickData().segmentAll().average() / 1.0E6;
+-                case _15_SECONDS -> scheduleHandle.getTickReport15s(nanos).timePerTickData().segmentAll().average() / 1.0E6;
+-                case _1_MINUTE -> scheduleHandle.getTickReport1m(nanos).timePerTickData().segmentAll().average() / 1.0E6;
+-                case _5_MINUTES -> scheduleHandle.getTickReport5m(nanos).timePerTickData().segmentAll().average() / 1.0E6;
+-                case _15_MINUTES -> scheduleHandle.getTickReport15m(nanos).timePerTickData().segmentAll().average() / 1.0E6;
+-            };
++            final ca.spottedleaf.common.time.TickData.TickReportData report = getReport(scheduleHandle, timeFrame, nanos);
++            if (report == null || report.timePerTickData() == null || report.timePerTickData().segmentAll() == null) {
++                return 0.0D;
++            }
++            return report.timePerTickData().segmentAll().average() / 1.0E6;
+         }
+ 
+         @Override
+         public double getTPS(final RegionTickData.@NonNull Frame timeFrame) {
+             final TickRegionScheduler.RegionScheduleHandle scheduleHandle = getRegionSchedulingHandle();
+             final long nanos = System.nanoTime();
+-            return switch (timeFrame) {
+-                case _5_SECONDS -> scheduleHandle.getTickReport5s(nanos).tpsData().segmentAll().average();
+-                case _15_SECONDS -> scheduleHandle.getTickReport15s(nanos).tpsData().segmentAll().average();
+-                case _1_MINUTE -> scheduleHandle.getTickReport1m(nanos).tpsData().segmentAll().average();
+-                case _5_MINUTES -> scheduleHandle.getTickReport5m(nanos).tpsData().segmentAll().average();
+-                case _15_MINUTES -> scheduleHandle.getTickReport15m(nanos).tpsData().segmentAll().average();
+-            };
++            final ca.spottedleaf.common.time.TickData.TickReportData report = getReport(scheduleHandle, timeFrame, nanos);
++            if (report == null || report.tpsData() == null || report.tpsData().segmentAll() == null) {
++                return 20.0D;
++            }
++            return report.tpsData().segmentAll().average();
+         }
+ 
+         @Override
+         public double getUtilization(final RegionTickData.@NonNull Frame timeFrame) {
+             final TickRegionScheduler.RegionScheduleHandle scheduleHandle = getRegionSchedulingHandle();
+             final long nanos = System.nanoTime();
+-            return switch (timeFrame) {
+-                case _5_SECONDS -> scheduleHandle.getTickReport5s(nanos).utilisation();
+-                case _15_SECONDS -> scheduleHandle.getTickReport15s(nanos).utilisation();
+-                case _1_MINUTE -> scheduleHandle.getTickReport1m(nanos).utilisation();
+-                case _5_MINUTES -> scheduleHandle.getTickReport5m(nanos).utilisation();
+-                case _15_MINUTES -> scheduleHandle.getTickReport15m(nanos).utilisation();
+-            };
++            final ca.spottedleaf.common.time.TickData.TickReportData report = getReport(scheduleHandle, timeFrame, nanos);
++            if (report == null) {
++                return 0.0D;
++            }
++            return report.utilisation();
+         }
+ 
+         @NonNull

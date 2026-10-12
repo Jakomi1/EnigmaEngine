@@ -75,3 +75,16 @@
      public boolean enforceSecureProfile() {
          return false;
      }
+@@ -2666,7 +_,11 @@
+     public long getAverageTickTimeNanos() {
+         // Folia start - region threading
+         if (io.papermc.paper.threadedregions.TickRegionScheduler.getCurrentTickingTask() instanceof io.papermc.paper.threadedregions.TickRegionScheduler.RegionScheduleHandle handle) {
+-            return (long)Math.ceil(handle.getTickReport5s(System.nanoTime()).timePerTickData().segmentAll().average());
++            final ca.spottedleaf.common.time.TickData.TickReportData report = handle.getTickReport5s(System.nanoTime());
++            if (report != null && report.timePerTickData() != null && report.timePerTickData().segmentAll() != null) {
++                return (long)Math.ceil(report.timePerTickData().segmentAll().average());
++            }
++            return 0L;
+         }
+         return 0L;
+         // Folia end - region threading

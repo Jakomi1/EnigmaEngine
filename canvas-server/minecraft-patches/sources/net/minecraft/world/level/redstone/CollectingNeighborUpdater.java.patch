@@ -1,0 +1,13 @@
+--- a/net/minecraft/world/level/redstone/CollectingNeighborUpdater.java
++++ b/net/minecraft/world/level/redstone/CollectingNeighborUpdater.java
+@@ -66,7 +_,9 @@
+     }
+ 
+     private void addAndRun(final BlockPos pos, final CollectingNeighborUpdater.NeighborUpdates update) {
+-        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.level, pos, "Adding block without owning region"); // Folia - region threading
++        if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(this.level, pos)) { // Folia - region threading
++            return;
++        }
+         boolean runningAlready = this.count > 0;
+         boolean tooManyUpdates = this.maxChainedNeighborUpdates >= 0 && this.count >= this.maxChainedNeighborUpdates;
+         this.count++;
