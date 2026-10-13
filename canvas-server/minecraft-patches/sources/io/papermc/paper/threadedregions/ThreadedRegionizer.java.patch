@@ -1,6 +1,6 @@
 --- a/io/papermc/paper/threadedregions/ThreadedRegionizer.java
 +++ b/io/papermc/paper/threadedregions/ThreadedRegionizer.java
-@@ -268,6 +_,333 @@
+@@ -268,6 +_,358 @@
          }
      }
  
@@ -13,6 +13,13 @@
 +        }
 +
 +        final long now = System.currentTimeMillis();
++
++        // Sibling lockout: regions produced by the same split must not be merged back into each
++        // other, otherwise the partitioner would immediately be undone by the merge logic.
++        if (from.enigma$partitionGroup != 0L && from.enigma$partitionGroup == into.enigma$partitionGroup) {
++            return false;
++        }
++
 +        // Strict cooldown check on BOTH merges and splits to prevent split-merge oscillation
 +        if (now - from.enigma$lastMergeTime < settings.mergeCooldownMillis()
 +            || now - into.enigma$lastMergeTime < settings.mergeCooldownMillis()
@@ -277,15 +284,29 @@
 +        }
 +
 +        final int maxParallelism = Math.max(2, Math.min(16, Runtime.getRuntime().availableProcessors()));
-+        final List<List<ThreadedRegionSection<R, S>>> newRegions = io.canvasmc.canvas.regionizer.DynamicRegionPartitioner.partition(
-+            region.sectionByKey.values(),
-+            s -> s.sectionX,
-+            s -> s.sectionZ,
-+            s -> Math.max(1, s.chunkCount),
-+            settings.targetSections(),
-+            settings.splitMaxSections(),
-+            maxParallelism
-+        );
++        final int effectiveMaxRegions = Math.max(2, Math.min(settings.splitMaxRegions(), maxParallelism));
++        final List<List<ThreadedRegionSection<R, S>>> newRegions = settings.partitionEnabled()
++            ? io.canvasmc.canvas.regionizer.BalancedPartitioner.partition(
++                region.sectionByKey.values(),
++                s -> s.sectionX,
++                s -> s.sectionZ,
++                s -> Math.max(1, s.chunkCount),
++                settings.targetSections(),
++                effectiveMaxRegions,
++                settings.partitionMinSections(),
++                settings.partitionSlack(),
++                settings.partitionRefinementPasses(),
++                maxParallelism
++            )
++            : io.canvasmc.canvas.regionizer.DynamicRegionPartitioner.partition(
++                region.sectionByKey.values(),
++                s -> s.sectionX,
++                s -> s.sectionZ,
++                s -> Math.max(1, s.chunkCount),
++                settings.targetSections(),
++                settings.splitMaxSections(),
++                maxParallelism
++            );
 +
 +        if (newRegions.size() <= 1) {
 +            return false;
@@ -321,8 +342,12 @@
 +        final long now = System.currentTimeMillis();
 +        region.enigma$lastSplitTime = now;
 +
++        // Sibling lockout: every region produced by this split shares a group token so the merge
++        // logic can refuse to immediately glue the freshly separated siblings back together.
++        final long partitionGroup = io.canvasmc.canvas.regionizer.BalancedPartitioner.nextGroupToken();
 +        for (final ThreadedRegion<R, S> newRegion : newRegionsSet) {
 +            newRegion.enigma$lastSplitTime = now;
++            newRegion.enigma$partitionGroup = partitionGroup;
 +            newRegion.state = ThreadedRegion.STATE_READY;
 +            newRegion.onCreate();
 +            this.callbacks.onRegionActive(newRegion);
@@ -416,36 +441,43 @@
              // no need to split anything, we're done here
              region.state = ThreadedRegion.STATE_READY;
              if (!region.expectingMergeFrom.isEmpty() || !region.mergeIntoLater.isEmpty()) {
-@@ -785,6 +_,11 @@
+@@ -785,6 +_,12 @@
          private final ReferenceOpenHashSet<ThreadedRegion<R, S>> mergeIntoLater = new ReferenceOpenHashSet<>();
          private final ReferenceOpenHashSet<ThreadedRegion<R, S>> expectingMergeFrom = new ReferenceOpenHashSet<>();
  
 +        // Enigma start - adaptive regionizer
 +        volatile long enigma$lastMergeTime;
 +        volatile long enigma$lastSplitTime;
++        volatile long enigma$partitionGroup;
 +        // Enigma end - adaptive regionizer
 +
          public ThreadedRegion(final @NonNull ThreadedRegionizer<R, S> regioniser) {
              this.regioniser = regioniser;
              this.id = REGION_ID_GENERATOR.getAndIncrement();
-@@ -928,6 +_,10 @@
+@@ -928,6 +_,13 @@
                  return false;
              }
  
 +            final long mergeTime = System.currentTimeMillis();
 +            this.enigma$lastMergeTime = mergeTime;
 +            mergeTarget.enigma$lastMergeTime = mergeTime;
++            // Enigma: a merged region is no longer one of a split's siblings.
++            this.enigma$partitionGroup = 0L;
++            mergeTarget.enigma$partitionGroup = 0L;
 +
              this.regioniser.callbacks.preMerge(this, mergeTarget);
  
              this.tryKill();
-@@ -990,6 +_,9 @@
+@@ -990,6 +_,12 @@
              if (region.isDead()) {
                  throw new IllegalStateException("Trying to merge later into a dead region: " + region);
              }
 +            final long mergeTime = System.currentTimeMillis();
 +            this.enigma$lastMergeTime = mergeTime;
 +            region.enigma$lastMergeTime = mergeTime;
++            // Enigma: a merged region is no longer one of a split's siblings.
++            this.enigma$partitionGroup = 0L;
++            region.enigma$partitionGroup = 0L;
              final boolean add1, add2;
              if ((add1 = this.mergeIntoLater.add(region)) != (add2 = region.expectingMergeFrom.add(this))) {
                  throw new IllegalStateException("Inconsistent state between target merge " + region + " and this " + this + ": add1,add2:" + add1 + "," + add2);

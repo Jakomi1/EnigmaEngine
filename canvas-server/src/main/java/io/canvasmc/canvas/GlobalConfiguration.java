@@ -509,6 +509,37 @@ public class GlobalConfiguration extends Part {
                     "Bounds the worst case work performed in a single region tick when a large region idles all",
                     "at once. Remaining chunks drain in later passes and normal unload processing."
                 ).greaterThan(0.0F);
+            option("partitionEnabled")
+                .docs(
+                    "Enables the balanced partitioner for region splits. When enabled, a splitting region is",
+                    "divided into balanced, contiguous sub-regions with minimal cross-region seams using a",
+                    "capacitated multi-source flood fill plus min-cut refinement. When disabled, the legacy",
+                    "recursive bisection partitioner is used instead."
+                );
+            option("splitMaxRegions")
+                .docs(
+                    "The hard upper bound on the number of sub-regions a single split may produce. This is",
+                    "further capped by the number of available tick threads at runtime, so setting it very",
+                    "high never oversubscribes the CPU."
+                ).greaterThanOrEqualTo(2.0F);
+            option("partitionMinSections")
+                .docs(
+                    "The soft minimum number of sections a sub-region should contain after a split. Bounds how",
+                    "finely a region may be fragmented; a sub-region is never smaller than this unless the input",
+                    "region itself is smaller."
+                ).greaterThanOrEqualTo(1.0F);
+            option("partitionSlack")
+                .docs(
+                    "The tolerated relative workload overload of a sub-region during a split. A value of 0.15",
+                    "lets a sub-region hold up to 15 percent more workload than the per-region average before the",
+                    "partitioner refuses to grow it further."
+                ).between(0.0F, 1.0F);
+            option("partitionRefinementPasses")
+                .docs(
+                    "The number of min-cut refinement sweeps run after the initial balanced flood fill. Higher",
+                    "values produce cleaner, more compact sub-region boundaries at the cost of additional split",
+                    "time. Set to 0 to disable refinement."
+                ).greaterThanOrEqualTo(0.0F);
         }
 
         public boolean enabled = true;
@@ -529,6 +560,11 @@ public class GlobalConfiguration extends Part {
         public boolean instantUnloadActiveRegions = true;
         public int instantUnloadIdleRadius = 16;
         public int instantUnloadMaxChunksPerPass = 512;
+        public boolean partitionEnabled = true;
+        public int splitMaxRegions = 16;
+        public int partitionMinSections = 1;
+        public double partitionSlack = 0.15D;
+        public int partitionRefinementPasses = 2;
     }
 
     public ChunkSystem chunkSystem = new ChunkSystem();

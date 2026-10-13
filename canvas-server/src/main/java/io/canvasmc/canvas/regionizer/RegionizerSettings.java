@@ -23,6 +23,11 @@ public final class RegionizerSettings {
     private final int instantUnloadMaxChunksPerPass;
     private final int aggression;
     private final int targetSections;
+    private final boolean partitionEnabled;
+    private final int splitMaxRegions;
+    private final int partitionMinSections;
+    private final double partitionSlack;
+    private final int partitionRefinementPasses;
 
     private static volatile RegionizerSettings INSTANCE = fromGlobalConfiguration();
 
@@ -89,6 +94,60 @@ public final class RegionizerSettings {
         final int aggression,
         final int targetSections
     ) {
+        this(
+            enabled,
+            mergeOverlapThreshold,
+            mergeMinRegionSections,
+            couplingWeight,
+            overlapWeight,
+            mergeCooldownMillis,
+            splitCooldownMillis,
+            splitMinSize,
+            splitMaxSections,
+            splitHighLoadMspt,
+            splitLowLoadPercent,
+            splitIdleSeconds,
+            splitPassIntervalTicks,
+            instantUnloadEnabled,
+            instantUnloadActiveRegions,
+            instantUnloadIdleRadius,
+            instantUnloadMaxChunksPerPass,
+            aggression,
+            targetSections,
+            true,
+            16,
+            1,
+            0.15D,
+            2
+        );
+    }
+
+    public RegionizerSettings(
+        final boolean enabled,
+        final double mergeOverlapThreshold,
+        final int mergeMinRegionSections,
+        final double couplingWeight,
+        final double overlapWeight,
+        final long mergeCooldownMillis,
+        final long splitCooldownMillis,
+        final int splitMinSize,
+        final int splitMaxSections,
+        final double splitHighLoadMspt,
+        final int splitLowLoadPercent,
+        final int splitIdleSeconds,
+        final int splitPassIntervalTicks,
+        final boolean instantUnloadEnabled,
+        final boolean instantUnloadActiveRegions,
+        final int instantUnloadIdleRadius,
+        final int instantUnloadMaxChunksPerPass,
+        final int aggression,
+        final int targetSections,
+        final boolean partitionEnabled,
+        final int splitMaxRegions,
+        final int partitionMinSections,
+        final double partitionSlack,
+        final int partitionRefinementPasses
+    ) {
         this.enabled = enabled;
         this.mergeOverlapThreshold = mergeOverlapThreshold;
         this.mergeMinRegionSections = mergeMinRegionSections;
@@ -108,6 +167,11 @@ public final class RegionizerSettings {
         this.instantUnloadMaxChunksPerPass = instantUnloadMaxChunksPerPass;
         this.aggression = Math.max(0, Math.min(100, aggression));
         this.targetSections = Math.max(1, targetSections);
+        this.partitionEnabled = partitionEnabled;
+        this.splitMaxRegions = Math.max(2, splitMaxRegions);
+        this.partitionMinSections = Math.max(1, partitionMinSections);
+        this.partitionSlack = Math.max(0.0D, Math.min(1.0D, partitionSlack));
+        this.partitionRefinementPasses = Math.max(0, partitionRefinementPasses);
     }
 
     public static RegionizerSettings fromGlobalConfiguration() {
@@ -131,7 +195,12 @@ public final class RegionizerSettings {
             c.instantUnloadIdleRadius,
             c.instantUnloadMaxChunksPerPass,
             100,
-            2
+            2,
+            c.partitionEnabled,
+            c.splitMaxRegions,
+            c.partitionMinSections,
+            c.partitionSlack,
+            c.partitionRefinementPasses
         );
     }
 
@@ -225,7 +294,12 @@ public final class RegionizerSettings {
             base.instantUnloadIdleRadius(),
             base.instantUnloadMaxChunksPerPass(),
             aggr,
-            targetSections
+            targetSections,
+            base.partitionEnabled(),
+            base.splitMaxRegions(),
+            base.partitionMinSections(),
+            base.partitionSlack(),
+            base.partitionRefinementPasses()
         );
     }
 
@@ -303,5 +377,25 @@ public final class RegionizerSettings {
 
     public int targetSections() {
         return this.targetSections;
+    }
+
+    public boolean partitionEnabled() {
+        return this.partitionEnabled;
+    }
+
+    public int splitMaxRegions() {
+        return this.splitMaxRegions;
+    }
+
+    public int partitionMinSections() {
+        return this.partitionMinSections;
+    }
+
+    public double partitionSlack() {
+        return this.partitionSlack;
+    }
+
+    public int partitionRefinementPasses() {
+        return this.partitionRefinementPasses;
     }
 }
