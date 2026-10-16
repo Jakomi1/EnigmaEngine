@@ -274,7 +274,103 @@ public final class BalancedPartitioner {
             repairConnectivity(component, owner, load, sizes, index);
         }
 
+        // Workload is the primary split criterion, but the scheduler also pays a fixed cost for
+        // every section it owns.  A weighted grow can otherwise leave one child with many more
+        // sections than its siblings (for example next to a single very busy section). Move only
+        // boundary sections whose removal keeps the source connected, so we converge on equal
+        // section counts without sacrificing spatially contiguous regions.
+        rebalanceSectionCounts(component, owner, load, sizes, index);
+
         return collectParts(component, owner, index, regionCount);
+    }
+
+    /**
+     * Balances section counts between adjacent partitions wherever the shape permits it. The
+     * target is a difference of at most one section; disconnected geography or an articulation
+     * section may make an exact balance impossible, in which case the existing connected split is
+     * retained.
+     */
+    private static <T> void rebalanceSectionCounts(
+        final List<Node<T>> component,
+        final int[] owner,
+        final int[] load,
+        final int[] sizes,
+        final Map<Node<T>, Integer> index
+    ) {
+        final int lowerTarget = component.size() / sizes.length;
+        final int upperTarget = (component.size() + sizes.length - 1) / sizes.length;
+
+        boolean moved = true;
+        int guard = component.size() * Math.max(1, sizes.length);
+        while (moved && guard-- > 0) {
+            moved = false;
+            for (int source = 0; source < sizes.length && !moved; source++) {
+                if (sizes[source] <= upperTarget) {
+                    continue;
+                }
+
+                Node<T> bestNode = null;
+                int destination = -1;
+                for (final Node<T> node : component) {
+                    if (owner[index.get(node)] != source || !canRemoveWithoutDisconnecting(node, source, owner, index)) {
+                        continue;
+                    }
+                    for (final Node<T> neighbour : node.neighbours) {
+                        final int candidate = owner[index.get(neighbour)];
+                        if (candidate != source && sizes[candidate] < lowerTarget
+                            && (bestNode == null || node.key < bestNode.key
+                                || (node.key == bestNode.key && candidate < destination))) {
+                            bestNode = node;
+                            destination = candidate;
+                        }
+                    }
+                }
+
+                if (bestNode != null) {
+                    owner[index.get(bestNode)] = destination;
+                    load[source] -= bestNode.weight;
+                    load[destination] += bestNode.weight;
+                    sizes[source]--;
+                    sizes[destination]++;
+                    moved = true;
+                }
+            }
+        }
+    }
+
+    /** Returns whether removing {@code node} leaves all remaining source nodes connected. */
+    private static <T> boolean canRemoveWithoutDisconnecting(
+        final Node<T> node,
+        final int source,
+        final int[] owner,
+        final Map<Node<T>, Integer> index
+    ) {
+        final int nodeIndex = index.get(node);
+        Node<T> start = null;
+        int sourceCount = 0;
+        for (final Map.Entry<Node<T>, Integer> entry : index.entrySet()) {
+            if (entry.getValue() != nodeIndex && owner[entry.getValue()] == source) {
+                start = entry.getKey();
+                sourceCount++;
+            }
+        }
+        if (sourceCount <= 1) {
+            return true;
+        }
+
+        final java.util.Set<Node<T>> visited = new java.util.HashSet<>();
+        final Queue<Node<T>> queue = new ArrayDeque<>();
+        visited.add(start);
+        queue.add(start);
+        while (!queue.isEmpty()) {
+            final Node<T> current = queue.poll();
+            for (final Node<T> neighbour : current.neighbours) {
+                if (neighbour != node && owner[index.get(neighbour)] == source && visited.add(neighbour)) {
+                    queue.add(neighbour);
+                }
+            }
+        }
+        return visited.size() == sourceCount;
     }
 
     private static <T> Node<T> pollUnassigned(

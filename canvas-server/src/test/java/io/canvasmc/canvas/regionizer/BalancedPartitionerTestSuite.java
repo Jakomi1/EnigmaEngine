@@ -226,6 +226,29 @@ class BalancedPartitionerTestSuite {
     }
 
     @Test
+    void testUnevenWeightedGridStillBalancesSectionCounts() {
+        final List<TestSection> sections = new ArrayList<>();
+        for (int x = 0; x < 3; x++) {
+            for (int z = 0; z < 3; z++) {
+                sections.add(new TestSection(x, z, x == 0 && z == 0 ? 100 : 1));
+            }
+        }
+
+        final List<List<TestSection>> result = partition(sections, 3, 16, 1, 0.15, 2);
+        assertEquals(3, result.size());
+        assertValidPartition(sections, result);
+
+        int smallest = Integer.MAX_VALUE;
+        int largest = 0;
+        for (final List<TestSection> part : result) {
+            smallest = Math.min(smallest, part.size());
+            largest = Math.max(largest, part.size());
+        }
+        assertTrue(largest - smallest <= 1,
+            "Split children should carry nearly identical section counts: min=" + smallest + ", max=" + largest);
+    }
+
+    @Test
     void testHeavySectionIsolation() {
         final List<TestSection> sections = List.of(
             new TestSection(0, 0, 100),
@@ -343,6 +366,15 @@ class BalancedPartitionerTestSuite {
     }
 
     @Test
+    void testSplitPlannerCreatesEnoughChildrenForPlayersAndTickLoad() {
+        // Seven players in a 51-section, 14 MSPT region should create four near-equal children
+        // (about two players each), rather than retaining the configured static sizing alone.
+        assertEquals(13, RegionSplitPlanner.targetSections(51, 24, 16, 7, 14.0D, 8.0D));
+        // Tick pressure also causes additional children when no player count is available.
+        assertEquals(13, RegionSplitPlanner.targetSections(51, 24, 16, 0, 14.0D, 8.0D));
+    }
+
+    @Test
     void testRegionizerSettingsPartitionKnobs() {
         final RegionizerSettings base = new RegionizerSettings(
             true, 0.25D, 24, 0.7D, 0.3D, 60_000L, 30_000L, 128, 4096, 32.0D, 15, 15, 20,
@@ -359,5 +391,15 @@ class BalancedPartitionerTestSuite {
         assertTrue(world.partitionEnabled());
         assertEquals(8, world.splitMaxRegions());
         assertEquals(3, world.partitionRefinementPasses());
+    }
+
+    @Test
+    void testRegionizerIsForcedEnabledInAutoSettings() {
+        final RegionizerSettings disabledInYaml = new RegionizerSettings(
+            false, 0.99D, 2, 0.8D, 0.2D, 120_000L, 750L, 2, 16, 4.0D, 20, 10, 1,
+            false, false, 6, 1
+        );
+
+        assertTrue(disabledInYaml.enabled(), "AUTO settings must never leave the adaptive splitter disabled");
     }
 }

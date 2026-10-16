@@ -328,5 +328,17 @@ class DynamicRegionPartitionerTestSuite {
         io.canvasmc.canvas.regionizer.loadscaling.LoadScaling.setAggression(50);
         assertEquals(50, io.canvasmc.canvas.regionizer.loadscaling.LoadScaling.getAggression());
     }
+
+    @Test
+    void testRegionizerModeDefaultsToAutoAndCanSwitchAtRuntime() {
+        assertEquals(RegionizerMode.Mode.AUTO, RegionizerMode.get());
+        assertTrue(RegionizerMode.isAuto());
+
+        RegionizerMode.set(RegionizerMode.Mode.FOLIA);
+        assertEquals(RegionizerMode.Mode.FOLIA, RegionizerMode.get());
+        assertFalse(RegionizerMode.isAuto());
+
+        RegionizerMode.set(RegionizerMode.Mode.AUTO);
+    }
 }
 

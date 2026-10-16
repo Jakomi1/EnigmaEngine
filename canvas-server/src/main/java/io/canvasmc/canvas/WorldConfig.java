@@ -349,7 +349,7 @@ public class WorldConfig extends Part {
             @Undocumented("Doesn't require docs.")
             public boolean itemEntitiesImmuneToLightning = false;
             public double itemEntityVelocityOnDeathFactor = 1.0D;
-            public boolean itemEntitiesWaitTwoSecondsForMergeCheckAlways = false;
+            public boolean itemEntitiesWaitTwoSecondsForMergeCheckAlways = true;
         }
 
         public EntityCollisionMode entityCollisionMode = EntityCollisionMode.VANILLA;

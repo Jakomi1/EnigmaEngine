@@ -1,9 +1,12 @@
 --- a/io/papermc/paper/threadedregions/RegionizedServer.java
 +++ b/io/papermc/paper/threadedregions/RegionizedServer.java
-@@ -299,6 +_,16 @@
+@@ -299,6 +_,19 @@
  
          // player list
          minecraftServer.getPlayerList().tick();
++        // Enigma start - buffered dynamic distance changer (player count debounce)
++        io.canvasmc.canvas.regionizer.loadscaling.LoadScaling.tick();
++        // Enigma end - buffered dynamic distance changer
 +        // Enigma start - adaptive regionizer maintenance pass
 +        io.canvasmc.canvas.regionizer.loadscaling.RegionMaintenance.tick();
 +        // Enigma end - adaptive regionizer maintenance pass

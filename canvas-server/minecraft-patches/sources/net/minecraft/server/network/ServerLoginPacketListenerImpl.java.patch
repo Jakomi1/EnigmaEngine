@@ -1,0 +1,18 @@
+--- a/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
++++ b/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
+@@ -165,6 +_,15 @@
+ 
+     @Override
+     public void handleHello(final ServerboundHelloPacket packet) {
++        // Enigma start - refuse logins while the world and regionizer warm up after a restart
++        final long enigmaJoinDelaySeconds = io.canvasmc.canvas.util.JoinGate.remainingSeconds();
++        if (enigmaJoinDelaySeconds > 0L) {
++            this.disconnect(Component.literal(
++                "The server is still starting up. Please try again in " + enigmaJoinDelaySeconds + "s."
++            ));
++            return;
++        }
++        // Enigma end
+         Validate.validState(this.state == ServerLoginPacketListenerImpl.State.HELLO, "Unexpected hello packet");
+         // Paper start - Validate usernames
+         if (io.papermc.paper.configuration.GlobalConfiguration.get().proxies.isProxyOnlineMode()

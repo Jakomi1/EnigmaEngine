@@ -31,36 +31,6 @@ region-scheduler:
    guard-severity: "LOG"
    prevent-excessive-velocity-move-out-of-region: true
 
-regionizer:
-   # CRITICAL: Enable aggressive region splitting for multicore
-   enabled: true
-   # High merge threshold: resist merging so regions stay small & parallel
-   merge-overlap-threshold: 0.65
-   # Only force-merge tiny regions (<16 sections)
-   merge-min-region-sections: 16
-   # Strong coupling weight: only merge truly interacting regions
-   coupling-weight: 0.85
-   overlap-weight: 0.15
-   # Long cooldowns to prevent merge/split thrashing
-   merge-cooldown-millis: 90000
-   split-cooldown-millis: 20000
-   # Aggressive splitting: split regions at 64 sections (smaller = more parallelism)
-   split-min-size: 64
-   # Hard cap: no region exceeds 2048 sections
-   split-max-sections: 2048
-   # Split when a region hits 25ms MSPT (well before 50ms = TPS drop)
-   split-high-load-mspt: 25.0
-   # Split even if only 10% border chunks are idle
-   split-low-load-percent: 10
-   split-idle-seconds: 10
-   # Run split pass every 10 ticks for fast reaction
-   split-pass-interval-ticks: 10
-   # Instant unload: free idle regions fast
-   instant-unload-enabled: true
-   instant-unload-active-regions: true
-   instant-unload-idle-radius: 10
-   instant-unload-max-chunks-per-pass: 256
-
 chunk-system:
    # Use filtered fluid processing to reduce worldgen stutter
    fluid-post-processing-algorithm: "FILTERED"

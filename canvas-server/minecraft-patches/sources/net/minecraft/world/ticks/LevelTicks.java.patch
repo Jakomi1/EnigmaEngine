@@ -1,5 +1,19 @@
 --- a/net/minecraft/world/ticks/LevelTicks.java
 +++ b/net/minecraft/world/ticks/LevelTicks.java
+@@ -138,7 +_,12 @@
+ 
+     @Override
+     public void schedule(final ScheduledTick<T> tick) {
+-        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.world, tick.pos(), "Cannot schedule tick for another region!"); // Folia - region threading
++        // Cross-region updates cannot safely mutate another region's tick queue.
++        // Skip the deferred tick rather than aborting the current entity tick.
++        if (ca.spottedleaf.moonrise.common.util.TickThread.isTickThread()
++            && !ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(this.world, tick.pos())) {
++            return;
++        }
+         long chunkKey = ChunkPos.pack(tick.pos());
+         LevelChunkTicks<T> tickContainer = this.allContainers.get(chunkKey);
+         if (tickContainer == null) {
 @@ -255,7 +_,7 @@
      }
  

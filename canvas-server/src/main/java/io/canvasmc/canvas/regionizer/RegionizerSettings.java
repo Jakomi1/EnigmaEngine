@@ -1,7 +1,5 @@
 package io.canvasmc.canvas.regionizer;
 
-import io.canvasmc.canvas.GlobalConfiguration;
-
 public final class RegionizerSettings {
 
     private final boolean enabled;
@@ -29,7 +27,7 @@ public final class RegionizerSettings {
     private final double partitionSlack;
     private final int partitionRefinementPasses;
 
-    private static volatile RegionizerSettings INSTANCE = fromGlobalConfiguration();
+    private static volatile RegionizerSettings INSTANCE = defaults();
 
     public RegionizerSettings(
         final boolean enabled,
@@ -148,7 +146,9 @@ public final class RegionizerSettings {
         final double partitionSlack,
         final int partitionRefinementPasses
     ) {
-        this.enabled = enabled;
+        // AUTO is deliberately always active. FOLIA mode is the explicit runtime opt-out for
+        // Enigma's region decisions; a stale YAML value must not leave hot regions unsplittable.
+        this.enabled = true;
         this.mergeOverlapThreshold = mergeOverlapThreshold;
         this.mergeMinRegionSections = mergeMinRegionSections;
         this.couplingWeight = couplingWeight;
@@ -174,33 +174,39 @@ public final class RegionizerSettings {
         this.partitionRefinementPasses = Math.max(0, partitionRefinementPasses);
     }
 
-    public static RegionizerSettings fromGlobalConfiguration() {
-        final GlobalConfiguration.Regionizer c = GlobalConfiguration.getInstance().regionizer;
+    /**
+     * The hard, aggressive in-code defaults for the Enigma adaptive regionizer.
+     *
+     * <p>These are the only persistent defaults: the live values are stored exclusively in
+     * {@code config/enigma-regionizer.yml} (see {@code LoadScaling}) and are seeded from here on
+     * first start. {@code canvas-server.yml} no longer carries a regionizer section.</p>
+     */
+    public static RegionizerSettings defaults() {
         return new RegionizerSettings(
-            c.enabled,
-            c.mergeOverlapThreshold,
-            c.mergeMinRegionSections,
-            c.couplingWeight,
-            c.overlapWeight,
-            c.mergeCooldownMillis,
-            c.splitCooldownMillis,
-            c.splitMinSize,
-            c.splitMaxSections,
-            c.splitHighLoadMspt,
-            c.splitLowLoadPercent,
-            c.splitIdleSeconds,
-            c.splitPassIntervalTicks,
-            c.instantUnloadEnabled,
-            c.instantUnloadActiveRegions,
-            c.instantUnloadIdleRadius,
-            c.instantUnloadMaxChunksPerPass,
-            100,
+            true,
+            0.99D,
             2,
-            c.partitionEnabled,
-            c.splitMaxRegions,
-            c.partitionMinSections,
-            c.partitionSlack,
-            c.partitionRefinementPasses
+            0.8D,
+            0.2D,
+            120_000L,
+            750L,
+            2,
+            16,
+            4.0D,
+            20,
+            10,
+            1,
+            false,
+            false,
+            6,
+            1,
+            100,
+            16,
+            true,
+            32,
+            1,
+            0.0D,
+            3
         );
     }
 
@@ -250,17 +256,22 @@ public final class RegionizerSettings {
         // splitMinSize: minimum sections a region must have before it is considered for splitting.
         // At 100% aggression: 2 sections (1 section cannot be split).
         // At 0% aggression: 32 sections.
-        final int splitMinSize = Math.max(2, (int) Math.round(32 - 30 * a));
+        final int dynamicSplitMinSize = Math.max(2, (int) Math.round(32 - 30 * a));
+        final int splitMinSize = Math.min(Math.max(2, base.splitMaxSections()), dynamicSplitMinSize);
 
         // splitMaxSections: hard split limit.
         // At 100% aggression: 2 sections (any region with > 2 sections is hard-split).
         // At 0% aggression: 128 sections.
-        final int splitMaxSections = Math.max(splitMinSize, (int) Math.round(128 - (128 - Math.max(2, targetSections * 2)) * a));
+        final int dynamicSplitMaxSections = Math.max(splitMinSize,
+            (int) Math.round(128 - (128 - Math.max(2, targetSections * 2)) * a));
+        // The configured maximum is a non-negotiable safety ceiling. Load-scaling may request
+        // smaller regions, but never a larger one, even at low aggression.
+        final int splitMaxSections = Math.max(splitMinSize, Math.min(base.splitMaxSections(), dynamicSplitMaxSections));
 
         // splitHighLoadMspt:
         // At 100% aggression: 0.5 MSPT (any loaded region can split to spread load across threads).
         // At 0% aggression: 15.0 MSPT.
-        final double splitHighLoadMspt = 15.0D * (1.0D - a) + 0.5D * a;
+        final double splitHighLoadMspt = Math.min(base.splitHighLoadMspt(), 15.0D * (1.0D - a) + 0.5D * a);
 
         // mergeMinRegionSections:
         // At 100% aggression: 1 section (regions never auto-merge just for being small).
@@ -270,13 +281,16 @@ public final class RegionizerSettings {
         // mergeOverlapThreshold:
         // At 100% aggression: 0.90 (refuses almost all merges unless coupling is extreme).
         // At 0% aggression: 0.30.
-        final double mergeOverlapThreshold = 0.30D + 0.60D * a;
+        // The global threshold is an operator-selected floor. Load-scaling may
+        // tighten it as aggression increases, but must never silently make a
+        // deliberately anti-merge configuration more permissive.
+        final double mergeOverlapThreshold = Math.max(base.mergeOverlapThreshold(), 0.30D + 0.60D * a);
 
         final long mergeCooldownMillis = base.mergeCooldownMillis();
         final long splitCooldownMillis = base.splitCooldownMillis();
 
         return new RegionizerSettings(
-            base.enabled(),
+            true,
             mergeOverlapThreshold,
             mergeMinRegionSections,
             base.couplingWeight(),

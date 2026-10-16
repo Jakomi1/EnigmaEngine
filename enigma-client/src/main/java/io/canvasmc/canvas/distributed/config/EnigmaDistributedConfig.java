@@ -18,7 +18,7 @@ import org.yaml.snakeyaml.Yaml;
  * <p>Unlike {@code io.canvasmc.canvas.GlobalConfiguration} (which lives in
  * {@code config/canvas-server.yml}) this part of the configuration is intentionally standalone:
  * it is read from {@code config/enigma-engine.yml} so all Enigma state lives under {@code config/}
- * next to the identity key and {@code config/enigma-load.yml}. Values are applied in this order:
+ * next to the identity key and {@code config/enigma-regionizer.yml}. Values are applied in this order:
  * built-in defaults &lt; {@code config/enigma-engine.yml} &lt; {@code -Denigma.distributed.*} system
  * properties.</p>
  */
@@ -365,7 +365,7 @@ public final class EnigmaDistributedConfig {
             #  can also be overridden per start with -Denigma.distributed.<key>=<value> (those win).
             #
             #  Identity key:              config/enigma_identity.key
-            #  Load scaling (regionizer): config/enigma-load.yml
+            #  Load scaling (regionizer): config/enigma-regionizer.yml
             # -----------------------------------------------
 
             # Master switch. Both World Hosts and Compute Hosts need this enabled to start the

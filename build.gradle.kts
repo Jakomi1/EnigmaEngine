@@ -83,6 +83,9 @@ subprojects {
         tasks.named("jar") {
             mustRunAfter(rootProject.tasks.named("applyAllPatches"))
         }
+        tasks.named("processResources") {
+            dependsOn("applyMinecraftResourcePatches")
+        }
     }
 
     extensions.configure<PublishingExtension> {

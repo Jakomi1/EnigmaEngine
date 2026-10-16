@@ -1,11 +1,17 @@
 --- a/io/papermc/paper/threadedregions/ThreadedRegionizer.java
 +++ b/io/papermc/paper/threadedregions/ThreadedRegionizer.java
-@@ -268,6 +_,358 @@
+@@ -268,6 +_,528 @@
          }
      }
  
 +    // Enigma start - adaptive regionizer
 +    private boolean enigma$shouldMerge(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> into) {
++        // FOLIA mode deliberately bypasses every Enigma merge policy and preserves upstream's
++        // original merge decision.
++        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()) {
++            return true;
++        }
++
 +        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
 +        if (!settings.enabled()) {
 +            // upstream behavior
@@ -28,9 +34,14 @@
 +            return false;
 +        }
 +
-+        // Never merge if the combined region exceeds splitMaxSections (avoids immediate re-split)
++        // A merge should fill a region towards the active target, not create another oversized
++        // outlier that needs splitting again. One section of tolerance covers indivisible,
++        // connected shapes while keeping the region population as even as possible.
 +        final int combinedSections = from.sectionByKey.size() + into.sectionByKey.size();
-+        if (combinedSections > settings.splitMaxSections()) {
++        // Never build a region larger than the active split ceiling. At aggressive settings this
++        // also prevents two one-section children from immediately collapsing into one again.
++        final int balancedMergeLimit = Math.min(settings.splitMaxSections(), settings.targetSections());
++        if (combinedSections > balancedMergeLimit) {
 +            return false;
 +        }
 +
@@ -96,15 +107,20 @@
 +    }
 +
 +    public void enigma$runRegionMaintenance() {
++        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()) {
++            return;
++        }
++
 +        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
 +        if (!settings.enabled()) {
 +            return;
 +        }
 +
 +        // Enigma start - regionizer driven eviction
-+        // Force unloading the leftover chunks of idle regions lets them shrink back to their active footprint
-+        // quickly so that fully idle regions can go inactive and stop consuming a tick thread.
-+        if (settings.instantUnloadEnabled() && settings.instantUnloadMaxChunksPerPass() > 0) {
++        // Disabled permanently: region statistics can be stale while a player is
++        // joining. Evicting based on that stale snapshot removes chunks which the
++        // player loader has just ticketed, leaving the client in an empty world.
++        if (false && settings.instantUnloadEnabled() && settings.instantUnloadMaxChunksPerPass() > 0) {
 +            final List<ThreadedRegion<R, S>> candidates = new ArrayList<>();
 +            this.computeForAllRegionsUnsynchronised(candidates::add);
 +            final int idleRadius = settings.instantUnloadIdleRadius();
@@ -119,6 +135,13 @@
 +                if (!(region.data instanceof TickRegions.TickRegionData tickData)
 +                    || tickData.getRegionStats().getChunkCount() == 0) {
 +                    // region currently owns no chunks, nothing to evict
++                    continue;
++                }
++                // Entity migration is not implemented. A forced unload under an
++                // entity turns collision data into air while it is still ticking,
++                // which makes villagers and other mobs fall through the world.
++                // Only truly entity-free regions are safe eviction candidates.
++                if (tickData.getRegionStats().getEntityCount() != 0) {
 +                    continue;
 +                }
 +                if (!settings.instantUnloadActiveRegions()
@@ -165,6 +188,10 @@
 +     * @return the number of regions that were dropped
 +     */
 +    public int enigma$garbageCollectRegions() {
++        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()) {
++            return 0;
++        }
++
 +        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
 +        if (!settings.enabled()) {
 +            return 0;
@@ -229,6 +256,12 @@
 +    }
 +
 +    private boolean enigma$shouldSplit(final ThreadedRegion<R, S> region) {
++        // FOLIA mode has no Enigma-triggered partitions. Upstream's normal region lifecycle is
++        // otherwise untouched because the surrounding caller simply continues when this is false.
++        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()) {
++            return false;
++        }
++
 +        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
 +        if (!settings.enabled()) {
 +            return false;
@@ -248,6 +281,11 @@
 +        }
 +        double mspt = 0.0D;
 +        if (region.data instanceof TickRegions.TickRegionData tickData) {
++            // Player density alone can justify a spatial split before its aggregate tick cost
++            // reaches the emergency threshold. The planner keeps roughly two players per child.
++            if (tickData.getRegionStats().getPlayerCount() > 2) {
++                return true;
++            }
 +            try {
 +                mspt = tickData.getMSPT(io.canvasmc.canvas.region.RegionTickData.Frame._5_SECONDS);
 +            } catch (final Throwable ignored) {
@@ -255,6 +293,34 @@
 +            }
 +        }
 +        return mspt >= settings.splitHighLoadMspt();
++    }
++
++    /**
++     * Turns the aggregate load observed for a region into the target passed to the spatial
++     * partitioner. The region statistics are refreshed on every region tick, so this reacts to
++     * players and real tick cost rather than relying solely on loaded chunk counts.
++     */
++    private int enigma$splitTargetSections(final ThreadedRegion<R, S> region,
++                                            final io.canvasmc.canvas.regionizer.RegionizerSettings settings) {
++        int players = 0;
++        double mspt = 0.0D;
++        if (region.data instanceof TickRegions.TickRegionData tickData) {
++            players = tickData.getRegionStats().getPlayerCount();
++            try {
++                mspt = tickData.getMSPT(io.canvasmc.canvas.region.RegionTickData.Frame._5_SECONDS);
++            } catch (final Throwable ignored) {
++                // A newly scheduled child may not have a complete report yet. Section and player
++                // density still yield a safe partition plan until the next tick sample arrives.
++            }
++        }
++        return io.canvasmc.canvas.regionizer.RegionSplitPlanner.targetSections(
++            region.sectionByKey.size(),
++            settings.targetSections(),
++            settings.splitMaxRegions(),
++            players,
++            mspt,
++            settings.splitHighLoadMspt()
++        );
 +    }
 +
 +    /**
@@ -283,34 +349,56 @@
 +            return false;
 +        }
 +
-+        final int maxParallelism = Math.max(2, Math.min(16, Runtime.getRuntime().availableProcessors()));
-+        final int effectiveMaxRegions = Math.max(2, Math.min(settings.splitMaxRegions(), maxParallelism));
-+        final List<List<ThreadedRegionSection<R, S>>> newRegions = settings.partitionEnabled()
++        // A region is a schedulable work unit, not a dedicated thread. Do not cap
++        // partitions at Runtime.availableProcessors(): containers often report one
++        // CPU even when the affinity scheduler has several usable worker cores.
++        final int maxPartitionRegions = settings.splitMaxRegions();
++        // A static section target cannot see that one region currently owns most players or
++        // tick time. Reduce the target for this split so the partitioner creates enough children
++        // to share that live work, while its topology pass keeps every child contiguous.
++        final int targetSections = this.enigma$splitTargetSections(region, settings);
++        List<List<ThreadedRegionSection<R, S>>> newRegions = settings.partitionEnabled()
 +            ? io.canvasmc.canvas.regionizer.BalancedPartitioner.partition(
 +                region.sectionByKey.values(),
 +                s -> s.sectionX,
 +                s -> s.sectionZ,
 +                s -> Math.max(1, s.chunkCount),
-+                settings.targetSections(),
-+                effectiveMaxRegions,
++                targetSections,
++                maxPartitionRegions,
 +                settings.partitionMinSections(),
 +                settings.partitionSlack(),
 +                settings.partitionRefinementPasses(),
-+                maxParallelism
++                maxPartitionRegions
 +            )
 +            : io.canvasmc.canvas.regionizer.DynamicRegionPartitioner.partition(
 +                region.sectionByKey.values(),
 +                s -> s.sectionX,
 +                s -> s.sectionZ,
 +                s -> Math.max(1, s.chunkCount),
-+                settings.targetSections(),
++                targetSections,
 +                settings.splitMaxSections(),
-+                maxParallelism
++                maxPartitionRegions
 +            );
 +
 +        if (newRegions.size() <= 1) {
 +            return false;
 +        }
++
++        // Enigma start - preserve the regionizer's buffer invariant across a split.
++        // ChunkTaskScheduler.scheduleTickingState only hands a load to the region that owns the whole
++        // access-radius box around the target chunk. Folia keeps that guarantee by never letting a
++        // non-empty section drift away from its emptySectionCreateRadius / regionSectionMergeRadius
++        // neighbourhood. The partitioner slices individual sections, so it can tear a non-empty
++        // section away from its buffer sections; the target's region then no longer owns the radius
++        // box and the scheduleTickingState retry re-queues forever. Coalesce every pair of children
++        // that a non-empty section's buffer neighbourhood would otherwise split.
++        newRegions = this.enigma$coalesceBufferNeighbourhoods(newRegions);
++        if (newRegions.size() <= 1) {
++            // the split could only be achieved by separating a non-empty section from its buffer
++            // sections, which would break the scheduler's region ownership guarantee.
++            return false;
++        }
++        // Enigma end - preserve the regionizer's buffer invariant across a split
 +
 +        final List<ThreadedRegion<R, S>> newRegionObjects = new ArrayList<>(newRegions.size());
 +        for (int i = 0, len = newRegions.size(); i < len; ++i) {
@@ -353,6 +441,88 @@
 +            this.callbacks.onRegionActive(newRegion);
 +        }
 +        return true;
++    }
++
++    /**
++     * Merges partitioned children that a non-empty section's buffer neighbourhood would otherwise
++     * be split across. The regionizer keeps every section within
++     * {@code max(emptySectionCreateRadius, regionSectionMergeRadius)} of a non-empty section in the
++     * same region, and the chunk scheduler depends on that to own the access-radius box around a
++     * tick target. Because the partitioner assigns sections individually it can place a buffer
++     * section (or a neighbouring non-empty section) in a different child, so this unions any two
++     * children that share such a neighbourhood. Children that end up empty are dropped.
++     *
++     * @return the coalesced children, or a single element when no valid split remains
++     */
++    private List<List<ThreadedRegionSection<R, S>>> enigma$coalesceBufferNeighbourhoods(
++            final List<List<ThreadedRegionSection<R, S>>> parts) {
++        final int bufferRadius = Math.max(this.emptySectionCreateRadius, this.regionSectionMergeRadius);
++        final int partCount = parts.size();
++
++        final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap sectionToPart = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap(parts.size() * 8);
++        sectionToPart.defaultReturnValue(-1);
++        for (int i = 0; i < partCount; ++i) {
++            for (final ThreadedRegionSection<R, S> section : parts.get(i)) {
++                sectionToPart.put(section.sectionKey, i);
++            }
++        }
++
++        final int[] parent = new int[partCount];
++        for (int i = 0; i < partCount; ++i) {
++            parent[i] = i;
++        }
++
++        for (int i = 0; i < partCount; ++i) {
++            for (final ThreadedRegionSection<R, S> section : parts.get(i)) {
++                if (section.chunkCount <= 0) {
++                    continue;
++                }
++                final int sectionX = section.sectionX;
++                final int sectionZ = section.sectionZ;
++                for (int dz = -bufferRadius; dz <= bufferRadius; ++dz) {
++                    for (int dx = -bufferRadius; dx <= bufferRadius; ++dx) {
++                        if ((dx | dz) == 0) {
++                            continue;
++                        }
++                        final int other = sectionToPart.get(CoordinateUtils.getChunkKey(sectionX + dx, sectionZ + dz));
++                        if (other >= 0) {
++                            enigma$union(parent, i, other);
++                        }
++                    }
++                }
++            }
++        }
++
++        final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap rootToPart = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap(partCount * 2);
++        rootToPart.defaultReturnValue(-1);
++        final List<List<ThreadedRegionSection<R, S>>> result = new ArrayList<>(partCount);
++        for (int i = 0; i < partCount; ++i) {
++            final int root = enigma$find(parent, i);
++            int index = rootToPart.get(root);
++            if (index < 0) {
++                index = result.size();
++                rootToPart.put(root, index);
++                result.add(new ArrayList<>(parts.get(i).size()));
++            }
++            result.get(index).addAll(parts.get(i));
++        }
++        return result;
++    }
++
++    private static int enigma$find(final int[] parent, int node) {
++        while (parent[node] != node) {
++            parent[node] = parent[parent[node]];
++            node = parent[node];
++        }
++        return node;
++    }
++
++    private static void enigma$union(final int[] parent, final int a, final int b) {
++        final int rootA = enigma$find(parent, a);
++        final int rootB = enigma$find(parent, b);
++        if (rootA != rootB) {
++            parent[rootA] = rootB;
++        }
 +    }
 +    // Enigma end - adaptive regionizer
 +

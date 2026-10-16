@@ -1,5 +1,13 @@
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
+@@ -663,6 +_,7 @@
+         this.server.getCommandMap().registerServerAliases(); // Paper - relocate initial CommandMap#registerServerAliases() call
+         ((org.bukkit.craftbukkit.help.SimpleHelpMap) this.server.getHelpMap()).initializeCommands();
+         this.server.getPluginManager().callEvent(new org.bukkit.event.server.ServerLoadEvent(org.bukkit.event.server.ServerLoadEvent.LoadType.STARTUP));
++        io.canvasmc.canvas.util.JoinGate.markReady(); // Enigma - arm the startup login gate
+         this.connection.acceptConnections();
+     }
+     // Paper end - rework world loading process
 @@ -1156,6 +_,28 @@
          this.halt(wait, false);
      }
@@ -42,13 +50,12 @@
  
              while (this.running) {
                  final long tickStart = System.nanoTime(); // Paper - improve tick loop
-@@ -1837,6 +_,9 @@
+@@ -1837,6 +_,8 @@
          if (false) while (!this.processQueue.isEmpty()) { // Folia - region threading
              this.processQueue.remove().run();
          }
 +        region.world.getCurrentWorldData().getCanvasWorldData().tpsbar.tick(); // Canvas - tpsbar
 +        region.world.getCurrentWorldData().getCanvasWorldData().rambar.tick(); // Canvas - rambar
-+        io.canvasmc.canvas.subcommands.TickingChunkMapSubCommand.tickRegion(region.world); // Canvas - ticking chunk map
  
          this.updateEffectiveRespawnData();
  

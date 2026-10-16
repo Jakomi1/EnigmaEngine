@@ -71,6 +71,46 @@
          regionizedWorldData.setTickingBlockEntities(false); // Folia - region threading
      }
  
+@@ -1897,8 +_,18 @@
+     }
+ 
+     @Override
+-    public List<Entity> getEntities(final @Nullable Entity except, final AABB bb, final Predicate<? super Entity> selector) {
+-        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread((ServerLevel)this, bb, "Cannot getEntities asynchronously"); // Folia - region threading
++    public List<Entity> getEntities(final @Nullable Entity except, AABB bb, final Predicate<? super Entity> selector) {
++        // A local entity action may touch an AABB that crosses an Enigma region
++        // boundary. Clip the query to the chunks this tick thread owns so the
++        // in-region entities are still returned instead of failing or returning none.
++        if (ca.spottedleaf.moonrise.common.util.TickThread.isTickThread()) {
++            bb = ca.spottedleaf.moonrise.common.util.TickThread.clipAABBToOwnedRegion(this, bb);
++            if (bb == null) {
++                return List.of();
++            }
++        } else {
++            ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread((ServerLevel)this, bb, "Cannot getEntities asynchronously"); // Folia - region threading
++        }
+         // Paper start - rewrite chunk system
+         final List<Entity> ret = new java.util.ArrayList<>();
+ 
+@@ -1925,9 +_,16 @@
+ 
+     // Paper start - rewrite chunk system
+     public <T extends Entity> void getEntities(final EntityTypeTest<Entity, T> entityTypeTest,
+-                                               final AABB boundingBox, final Predicate<? super T> predicate,
++                                               AABB boundingBox, final Predicate<? super T> predicate,
+                                                final List<? super T> into, final int maxCount) {
+-        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this, boundingBox, "Cannot getEntities asynchronously"); // Folia - region threading
++        if (ca.spottedleaf.moonrise.common.util.TickThread.isTickThread()) {
++            boundingBox = ca.spottedleaf.moonrise.common.util.TickThread.clipAABBToOwnedRegion(this, boundingBox);
++            if (boundingBox == null) {
++                return;
++            }
++        } else {
++            ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this, boundingBox, "Cannot getEntities asynchronously"); // Folia - region threading
++        }
+         if (entityTypeTest instanceof net.minecraft.world.entity.EntityType<T> byType) {
+             if (maxCount != Integer.MAX_VALUE) {
+                 ((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities(byType, boundingBox, into, predicate, maxCount);
 @@ -2037,6 +_,35 @@
      public List<Entity> getPushableEntities(final Entity pusher, final AABB boundingBox) {
          return this.getEntities(pusher, boundingBox, EntitySelector.pushableBy(pusher));

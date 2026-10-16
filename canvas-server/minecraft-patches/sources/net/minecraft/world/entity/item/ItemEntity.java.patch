@@ -9,6 +9,16 @@
              if (this.tickCount % rate == 0 && !this.level().isClientSide() && this.isMergable()) {
                  this.mergeWithNeighbours();
              }
+@@ -258,7 +_,8 @@
+             double radius = this.level().spigotConfig.itemMerge; // Spigot
+             for (ItemEntity entity : this.level()
+                 .getEntitiesOfClass(ItemEntity.class, this.getBoundingBox().inflate(radius, this.level().paperConfig().entities.behavior.onlyMergeItemsHorizontally ? 0 : radius - 0.5D, radius), other -> other != this && other.isMergable())) { // Spigot // Paper - configuration to only merge items horizontally
+-                if (entity.isMergable()) {
++                // Never merge or discard an entity owned by an adjacent region.
++                if (ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(entity) && entity.isMergable()) {
+                     // Paper start - Fix items merging through walls
+                     if (this.level().paperConfig().fixes.fixItemsMergingThroughWalls) {
+                         if (this.level().clipDirect(this.position(), entity.position(),
 @@ -268,7 +_,7 @@
                      }
                      // Paper end - Fix items merging through walls

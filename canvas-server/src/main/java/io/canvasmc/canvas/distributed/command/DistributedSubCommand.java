@@ -39,6 +39,14 @@ import static net.minecraft.commands.Commands.literal;
 public class DistributedSubCommand implements SubCommand {
 
     /**
+     * Whether the distributed runtime is enabled for this process. Set once during startup from
+     * {@link EnigmaDistributedConfig}. The command tree and the root {@code /prepare-stop} alias
+     * are only advertised when this is {@code true}, so a single-server installation never sees
+     * them in tab completion.
+     */
+    public static volatile boolean ENABLED = false;
+
+    /**
      * Cap for the per-region "forwarded to Compute Host X" sub-lines in the status report so
      * a long-running World Host cannot turn the status into a wall of text.
      */
