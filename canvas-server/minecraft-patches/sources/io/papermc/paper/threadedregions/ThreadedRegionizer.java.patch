@@ -1,6 +1,6 @@
 --- a/io/papermc/paper/threadedregions/ThreadedRegionizer.java
 +++ b/io/papermc/paper/threadedregions/ThreadedRegionizer.java
-@@ -268,6 +_,528 @@
+@@ -268,6 +_,604 @@
          }
      }
  
@@ -15,6 +15,16 @@
 +        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
 +        if (!settings.enabled()) {
 +            // upstream behavior
++            return true;
++        }
++
++        // Two regions whose sections are within the regionizer's merge radius MUST be one region.
++        // ChunkTaskScheduler.scheduleTickingState only hands a load to the region that owns the
++        // whole access-radius box around the tick target, and Folia preserves that by merging
++        // regions as soon as a chunk is added between them. Never veto that merge, whatever the
++        // adaptive policy, sibling lockout or cooldown say, otherwise a player walking up to a
++        // neighbouring region leaves it unmerged and the load can never be scheduled.
++        if (this.enigma$computeOverlap(from, into) > 0.0D) {
 +            return true;
 +        }
 +
@@ -180,10 +190,12 @@
 +    }
 +
 +    /**
-+     * Garbage collects regions that no longer own a single chunk. Regions whose section shells are
-+     * fully dead are released and dropped; regions that merely lost their chunks but still back the
-+     * regionizer's adjacency grid (empty sections with alive, populated neighbours) are retained and
-+     * reported as structural. Runs entirely under the write lock, so the shared reads below are safe.
++     * Garbage collects regions that no longer own a single chunk so that no player-less region is
++     * left in the grid. Regions whose section shells are fully dead are released and dropped. A
++     * region that merely lost its chunks but still owns live boundary sections is folded into an
++     * idle, populated neighbour (absorbing the sections keeps the adjacency grid intact). Only
++     * structurally isolated husks fall through and are reported as retained. Runs entirely under
++     * the write lock, so the shared reads below are safe.
 +     *
 +     * @return the number of regions that were dropped
 +     */
@@ -202,6 +214,7 @@
 +        this.computeForAllRegionsUnsynchronised(candidates::add);
 +
 +        int released = 0;
++        int absorbed = 0;
 +        int retainedStructural = 0;
 +        int retainedStructuralSections = 0;
 +
@@ -209,6 +222,10 @@
 +        try {
 +            for (final ThreadedRegion<R, S> region : candidates) {
 +                if (region.isDead() || region.state != ThreadedRegion.STATE_READY) {
++                    continue;
++                }
++                if (!region.mergeIntoLater.isEmpty() || !region.expectingMergeFrom.isEmpty()) {
++                    // A region with a pending merge is already on its way out of the grid.
 +                    continue;
 +                }
 +
@@ -232,8 +249,27 @@
 +                    }
 +                }
 +
-+                // The region kept alive, empty boundary sections that neighbouring regions
-+                // rely on for adjacency. It is not garbage, just structural.
++                // A chunk-less region that still owns live boundary sections is a player-less
++                // husk: those sections only survive because a populated neighbour rendered them
++                // alive. Fold the husk back into that neighbour so no standalone player-less
++                // region is left behind. Absorbing the sections (rather than deleting them)
++                // keeps the regionizer's adjacency grid intact, so the strict tick-safety guard
++                // is not weakened.
++                final ThreadedRegion<R, S> absorbInto = this.enigma$findAbsorbingRegion(region);
++                if (absorbInto != null) {
++                    try {
++                        if (region.killAndMergeInto(absorbInto)) {
++                            absorbed++;
++                            continue;
++                        }
++                    } catch (final Throwable t) {
++                        LOGGER.warn("Region GC could not absorb player-less region {} into {}: {}",
++                                region.id, absorbInto.id, t.toString());
++                    }
++                }
++
++                // No idle neighbour to absorb into: the sections are structurally isolated and
++                // the next region release reclaims them.
 +                retainedStructural++;
 +                retainedStructuralSections += totalSections;
 +            }
@@ -242,17 +278,57 @@
 +        }
 +
 +        if (released > 0) {
-+            LOGGER.info("Region GC {}: released {} empty region(s), retained {} structural ({} boundary sections)",
-+                    this.world.dimension().identifier().getPath(), released, retainedStructural,
++            LOGGER.info("Region GC {}: released {} player-less region(s), absorbed {}, retained {} structural ({} boundary sections)",
++                    this.world.dimension().identifier().getPath(), released, absorbed, retainedStructural,
 +                    retainedStructuralSections);
-+        } else if (retainedStructural > 0) {
-+            // Retaining boundary sections is the normal outcome, not news: this runs on a timer and
-+            // at INFO it spams the log once per pass per world.
-+            LOGGER.debug("Region GC {}: nothing to release, retained {} structural ({} boundary sections)",
-+                    this.world.dimension().identifier().getPath(), retainedStructural,
++        } else if (absorbed > 0 || retainedStructural > 0) {
++            // Absorbing a husk into a populated neighbour happens whenever a chunk unloads, which is
++            // far too often for INFO: keep it at debug so the console is not flooded.
++            LOGGER.debug("Region GC {}: released 0 player-less region(s), absorbed {}, retained {} structural ({} boundary sections)",
++                    this.world.dimension().identifier().getPath(), absorbed, retainedStructural,
 +                    retainedStructuralSections);
 +        }
 +        return released;
++    }
++
++    /**
++     * Finds an idle neighbour region that a chunk-less region can be folded into. The neighbour
++     * must be live, ready and not ticking so the merge can run immediately while the write lock is
++     * held, and it must not already be part of a pending merge. Returns {@code null} when the
++     * region's sections are structurally isolated.
++     */
++    private ThreadedRegion<R, S> enigma$findAbsorbingRegion(final ThreadedRegion<R, S> region) {
++        for (final ThreadedRegionSection<R, S> section : region.sectionByKey.values()) {
++            final int sectionX = section.sectionX;
++            final int sectionZ = section.sectionZ;
++            for (int dz = -1; dz <= 1; ++dz) {
++                for (int dx = -1; dx <= 1; ++dx) {
++                    if ((dx | dz) == 0) {
++                        continue;
++                    }
++                    final ThreadedRegionSection<R, S> neighbour =
++                            this.sections.get(CoordinateUtils.getChunkKey(sectionX + dx, sectionZ + dz));
++                    if (neighbour == null) {
++                        continue;
++                    }
++                    final ThreadedRegion<R, S> neighbourRegion = neighbour.getRegionPlain();
++                    if (neighbourRegion == null || neighbourRegion == region || neighbourRegion.isDead()) {
++                        continue;
++                    }
++                    if (neighbourRegion.state != ThreadedRegion.STATE_READY || neighbourRegion.isTicking()) {
++                        continue;
++                    }
++                    if (neighbourRegion.mergeIntoLater.isEmpty() && neighbourRegion.expectingMergeFrom.isEmpty()) {
++                        // Only fold into a populated region: absorbing a player-less husk into another
++                        // player-less husk would just shuffle it around the grid on every pass.
++                        if (!neighbourRegion.getOwnedChunks().isEmpty()) {
++                            return neighbourRegion;
++                        }
++                    }
++                }
++            }
++        }
++        return null;
 +    }
 +
 +    private boolean enigma$shouldSplit(final ThreadedRegion<R, S> region) {
