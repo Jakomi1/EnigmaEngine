@@ -23,5 +23,5 @@ build
 /serverJar/
 /test/
 /error_logs.log
-test.zip
-test.zip
+test/test.zip
+test/test.zip
