@@ -150,7 +150,7 @@ abstract class CopyPaperclipJar : DefaultTask() {
 
 val serverJarDir = layout.projectDirectory.dir("serverJar")
 
-val enigmaEngineJarName = Git(rootProject.layout.projectDirectory.path)
+val enigmaEngineJarName = Git(rootProject.layout.projectDirectory.asFile.toPath())
     .exec(providers, "rev-parse", "--abbrev-ref", "HEAD")
     .map { raw ->
         val branch = raw.trim()
@@ -170,7 +170,7 @@ tasks.register<CopyPaperclipJar>("buildEnigmaEngine") {
     dependsOn(":canvas-server:createPaperclipJar")
 
     libsDir.set(file("canvas-server/build/libs"))
-    outputFile.set(enigmaEngineJarName.map { name -> serverJarDir.file(name).asFile })
+    outputFile.set(enigmaEngineJarName.map { name -> serverJarDir.file(name) })
 }
 
 tasks.register<Exec>("buildEnigmaClient") {
