@@ -1,6 +1,7 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 import io.papermc.paperweight.core.tasks.patchroulette.AbstractPatchRouletteTask
+import io.papermc.paperweight.util.Git
 
 plugins {
     java
@@ -147,14 +148,29 @@ abstract class CopyPaperclipJar : DefaultTask() {
     }
 }
 
+val serverJarDir = layout.projectDirectory.dir("serverJar")
+
+val enigmaEngineJarName = Git(rootProject.layout.projectDirectory.path)
+    .exec(providers, "rev-parse", "--abbrev-ref", "HEAD")
+    .map { raw ->
+        val branch = raw.trim()
+        val version = when {
+            branch.startsWith("experimental/") -> branch.removePrefix("experimental/") + "-exp"
+            branch.startsWith("ver/") -> branch.removePrefix("ver/")
+            branch.isBlank() || branch == "HEAD" -> "dev"
+            else -> branch
+        }
+        "EnigmaEngine-$version.jar"
+    }
+
 tasks.register<CopyPaperclipJar>("buildEnigmaEngine") {
-    description = "Baut die Server-Jar und kopiert sie nach serverJar/EnigmaEngine.jar"
+    description = "Baut die Server-Jar und kopiert sie nach serverJar/EnigmaEngine-<branch>.jar"
     group = "build"
 
     dependsOn(":canvas-server:createPaperclipJar")
 
     libsDir.set(file("canvas-server/build/libs"))
-    outputFile.set(file("serverJar/EnigmaEngine.jar"))
+    outputFile.set(enigmaEngineJarName.map { name -> serverJarDir.file(name).asFile })
 }
 
 tasks.register<Exec>("buildEnigmaClient") {
