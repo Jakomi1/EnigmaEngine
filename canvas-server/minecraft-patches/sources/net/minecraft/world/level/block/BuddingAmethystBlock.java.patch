@@ -1,0 +1,12 @@
+--- a/net/minecraft/world/level/block/BuddingAmethystBlock.java
++++ b/net/minecraft/world/level/block/BuddingAmethystBlock.java
+@@ -28,6 +_,9 @@
+         if (random.nextInt(5) == 0) {
+             Direction growDirection = DIRECTIONS[random.nextInt(DIRECTIONS.length)];
+             BlockPos growPos = pos.relative(growDirection);
++            if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(level, growPos)) {
++                return;
++            }
+             BlockState relativeState = level.getBlockState(growPos);
+             Block nextStage = null;
+             if (canClusterGrowAtState(relativeState)) {

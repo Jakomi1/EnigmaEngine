@@ -8,14 +8,19 @@ import io.canvasmc.canvas.configuration.Resolver;
 import io.canvasmc.canvas.configuration.Style;
 import io.canvasmc.canvas.configuration.Undocumented;
 import io.canvasmc.canvas.configuration.Validator;
+import io.canvasmc.canvas.distributed.command.DistributedSubCommand;
+import io.canvasmc.canvas.distributed.config.EnigmaDistributedConfig;
+import io.canvasmc.canvas.regionizer.RegionizerSettings;
+import io.canvasmc.canvas.regionizer.loadscaling.LoadScaling;
 import io.canvasmc.canvas.simd.SIMDDetection;
 import io.canvasmc.canvas.subcommands.MobCapsSubCommand;
 import io.canvasmc.canvas.subcommands.RegionBarSubCommand;
+import io.canvasmc.canvas.subcommands.RegionDataCommand;
 import io.canvasmc.canvas.subcommands.RegionTickSubCommand;
+import io.canvasmc.canvas.subcommands.RegionizerSubCommand;
 import io.canvasmc.canvas.subcommands.ReloadSubCommand;
 import io.canvasmc.canvas.subcommands.SetMaxPlayersSubCommand;
 import io.canvasmc.canvas.subcommands.WorldDistanceSubCommand;
-import io.canvasmc.canvas.threadedregions.scheduler.AffinitySchedulerThreadPool;
 import io.canvasmc.canvas.util.FasterRandomSource;
 import io.canvasmc.canvas.util.LockedReference;
 import io.canvasmc.canvas.util.TimeSpan;
@@ -54,7 +59,7 @@ public class GlobalConfiguration extends Part {
 
     protected static final int CHAR_LIM = 90;
 
-    public static final Logger LOGGER = LoggerFactory.getLogger("CanvasMC");
+    public static final Logger LOGGER = LoggerFactory.getLogger("EnigmaEngine");
     public static final LockedReference<TimeSpan> AUTOSAVE_SPAN = new LockedReference<>(null);
 
     public static final int INFO = 0;
@@ -77,7 +82,7 @@ public class GlobalConfiguration extends Part {
     }
 
     public static void reload() {
-        LOGGER.info("Loading Canvas server configuration");
+        LOGGER.info("Loading EnigmaEngine server configuration");
         ConfigurationProvider.buildSolidConfiguration(
             CONFIG_PATH,
             GlobalConfiguration::new,
@@ -99,21 +104,8 @@ public class GlobalConfiguration extends Part {
                     postLoad(instance);
 
                     CompletableFuture.supplyAsync(() -> {
-                        final ServerBuildInfo buildInfo = ServerBuildInfo.buildInfo();
-                        final int buildNum = buildInfo.buildNumber().orElse(-1);
-
-                        ClientV2.BuildStatus buildStatus = ClientV2.BuildStatus.UNKNOWN;
-                        if (buildNum == -1) {
-                            buildStatus = ClientV2.BuildStatus.LOCAL;
-                        }
-                        else {
-                            try {
-                                buildStatus = Util.CANVAS_CLIENT.getBuild(buildNum).buildStatus();
-                            } catch (final Throwable ignored) {
-                            }
-                        }
-
-                        return buildStatus;
+                        // EnigmaEngine builds are self-contained and not validated against an upstream API.
+                        return ClientV2.BuildStatus.LOCAL;
                     }).thenAccept(buildStatus -> RegionizedServer.getInstance().addTask(() -> {
                         BUILD_STATUS = buildStatus;
                         switch (buildStatus) {
@@ -121,37 +113,36 @@ public class GlobalConfiguration extends Part {
                             case EXPERIMENTAL ->
                                 broadcast("Running a beta build, there may be bugs, proceed with caution!", WARN);
                             case LOCAL ->
-                                broadcast("You are running a development version of Canvas, which may not be production-ready, be very careful!", WARN);
+                                broadcast("You are running a development version of EnigmaEngine, which may not be production-ready, be very careful!", WARN);
                         }
                     }));
                 }
             },
             Style.create()
-                .literal("Global Configuration for CanvasMC").endLine()
+                .literal("Global Configuration for EnigmaEngine").endLine()
                 .blank()
                 .wordWrap(
-                    "This is the server-wide configuration file provided by CanvasMC. This config holds options",
+                    "This is the server-wide configuration file provided by EnigmaEngine. This config holds options",
                     "that are set across the entire server, and cannot be overridden per-world. You are free to modify,",
                     "add, or remove comments as you please."
                 ).endLine()
                 .blank()
                 .wordWrap(
-                    "You may refresh this configuration at runtime using the \"/canvas reload\" command, however",
+                    "You may refresh this configuration at runtime using the \"/enigma reload\" command, however",
                     "it is not recommended to do this during production, as this can cause issues like unexpected crashes",
                     "or unintended behavior."
                 ).endLine()
                 .blank()
                 .wordWrap(
-                    "All defaults for the options provided in this configuration are configured for upstream",
-                    "compatibility over performance. You must do some manual configuration to get some of the performance",
-                    "benefits Canvas provides."
+                    "The defaults for the options provided in this configuration ship pre-tuned for the recommended",
+                    "EnigmaEngine setup. They can still be adjusted per deployment, but the defaults already enable",
+                    "the performance benefits EnigmaEngine provides."
                 ).endLine()
                 .blank()
                 .wordWrap(
-                    "If you have questions about certain configuration options please reach out in our discord. As a",
-                    "general rule, if you don't know what a certain option does, DO NOT TOUCH IT."
+                    "If you have questions about certain configuration options, please consult the EnigmaEngine documentation.",
+                    "As a general rule, if you don't know what a certain option does, DO NOT TOUCH IT."
                 ).endLine()
-                .literal("https://canvasmc.io/discord")
                 .compile(60)
         );
     }
@@ -161,6 +152,16 @@ public class GlobalConfiguration extends Part {
 
         // validate the configuration so users don't end up doing a stupid
         Validator.validateObject(configuration);
+
+        // cross-field validation for distributed config. The whole distributed runtime is configured
+        // purely through -Denigma.distributed.* system properties (see EnigmaDistributedConfig.load).
+        final EnigmaDistributedConfig distributed = EnigmaDistributedConfig.load();
+        distributed.validateCrossField();
+
+        // The adaptive regionizer now lives exclusively in config/enigma-regionizer.yml, seeded
+        // from RegionizerSettings.defaults() and then overlaid by LoadScaling.reload().
+        RegionizerSettings.set(RegionizerSettings.defaults());
+        LoadScaling.reload();
 
         if (TickRegions.hasStarted()) {
 
@@ -188,7 +189,7 @@ public class GlobalConfiguration extends Part {
             try {
                 RandomGeneratorFactory.of("Xoroshiro128PlusPlus");
             } catch (final Throwable ignored) {
-                broadcast("Canvas' faster random impl is not supported by your VM, falling back to legacy random", WARN);
+                broadcast("EnigmaEngine's faster random impl is not supported by your VM, falling back to legacy random", WARN);
                 ENABLE_FASTER_RANDOM = false;
             }
 
@@ -237,18 +238,46 @@ public class GlobalConfiguration extends Part {
                 }
             }
 
-            // register our commands to the Canvas command tree
+            // Distributed is opt-in. Load it before building the command tree so an ordinary
+            // single-server installation never advertises an unusable /enigma distributed root.
+            EnigmaDistributedConfig distributedConfig = null;
+            try {
+                distributedConfig = EnigmaDistributedConfig.load();
+            } catch (final Throwable ignored) {
+                // The normal server must still boot and expose its local commands if an optional
+                // distributed-property value is malformed.
+            }
+
+            // Register the local Enigma command tree. Chunk-map diagnostics were intentionally
+            // removed: they produced a costly per-region snapshot but are no longer a command.
             CanvasCommands.register(
                 SetMaxPlayersSubCommand.class,
                 RegionBarSubCommand.class,
                 WorldDistanceSubCommand.class,
                 ReloadSubCommand.class,
                 MobCapsSubCommand.class,
-                RegionTickSubCommand.class // TODO - merge this into regiondata command
-                // RegionDataCommand.class // TODO - regiondata command
+                RegionTickSubCommand.class,
+                RegionizerSubCommand.class,
+                io.canvasmc.canvas.subcommands.InfoSubCommand.class,
+                RegionDataCommand.class
             );
+            // Distributed is opt-in. Only advertise /enigma distributed (and the root prepare-stop
+            // alias) when it is actually enabled, so it never shows up in tab completion otherwise.
+            DistributedSubCommand.ENABLED = distributedConfig != null && distributedConfig.enabled;
+            if (DistributedSubCommand.ENABLED) {
+                CanvasCommands.register(DistributedSubCommand.class);
+            }
 
-            broadcast("Registered all Canvas commands", INFO);
+            broadcast("Registered all Enigma commands", INFO);
+
+            // The distributed runtime is deliberately NOT started here. This code runs from
+            // Bootstrap.bootStrap(), long before MinecraftServer exists, so the runtime would be
+            // handed a null server and could never touch a level. It is started from
+            // RegionizedServer.init() instead, once the server and its worlds are available.
+            if (distributedConfig != null && distributedConfig.enabled) {
+                broadcast("Enigma distributed runtime is enabled as " + distributedConfig.getRole()
+                        + " (will start once the server is up)", INFO);
+            }
         }
 
         // we do not want to allow larger unit values, nobody should autosave in units larger than
@@ -310,7 +339,7 @@ public class GlobalConfiguration extends Part {
         {
             option("affinityScheduler")
                 .docs(
-                    "Configurations for the AFFINITY scheduler provided by Canvas. For these options to take effect,",
+                    "Configurations for the AFFINITY scheduler provided by EnigmaEngine. For these options to take effect,",
                     "change the \"threaded-regions.scheduler\" option in \"paper-global.yml\" to \"AFFINITY\""
                 );
         }
@@ -340,16 +369,16 @@ public class GlobalConfiguration extends Part {
                     ).greaterThanOrEqualTo(0.0F);
 
                 option("tickRegionAffinity")
-                    .docs("Thread affinity for the AFFINITY scheduler provided by Canvas. By using this, you could pin the threads of region scheduler to cpu cores")
+                    .docs("Thread affinity for the AFFINITY scheduler provided by EnigmaEngine. By using this, you could pin the threads of region scheduler to cpu cores")
                     .greaterThanOrEqualTo(0.0F);
                 option("enableAffinitySchedulerCpuAffinity").docs("Enables pinning threads of the AFFINITY region scheduler to cpu cores");
             }
 
-            public long stealThresholdMillis = AffinitySchedulerThreadPool.DEFAULT_STEAL_THRESH_MILLIS;
-            public double runTasksBufferMillis = AffinitySchedulerThreadPool.DEFAULT_RUN_TASKS_BUFFER_MILLIS;
+            public long stealThresholdMillis = 2L;
+            public double runTasksBufferMillis = 0.05D;
 
-            public int[] tickRegionAffinity = new int[0];
-            public boolean enableAffinitySchedulerCpuAffinity = false;
+            public int[] tickRegionAffinity = new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+            public boolean enableAffinitySchedulerCpuAffinity = true;
         }
 
         {
@@ -369,7 +398,7 @@ public class GlobalConfiguration extends Part {
             option("guardSeverity")
                 .docs(
                     Style.wrap(
-                        "Canvas introduces extra tick thread checks to help catch plugin issues. This determines how aggressive the new guards are"
+                        "EnigmaEngine introduces extra tick thread checks to help catch plugin issues. This determines how aggressive the new guards are"
                     ).defineEnum(GuardSeverity.class, (severity) -> switch (severity) {
                         case LOG -> "Just logs a warning in console, but continues the operation";
                         case THROW -> "Throws an exception, can crash the server. Good for ensuring correctness";
@@ -378,9 +407,9 @@ public class GlobalConfiguration extends Part {
                 );
         }
 
-        public long overloadedLogMillis = 5_000L;
+        public long overloadedLogMillis = 3_000L;
         public float defaultTickRate = 20.0F;
-        public GuardSeverity guardSeverity = GuardSeverity.THROW;
+        public GuardSeverity guardSeverity = GuardSeverity.LOG;
 
         public enum GuardSeverity {
             SILENT,
@@ -398,7 +427,7 @@ public class GlobalConfiguration extends Part {
             );
         }
 
-        public boolean preventExcessiveVelocityMoveOutOfRegion = false;
+        public boolean preventExcessiveVelocityMoveOutOfRegion = true;
     }
 
     public ChunkSystem chunkSystem = new ChunkSystem();
@@ -420,7 +449,7 @@ public class GlobalConfiguration extends Part {
                 );
         }
 
-        public FluidPostProcessingMode fluidPostProcessingAlgorithm = FluidPostProcessingMode.VANILLA;
+        public FluidPostProcessingMode fluidPostProcessingAlgorithm = FluidPostProcessingMode.FILTERED;
 
         public enum FluidPostProcessingMode {
             VANILLA,
@@ -437,7 +466,7 @@ public class GlobalConfiguration extends Part {
                 );
         }
 
-        public boolean optimizeTreasureMapLocating = false;
+        public boolean optimizeTreasureMapLocating = true;
     }
 
     // TODO - check these on minecraft updates
@@ -475,22 +504,22 @@ public class GlobalConfiguration extends Part {
             option("mc136249").docs("Fixes wearing enchanted boots with depth strider decreasing the strength of the riptide enchantment");
         }
 
-        public boolean mc261810 = false;
-        public boolean mc223153 = false;
-        public boolean mc200418 = false;
-        public boolean mc94054 = false;
-        public boolean mc245394 = false;
-        public boolean mc227337 = false;
-        public boolean mc221257 = false;
-        public boolean mc206922 = false;
-        public boolean mc155509 = false;
-        public boolean mc132878 = false;
-        public boolean mc121706 = false;
-        public boolean mc119754 = false;
-        public boolean mc100991 = false;
-        public boolean mc30391 = false;
-        public boolean mc183990 = false;
-        public boolean mc136249 = false;
+        public boolean mc261810 = true;
+        public boolean mc223153 = true;
+        public boolean mc200418 = true;
+        public boolean mc94054 = true;
+        public boolean mc245394 = true;
+        public boolean mc227337 = true;
+        public boolean mc221257 = true;
+        public boolean mc206922 = true;
+        public boolean mc155509 = true;
+        public boolean mc132878 = true;
+        public boolean mc121706 = true;
+        public boolean mc119754 = true;
+        public boolean mc100991 = true;
+        public boolean mc30391 = true;
+        public boolean mc183990 = true;
+        public boolean mc136249 = true;
     }
 
     public Networking networking = new Networking();
@@ -524,14 +553,14 @@ public class GlobalConfiguration extends Part {
                 .docs("Derived from Leaf, this synchronizes the player immediately when knocked back");
         }
 
-        public boolean filterVelocityPacket = false;
-        public boolean alternativePlayerListTick = false;
-        public int playerInfoSendInterval = 600;
-        public boolean purpurAlternativeKeepalive = false;
+        public boolean filterVelocityPacket = true;
+        public boolean alternativePlayerListTick = true;
+        public int playerInfoSendInterval = 400;
+        public boolean purpurAlternativeKeepalive = true;
 
         // Originally from Leaf: https://github.com/Winds-Studio/Leaf/blob/58a4a9cb7994474e63ba49205cd21e89f8dacc9a/leaf-server/minecraft-patches/features/0216-Flush-location-while-knockback.patch
         // License described in Leaf-Flush-location-while-knockback.patch
-        public boolean flushLocationWhileKnockback = false;
+        public boolean flushLocationWhileKnockback = true;
     }
 
     {
@@ -540,7 +569,7 @@ public class GlobalConfiguration extends Part {
         option("displayWorldLoadScreenForCrossRegionTransfers")
             .docs(
                 "Folia's portaling rewrite makes the world loading screen not display on the client properly, and",
-                "instead shows an empty void. With this enabled, Canvas will display the proper world loading screen"
+                "instead shows an empty void. With this enabled, EnigmaEngine will display the proper world loading screen"
             );
         option("cacheMinecraft2BukkitEntityTypeConversion").docs("Whether to cache expensive CraftEntityType#minecraftToBukkit call");
         option("tileEntitySnapshotCreation").docs("Enables creation of tile entity snapshots on retrieving blockstates");
@@ -550,7 +579,7 @@ public class GlobalConfiguration extends Part {
 
     public boolean displayWorldLoadScreenForCrossRegionTransfers = true;
 
-    public boolean cacheMinecraft2BukkitEntityTypeConversion = false;
+    public boolean cacheMinecraft2BukkitEntityTypeConversion = true;
     public boolean tileEntitySnapshotCreation = false;
 
     public PurpurContainers purpurContainers = new PurpurContainers();
@@ -594,8 +623,8 @@ public class GlobalConfiguration extends Part {
             option("disableChatVerificationOrder").docs("Disables Minecraft chat verification ordering");
         }
 
-        public boolean disableChatReporting = false;
-        public boolean disableChatVerificationOrder = false;
+        public boolean disableChatReporting = true;
+        public boolean disableChatVerificationOrder = true;
     }
 
     public Logs logs = new Logs();
@@ -605,12 +634,12 @@ public class GlobalConfiguration extends Part {
         {
             option("enableLogCleaner").docs("Auto-removes old log files from the \"logs\" directory");
             option("cleanerTimeSpan").docs("The amount of the time since the log file was last edited until it will be deleted");
-            option("logEnderPearlRewriteActions").docs("Logs when a pearl is saved or loaded from Canvas' pearl save rewrite");
+            option("logEnderPearlRewriteActions").docs("Logs when a pearl is saved or loaded from EnigmaEngine's pearl save rewrite");
         }
 
-        private boolean enableLogCleaner = false;
-        private String cleanerTimeSpan = "30d";
-        public boolean logEnderPearlRewriteActions = true;
+        private boolean enableLogCleaner = true;
+        private String cleanerTimeSpan = "7d";
+        public boolean logEnderPearlRewriteActions = false;
     }
 
     public EnchantCommand enchantCommand = new EnchantCommand();
@@ -635,7 +664,7 @@ public class GlobalConfiguration extends Part {
 
     {
         option("autosave").docs(
-            "Folia breaks a lot of autosave features. Canvas restores these,",
+            "Folia breaks a lot of autosave features. EnigmaEngine restores these,",
             "and this section allows more specific configuration of autosave functionalities"
         );
     }
@@ -662,4 +691,30 @@ public class GlobalConfiguration extends Part {
         public boolean autosaveGamerules = true;
         public boolean autosavePlayers = true;
     }
+
+    {
+        option("startup").docs(
+            "Controls behaviour during server startup, such as refusing player logins while the",
+            "world and regionizer are still warming up after a restart"
+        );
+    }
+
+    public Startup startup = new Startup();
+
+    @Undocumented("Doesn't require docs.")
+    public static class Startup extends Part {
+
+        {
+            option("joinDelaySeconds").docs(
+                Style.wrap(
+                    "The number of seconds after the server starts accepting connections during which player logins are refused.",
+                    "This gives the world and regionizer time to warm up, which prevents issues such as entities (for example",
+                    "villagers) falling through the world when a player joins immediately after a restart. Set to 0 to disable."
+                )
+            ).greaterThanOrEqualTo(0.0F);
+        }
+
+        public long joinDelaySeconds = 20L;
+    }
 }
+

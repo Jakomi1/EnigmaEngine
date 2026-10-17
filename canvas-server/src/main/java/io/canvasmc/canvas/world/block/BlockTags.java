@@ -9,7 +9,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FlowingFluid;
 
 public final class BlockTags {
-    public static final int RANDOMLY_TICKING = 0x01; // TODO - should we use this ever
+    // RANDOMLY_TICKING is part of the cached tag so that the block tag lookup stays a single
+    // int test on the hot path; it is consumed by the chunk system's ticking decision.
+    public static final int RANDOMLY_TICKING = 0x01;
     public static final int WATER = 0x02;
     public static final int LAVA = 0x04;
     public static final int CAN_HOLD_ANY_FLUID = 0x08;

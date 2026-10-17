@@ -1002,6 +1002,20 @@ index 11d4f2d5caba52b492b8e130faa4701f3980b0f1..ca5065d057d039aaaa2334534edae351
                  final ChunkAccess chunk = chunkSource.getChunk(currChunkX, currChunkZ, ChunkStatus.FULL, loadChunks);
  
                  if (chunk == null) {
+@@ -1951,6 +1962,13 @@ public final class CollisionUtil {
+                             ret = true;
+                         }
+                     }
++                    else if (!checkOnly && io.papermc.paper.threadedregions.TickRegions.hasStarted()) {
++                        // Canvas start - region threading: a region-owned but not-yet-loaded chunk
++                        // must act as solid, otherwise entities fall through the world after a restart
++                        intoAABB.add(getBoxForChunk(currChunkX, currChunkZ));
++                        ret = true;
++                        // Canvas end - region threading
++                    }
+                     continue;
+                 }
+ 
 diff --git a/io/canvasmc/canvas/threadedregions/ScheduledHandleTickState.java b/io/canvasmc/canvas/threadedregions/ScheduledHandleTickState.java
 new file mode 100644
 index 0000000000000000000000000000000000000000..999f985053020769c71c558c256fd9198487fbe9

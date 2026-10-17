@@ -1,6 +1,6 @@
 --- a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/server/ServerEntityLookup.java
 +++ b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/server/ServerEntityLookup.java
-@@ -70,7 +_,7 @@
+@@ -70,7 +_,25 @@
      protected void entitySectionChangeCallback(final Entity entity,
                                                 final int oldSectionX, final int oldSectionY, final int oldSectionZ,
                                                 final int newSectionX, final int newSectionY, final int newSectionZ) {
@@ -8,4 +8,21 @@
 +        if (entity instanceof ServerPlayer player && (oldSectionX != newSectionX || oldSectionZ != newSectionZ)) { // Canvas - reduce unnecessary nearby player ticks
              ((ChunkSystemServerLevel)this.serverWorld).moonrise$getNearbyPlayers().tickPlayer(player);
          }
++        // Enigma start - region coupling: measure entity movement across regioniser sections
++        if (oldSectionX != newSectionX || oldSectionZ != newSectionZ) {
++            final io.papermc.paper.threadedregions.ThreadedRegionizer<?, ?> regionizer = this.serverWorld.regioniser;
++            if (regionizer != null) {
++                final int shift = regionizer.sectionChunkShift;
++                if ((oldSectionX >> shift) != (newSectionX >> shift) || (oldSectionZ >> shift) != (newSectionZ >> shift)) {
++                    final io.papermc.paper.threadedregions.ThreadedRegionizer.ThreadedRegion<?, ?> oldRegion =
++                        regionizer.getRegionAtUnsynchronised(oldSectionX, oldSectionZ);
++                    final io.papermc.paper.threadedregions.ThreadedRegionizer.ThreadedRegion<?, ?> newRegion =
++                        regionizer.getRegionAtUnsynchronised(newSectionX, newSectionZ);
++                    if (oldRegion != null && newRegion != null && oldRegion != newRegion) {
++                        io.canvasmc.canvas.regionizer.RegionCoupling.onCrossRegion(oldRegion.id, newRegion.id);
++                    }
++                }
++            }
++        }
++        // Enigma end - region coupling
          if (entity instanceof ThrownEnderpearl enderpearl && (oldSectionX != newSectionX || oldSectionZ != newSectionZ)) {

@@ -1,0 +1,176 @@
+--- a/src/main/java/io/papermc/paper/configuration/WorldConfiguration.java
++++ b/src/main/java/io/papermc/paper/configuration/WorldConfiguration.java
+@@ -95,40 +_,37 @@
+         public AntiXray antiXray;
+ 
+         public class AntiXray extends ConfigurationPart {
+-            public boolean enabled = false;
++            public boolean enabled = true;
+             public EngineMode engineMode = EngineMode.HIDE;
+-            public int maxBlockHeight = 64;
++            public int maxBlockHeight = 200;
+             public int updateRadius = 2;
+-            public boolean lavaObscures = false;
++            public boolean lavaObscures = true;
+             public boolean usePermission = false;
+             public List<Block> hiddenBlocks = List.of(
+                 //<editor-fold desc="Anti-Xray Hidden Blocks" defaultstate="collapsed">
+                 Blocks.COPPER_ORE,
+                 Blocks.DEEPSLATE_COPPER_ORE,
+-                Blocks.RAW_COPPER_BLOCK,
++                Blocks.COAL_ORE,
++                Blocks.DEEPSLATE_COAL_ORE,
+                 Blocks.GOLD_ORE,
+                 Blocks.DEEPSLATE_GOLD_ORE,
+                 Blocks.IRON_ORE,
+                 Blocks.DEEPSLATE_IRON_ORE,
+-                Blocks.RAW_IRON_BLOCK,
+-                Blocks.COAL_ORE,
+                 Blocks.DEEPSLATE_COAL_ORE,
+                 Blocks.LAPIS_ORE,
+                 Blocks.DEEPSLATE_LAPIS_ORE,
+-                Blocks.MOSSY_COBBLESTONE,
+-                Blocks.OBSIDIAN,
+-                Blocks.CHEST,
+                 Blocks.DIAMOND_ORE,
+                 Blocks.DEEPSLATE_DIAMOND_ORE,
+                 Blocks.REDSTONE_ORE,
+                 Blocks.DEEPSLATE_REDSTONE_ORE,
+-                Blocks.CLAY,
+                 Blocks.EMERALD_ORE,
+                 Blocks.DEEPSLATE_EMERALD_ORE,
+-                Blocks.ENDER_CHEST
++                Blocks.ANCIENT_DEBRIS,
++                Blocks.NETHER_GOLD_ORE,
++                Blocks.NETHER_QUARTZ_ORE
+                 //</editor-fold>
+             );
+-            public List<Block> replacementBlocks = List.of(Blocks.STONE, Blocks.OAK_PLANKS, Blocks.DEEPSLATE);
++            public List<Block> replacementBlocks = List.of(Blocks.STONE, Blocks.NETHERRACK, Blocks.OAK_PLANKS, Blocks.DEEPSLATE);
+         }
+     }
+ 
+@@ -150,8 +_,8 @@
+         public ArmorStands armorStands;
+ 
+         public class ArmorStands extends ConfigurationPart {
+-            public boolean doCollisionEntityLookups = true;
+-            public boolean tick = true;
++            public boolean doCollisionEntityLookups = false;
++            public boolean tick = false;
+         }
+ 
+         public Markers markers;
+@@ -250,7 +_,7 @@
+             @BelowZeroToEmpty
+             public DoubleOr.Default skeletonHorseThunderSpawnChance = DoubleOr.Default.USE_DEFAULT;
+             public boolean ironGolemsCanSpawnInAir = false;
+-            public boolean countAllMobsForSpawning = false;
++            public boolean countAllMobsForSpawning = true;
+             @BelowZeroToEmpty
+             public IntOr.Default monsterSpawnMaxLightLevel = IntOr.Default.USE_DEFAULT;
+             public DuplicateUUID duplicateUuid;
+@@ -280,8 +_,8 @@
+             public boolean shouldRemoveDragon = false;
+             public boolean zombiesTargetTurtleEggs = true;
+             public boolean piglinsGuardChests = true;
+-            public double babyZombieMovementModifier = 0.5;
+-            public boolean allowSpiderWorldBorderClimbing = true;
++            public double babyZombieMovementModifier = 0.4;
++            public boolean allowSpiderWorldBorderClimbing = false;
+ 
+             private static final List<EntityType<?>> ZOMBIE_LIKE = List.of(EntityTypes.ZOMBIE, EntityTypes.HUSK, EntityTypes.ZOMBIE_VILLAGER, EntityTypes.ZOMBIFIED_PIGLIN);
+             @MergeMap
+@@ -296,7 +_,7 @@
+             public boolean enderDragonsDeathAlwaysPlacesDragonEgg = false;
+             public boolean phantomsDoNotSpawnOnCreativePlayers = true;
+             public boolean phantomsOnlyAttackInsomniacs = true;
+-            public int playerInsomniaStartTicks = 72000;
++            public int playerInsomniaStartTicks = 400000;
+             public int phantomsSpawnAttemptMinSeconds = 60;
+             public int phantomsSpawnAttemptMaxSeconds = 119;
+             public boolean parrotsAreUnaffectedByPlayerMovement = false;
+@@ -317,7 +_,7 @@
+ 
+             public class PillagerPatrols extends ConfigurationPart {
+                 public boolean disable = false;
+-                public double spawnChance = 0.2;
++                public double spawnChance = 0.1;
+                 public SpawnDelay spawnDelay;
+                 public Start start;
+ 
+@@ -412,7 +_,7 @@
+     public class Environment extends ConfigurationPart {
+         public boolean disableThunder = false;
+         public boolean disableIceAndSnow = false;
+-        public boolean optimizeExplosions = false;
++        public boolean optimizeExplosions = true;
+         public boolean disableExplosionKnockback = false;
+         public boolean generateFlatBedrock = false;
+         public FrostedIce frostedIce;
+@@ -440,8 +_,8 @@
+ 
+         public int fireTickDelay = 30;
+         public int waterOverLavaFlowSpeed = 5;
+-        public int portalSearchRadius = 128;
+-        public int portalCreateRadius = 16;
++        public int portalSearchRadius = 64;
++        public int portalCreateRadius = 12;
+         public boolean portalSearchVanillaDimensionScaling = true;
+         public IntOr.Disabled netherCeilingVoidDamageHeight = IntOr.Disabled.DISABLED;
+         public int maxFluidTicks = 65536;
+@@ -490,18 +_,18 @@
+ 
+     public class Hopper extends ConfigurationPart {
+         public boolean cooldownWhenFull = true;
+-        public boolean disableMoveEvent = false;
+-        public boolean ignoreOccludingBlocks = false;
++        public boolean disableMoveEvent = true;
++        public boolean ignoreOccludingBlocks = true;
+     }
+ 
+     public Collisions collisions;
+ 
+     public class Collisions extends ConfigurationPart {
+         public boolean onlyPlayersCollide = false;
+-        public boolean allowVehicleCollisions = true;
+-        public boolean fixClimbingBypassingCrammingRule = false;
++        public boolean allowVehicleCollisions = false;
++        public boolean fixClimbingBypassingCrammingRule = true;
+         @RequiresSpigotInitialization(MaxEntityCollisionsInitializer.class)
+-        public int maxEntityCollisions = 8;
++        public int maxEntityCollisions = 4;
+         public boolean allowPlayerCrammingDamage = false;
+     }
+ 
+@@ -509,10 +_,10 @@
+ 
+     public class Chunks extends ConfigurationPart {
+         public AutosavePeriod autoSaveInterval = AutosavePeriod.def();
+-        public int maxAutoSaveChunksPerTick = 24;
++        public int maxAutoSaveChunksPerTick = 16;
+         public int fixedChunkInhabitedTime = -1;
+         public boolean preventMovingIntoUnloadedChunks = false;
+-        public Duration delayChunkUnloadsBy = Duration.of("10s");
++        public Duration delayChunkUnloadsBy = Duration.of("4s");
+         public Reference2IntMap<EntityType<?>> entityPerChunkSaveLimit = Util.make(new Reference2IntOpenHashMap<>(BuiltInRegistries.ENTITY_TYPE.size()), map -> {
+             map.defaultReturnValue(-1);
+             map.put(EntityTypes.EXPERIENCE_ORB, -1);
+@@ -556,7 +_,7 @@
+     public class FeatureSeeds extends ConfigurationPart {
+         @SuppressWarnings("unused") // Is used in FeatureSeedsGeneration
+         @Setting(FeatureSeedsGeneration.GENERATE_KEY)
+-        public boolean generateRandomSeedsForAll = false;
++        public boolean generateRandomSeedsForAll = true;
+         @Setting(FeatureSeedsGeneration.FEATURES_KEY)
+         public Reference2LongMap<Holder<ConfiguredFeature<?, ?>>> features = new Reference2LongOpenHashMap<>();
+ 
+@@ -578,7 +_,7 @@
+     public class Misc extends ConfigurationPart {
+         public boolean updatePathfindingOnBlockUpdate = true;
+         public boolean showSignClickCommandFailureMsgsToPlayer = false;
+-        public RedstoneImplementation redstoneImplementation = RedstoneImplementation.VANILLA;
++        public RedstoneImplementation redstoneImplementation = RedstoneImplementation.ALTERNATE_CURRENT;
+         public AlternateCurrentUpdateOrder alternateCurrentUpdateOrder = AlternateCurrentUpdateOrder.HORIZONTAL_FIRST_OUTWARD;
+         public boolean disableEndCredits = false;
+         public DoubleOr.Default maxLeashDistance = DoubleOr.Default.USE_DEFAULT;

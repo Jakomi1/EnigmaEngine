@@ -9,6 +9,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import io.canvasmc.canvas.GlobalConfiguration;
+import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
 import io.canvasmc.canvas.util.Util;
 import io.canvasmc.canvas.world.PerWorldDistanceConfig;
@@ -20,7 +21,6 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.DimensionArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.permissions.Permissions;
 
 import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
@@ -41,7 +41,7 @@ public class WorldDistanceSubCommand implements SubCommand {
 
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> construct(final LiteralArgumentBuilder<CommandSourceStack> base, final CommandBuildContext buildContext) {
-        return base.requires(stack -> stack.hasPermission(Permissions.COMMANDS_ADMIN, "canvas.command.worlddistance"))
+        return base.requires(io.canvasmc.canvas.commands.CanvasCommands.permission("worlddistance"))
             .then(argument("type", StringArgumentType.word())
                 .suggests((_, builder) -> {
                     builder.suggest("view");
@@ -109,10 +109,9 @@ public class WorldDistanceSubCommand implements SubCommand {
     private static int getAndReturnDistance(final CommandContext<CommandSourceStack> context, final Type type, final ServerLevel level) {
         final int distance = type.get(level);
 
-        context.getSource().sendSuccess(
-            () -> Component.literal(type.name + " distance of level \"" + Util.getLevelName(level) + "\" is " + distance),
-            false
-        );
+        Style.bullets()
+            .bullet(type.name + " distance of level \"" + Util.getLevelName(level) + "\"", (long) distance)
+            .send(context.getSource());
         return distance;
     }
 

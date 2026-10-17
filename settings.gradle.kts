@@ -1,4 +1,4 @@
-import java.util.*
+﻿import java.util.*
 
 pluginManagement {
     repositories {
@@ -37,7 +37,7 @@ if (!file(".git").exists()) {
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "Canvas"
+rootProject.name = "EnigmaEngine"
 for (name in listOf("canvas-api", "canvas-server")) {
     val projName = name.lowercase(Locale.ENGLISH)
     include(projName)
@@ -63,3 +63,4 @@ gradle.lifecycle.beforeProject {
     }
     version = versionString
 }
+

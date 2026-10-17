@@ -22,7 +22,7 @@ public class CanvasFileMigration {
         }
 
         if (!todo.isEmpty()) {
-            LOGGER.info("Beginning migration of Canvas filesave features");
+            LOGGER.info("Beginning migration of EnigmaEngine filesave features");
             LOGGER.info("{} migration types awaiting conduction: {}", todo.size(), todo.toArray());
 
             if (!MSG_SHOWN) {
@@ -34,7 +34,7 @@ public class CanvasFileMigration {
                 type.migration.conduct(migrationContext);
             }
 
-            LOGGER.info("All Canvas features migrated successfully, continuing with startup");
+            LOGGER.info("All EnigmaEngine features migrated successfully, continuing with startup");
         }
     }
 
@@ -45,10 +45,10 @@ public class CanvasFileMigration {
             if (!Boolean.getBoolean("paper.disableMigrationDelay")) {
                 Thread.sleep(8_000L);
             }
-            LOGGER.info("Continuing with Canvas file migration, please wait");
+            LOGGER.info("Continuing with EnigmaEngine file migration, please wait");
         } catch (final InterruptedException ie) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Interrupted while waiting before startup Canvas file migration", ie);
+            throw new RuntimeException("Interrupted while waiting before startup EnigmaEngine file migration", ie);
         } finally {
             MSG_SHOWN = true;
         }

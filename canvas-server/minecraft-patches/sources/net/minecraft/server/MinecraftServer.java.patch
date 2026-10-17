@@ -1,5 +1,42 @@
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
+@@ -663,6 +_,7 @@
+        this.server.getCommandMap().registerServerAliases(); // Paper - relocate initial CommandMap#registerServerAliases() call
+        ((org.bukkit.craftbukkit.help.SimpleHelpMap) this.server.getHelpMap()).initializeCommands();
+        this.server.getPluginManager().callEvent(new org.bukkit.event.server.ServerLoadEvent(org.bukkit.event.server.ServerLoadEvent.LoadType.STARTUP));
++        io.canvasmc.canvas.util.JoinGate.markReady(); // Enigma - arm the startup login gate
+        this.connection.acceptConnections();
+    }
+    // Paper end - rework world loading process
+@@ -1156,6 +_,28 @@
+        this.halt(wait, false);
+    }
+    public void halt(final boolean wait, final boolean isRestarting) {
++        // Enigma start - return forwarded regions before stopping
++        // A World Host that still has regions out on Compute Hosts must bring them back (and thereby
++        // their compute-held state) before it stops. This funnels every stop path: console "stop",
++        // RCON, plugins and the /prepare-stop command all land here. The run is driven from the
++        // global tick (see DistributedBootstrap.tick), and once it finishes the server halts for real.
++        if (io.canvasmc.canvas.distributed.config.EnigmaDistributedConfig.current().enabled
++                && io.canvasmc.canvas.distributed.config.EnigmaDistributedConfig.current().isWorldHost()) {
++            final io.canvasmc.canvas.distributed.DistributedBootstrap bootstrap =
++                    io.canvasmc.canvas.distributed.DistributedBootstrap.getInstance();
++            final io.canvasmc.canvas.distributed.runtime.RemoteRegionExecutor executor = bootstrap.getRegionExecutor();
++            if (executor != null && (executor.handedOverCount() > 0 || executor.recoveringRegionCount() > 0)) {
++                if (!bootstrap.isPreparingStop()) {
++                    LOGGER.warn("Stop requested while regions are still forwarded to Compute Hosts; "
++                            + "returning them to the World Host first");
++                    bootstrap.prepareStop();
++                }
++                // Duplicate stops during the run are swallowed; the pending halt fires once the
++                // returns are done.
++                return;
++            }
++        }
++        // Enigma end - return forwarded regions before stopping
+        this.isRestarting = isRestarting;
+        this.hasLoggedStop = true; // Paper - Debugging
+        if (this.isDebugging()) io.papermc.paper.util.TraceUtil.dumpTraceForThread("Server stopped"); // Paper - Debugging
 @@ -1304,11 +_,7 @@
                  LOGGER.info("*************************************************************************************");
              }
@@ -13,12 +50,13 @@
  
              while (this.running) {
                  final long tickStart = System.nanoTime(); // Paper - improve tick loop
-@@ -1825,6 +_,8 @@
-         if (false) while (!this.processQueue.isEmpty()) { // Folia - region threading
-             this.processQueue.remove().run();
-         }
+@@ -1825,6 +_,9 @@
+        if (false) while (!this.processQueue.isEmpty()) { // Folia - region threading
+            this.processQueue.remove().run();
+        }
 +        regionizedWorldData.getCanvasWorldData().tpsbar.tick(); // Canvas - tpsbar
 +        regionizedWorldData.getCanvasWorldData().rambar.tick(); // Canvas - rambar
++        regionizedWorldData.getCanvasWorldData().cpubar.tick(); // Canvas - cpubar
  
          // this.updateEffectiveRespawnData(); // Canvas - region threading - moved to global region tick - we don't need every damn region calling this...
  
@@ -45,3 +83,16 @@
      public boolean enforceSecureProfile() {
          return false;
      }
+@@ -2666,7 +_,11 @@
+     public long getAverageTickTimeNanos() {
+         // Folia start - region threading
+         if (io.papermc.paper.threadedregions.TickRegionScheduler.getCurrentTickingTask() instanceof io.papermc.paper.threadedregions.TickRegionScheduler.RegionScheduleHandle handle) {
+-            return (long)Math.ceil(handle.getTickReport5s(System.nanoTime()).timePerTickData().segmentAll().average());
++            final ca.spottedleaf.common.time.TickData.TickReportData report = handle.getTickReport5s(System.nanoTime());
++            if (report != null && report.timePerTickData() != null && report.timePerTickData().segmentAll() != null) {
++                return (long)Math.ceil(report.timePerTickData().segmentAll().average());
++            }
++            return 0L;
+         }
+         return 0L;
+         // Folia end - region threading

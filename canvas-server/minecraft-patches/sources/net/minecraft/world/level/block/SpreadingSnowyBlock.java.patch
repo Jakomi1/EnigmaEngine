@@ -9,7 +9,7 @@
              if (cachedChunk == null) { // Is this needed?
                  return;
              }
-@@ -74,24 +_,27 @@
+@@ -74,24 +_,30 @@
                  // CraftBukkit end
                  level.setBlockAndUpdate(pos, baseBlock.get().defaultBlockState());
              } else {
@@ -32,6 +32,9 @@
                          } else {
 -                            access = level.getChunkAt(testPos);
 +                            // Canvas start - optimize random tick
++                            if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(level, testPos)) {
++                                continue;
++                            }
 +                            access = level.getChunkIfLoaded(testPos);
 +                            if (access == null) continue;
                          }

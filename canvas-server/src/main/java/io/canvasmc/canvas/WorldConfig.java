@@ -41,6 +41,9 @@ public class WorldConfig extends Part {
             "<gradient:blue:aqua><b>Players:</b></gradient> <players>";
     public static final String DEFAULT_RAMBAR_FORMAT =
         "<gradient:green:dark_green><b>RAM:</b></gradient> <used>/<xmx> <dark_gray>(</dark_gray><percent><dark_gray>%)</dark_gray>";
+    public static final String DEFAULT_CPUBAR_FORMAT =
+        "<gradient:light_purple:aqua><b>Cores:</b></gradient> <cores> <dark_gray>-</dark_gray> " +
+            "<gradient:light_purple:aqua><b>CPU:</b></gradient> <cpu>";
 
     // note that Canvas core utilities and loggers and such should go in the global configuration class, as this one
     // doesn't entirely seem that appropriate for that sort of stuff
@@ -48,7 +51,7 @@ public class WorldConfig extends Part {
     // we have a logger internally here for level-config related things, and should not be used globally. the global
     // config class should be the logger publicly used
 
-    private static final Logger LOGGER = LoggerFactory.getLogger("CanvasWorlds");
+    private static final Logger LOGGER = LoggerFactory.getLogger("EnigmaWorlds");
 
     private static final Path BASE_FILE = Path.of("config/canvas-worlds.yml").toAbsolutePath().normalize();
 
@@ -63,7 +66,7 @@ public class WorldConfig extends Part {
             reload();
         } catch (final Throwable thrown) {
             // we at least need to make sure this is logged
-            LOGGER.error("Couldn't load Canvas worlds default configuration", thrown);
+            LOGGER.error("Couldn't load EnigmaEngine worlds default configuration", thrown);
             throw thrown;
         }
     }
@@ -96,30 +99,29 @@ public class WorldConfig extends Part {
                 }
             },
             Style.create()
-                .literal("Worlds default configuration file for CanvasMC").endLine()
+                .literal("Worlds default configuration file for EnigmaEngine").endLine()
                 .blank()
                 .wordWrap(
-                    "This is the defaults for the per-world configuration file for CanvasMC.",
+                    "This is the defaults for the per-world configuration file for EnigmaEngine.",
                     "Each option can be overridden by the patch variant in each dimension folder. You are",
                     "free to modify, add, or remove comments as you please."
                 ).endLine()
                 .blank()
                 .wordWrap(
-                    "You may refresh this configuration at runtime using the \"/canvas reload\" command, however",
+                    "You may refresh this configuration at runtime using the \"/enigma reload\" command, however",
                     "it is not recommended to do this during production, as this can cause issues like unexpected crashes",
                     "or unintended behavior."
                 ).endLine()
                 .blank()
                 .wordWrap(
-                    "All defaults for the options provided in this configuration are configured for upstream",
-                    "compatibility over performance. You must do some manual configuration to get some of the performance",
-                    "benefits Canvas provides."
+                    "The defaults for the options provided in this configuration ship pre-tuned for the recommended",
+                    "EnigmaEngine setup. They can still be adjusted per world or per deployment, but the defaults",
+                    "already enable the performance benefits EnigmaEngine provides."
                 ).endLine()
                 .blank()
                 .wordWrap(
-                    "If you have questions about certain configuration options please reach out in our discord"
+                    "If you have questions about certain configuration options, please consult the EnigmaEngine documentation."
                 ).endLine()
-                .literal("https://canvasmc.io/discord")
                 .compile(60)
         );
 
@@ -145,7 +147,7 @@ public class WorldConfig extends Part {
             BASE_FILE,
             WorldConfig::new,
             instance -> {
-                LOGGER.info("Loaded Canvas config patch for level {}", dimension.identifier());
+                LOGGER.info("Loaded EnigmaEngine config patch for level {}", dimension.identifier());
 
                 result[0] = instance;
 
@@ -210,17 +212,24 @@ public class WorldConfig extends Part {
     public static class RegionBars extends Part {
 
         {
-            option("enableTpsBar").docs("Enables a regionized TPS-Bar implementation for Canvas.");
+            option("enableTpsBar").docs("Enables a regionized TPS-Bar implementation for EnigmaEngine.");
             option("tpsBarFormat")
                 .docs(
                     "MiniMessage-formatted line for the TPS bar. Placeholders are <tps>, <mspt>, <util>, and <players>.",
                     "Legacy tokens(%tps%, %mspt%, %util%, %players%) are also accepted and auto-converted."
                 ).greedyString();
-            option("enableRamBar").docs("Enables a regionized RAM-Bar implementation for Canvas.");
+            option("enableRamBar").docs("Enables a regionized RAM-Bar implementation for EnigmaEngine.");
             option("ramBarFormat")
                 .docs(
                     "MiniMessage-formatted line for the RAM bar. Placeholders are <used>, <xmx>, <percent>.",
                     "Legacy tokens(%used%, %xmx%, %percent%) are also accepted and auto-converted."
+                ).greedyString();
+            option("enableCpuBar").docs("Enables a regionized per-core CPU-Bar implementation for EnigmaEngine.");
+            option("cpuBarFormat")
+                .docs(
+                    "MiniMessage-formatted line for the CPU bar. Placeholders are <cpu> (process load %),",
+                    "<sys> (system load %) and <cores> (per-core utilisation, Linux only).",
+                    "Legacy tokens(%cpu%, %sys%, %cores%) are also accepted and auto-converted."
                 ).greedyString();
         }
 
@@ -229,6 +238,9 @@ public class WorldConfig extends Part {
 
         public boolean enableRamBar = true;
         public String ramBarFormat = DEFAULT_RAMBAR_FORMAT;
+
+        public boolean enableCpuBar = true;
+        public String cpuBarFormat = DEFAULT_CPUBAR_FORMAT;
     }
 
     public Visuals visuals = new Visuals();
@@ -256,8 +268,8 @@ public class WorldConfig extends Part {
             }
 
             public boolean disableSprintParticles = false;
-            public boolean disableFallParticles = false;
-            public boolean disableDeathParticles = false;
+            public boolean disableFallParticles = true;
+            public boolean disableDeathParticles = true;
             public boolean disableEffectParticles = false;
             public boolean disableWaterSplashParticles = false;
             public boolean disableBubbleColumnParticles = false;
@@ -326,7 +338,7 @@ public class WorldConfig extends Part {
                 );
         }
 
-        public boolean fastOrbs = false;
+        public boolean fastOrbs = true;
 
         public ItemEntities itemEntities = new ItemEntities();
         public static class ItemEntities extends Part {
@@ -350,7 +362,7 @@ public class WorldConfig extends Part {
             @Undocumented("Doesn't require docs.")
             public boolean itemEntitiesImmuneToLightning = false;
             public double itemEntityVelocityOnDeathFactor = 1.0D;
-            public boolean itemEntitiesWaitTwoSecondsForMergeCheckAlways = false;
+            public boolean itemEntitiesWaitTwoSecondsForMergeCheckAlways = true;
         }
 
         public EntityCollisionMode entityCollisionMode = EntityCollisionMode.VANILLA;
@@ -415,9 +427,9 @@ public class WorldConfig extends Part {
             }
 
             @Undocumented("Doesn't require docs.")
-            public int maxProjectileChunkLoadsPerTick = 10;
+            public int maxProjectileChunkLoadsPerTick = 2;
             @Undocumented("Doesn't require docs.")
-            public int maxProjectileChunkLoadsPerProjectileBeforeRemoval = 10;
+            public int maxProjectileChunkLoadsPerProjectileBeforeRemoval = 4;
             public List<String> loadChunks = new ArrayList<>();
             public boolean crossRegionRedirectableProjectileDeflection = false;
 
@@ -455,10 +467,10 @@ public class WorldConfig extends Part {
                     .docs("Whether the server should allow Villagers to load unloaded chunks for Villagers to locate POIs");
             }
 
-            public boolean villagerAcquirePoiTasksLoadChunks = true;
-            public boolean reduceJobSitePoiSearchRange = false;
-            public boolean reduceHomePoiSearchRange = false;
-            public boolean reduceMeetingPointPoiSearchRange = false;
+            public boolean villagerAcquirePoiTasksLoadChunks = false;
+            public boolean reduceJobSitePoiSearchRange = true;
+            public boolean reduceHomePoiSearchRange = true;
+            public boolean reduceMeetingPointPoiSearchRange = true;
         }
 
         @Undocumented("Doesn't require docs.")
@@ -569,9 +581,8 @@ public class WorldConfig extends Part {
     {
         option("waypointUpdateScale")
             .docs(
-                "Controls how quickly Canvas' waypoints system falls off with distance between players.",
-                "You can read more about how this new system works and play around with this configuration",
-                "here: https://docs.canvasmc.io/canvas/info/waypoints/"
+                "Controls how quickly EnigmaEngine's waypoints system falls off with distance between players.",
+                "You can read more about how this new system works and play around with this configuration"
             );
         option("disableCriterionTrigger").docs("Disables all criterion triggers. Advancements will not work!");
         option("cactusCheckSurvivalBeforeGrowth").docs("Check if a cactus can survive before growing. Heavily optimizes cacti farms");
@@ -583,8 +594,8 @@ public class WorldConfig extends Part {
 
     public double waypointUpdateScale = 4000.0D;
     public boolean disableCriterionTrigger = false;
-    public boolean cactusCheckSurvivalBeforeGrowth = false;
-    public boolean enableSuffocationOptimization = false;
+    public boolean cactusCheckSurvivalBeforeGrowth = true;
+    public boolean enableSuffocationOptimization = true;
 
     public Sleeping sleeping = new Sleeping();
 

@@ -1,0 +1,60 @@
+--- a/net/minecraft/world/level/StructureManager.java
++++ b/net/minecraft/world/level/StructureManager.java
+@@ -48,6 +_,9 @@
+     }
+ 
+     public List<StructureStart> startsForStructure(final ChunkPos pos, final Predicate<Structure> matcher) {
++        if (this.isOutsideTickRegion(pos.x(), pos.z())) {
++            return List.of();
++        }
+         Map<Structure, LongSet> allReferences = this.level.getChunk(pos.x(), pos.z(), ChunkStatus.STRUCTURE_REFERENCES).getAllReferences(); // Folia - region threading
+         Builder<StructureStart> result = ImmutableList.builder();
+ 
+@@ -62,6 +_,9 @@
+     }
+ 
+     public List<StructureStart> startsForStructure(final SectionPos pos, final Structure structure) {
++        if (this.isOutsideTickRegion(pos.x(), pos.z())) {
++            return List.of();
++        }
+         LongSet referencesForStructure = this.level.getChunk(pos.x(), pos.z(), ChunkStatus.STRUCTURE_REFERENCES).getReferencesForStructure(structure);
+         Builder<StructureStart> result = ImmutableList.builder();
+         this.fillStartsForStructure(structure, referencesForStructure, result::add);
+@@ -71,6 +_,12 @@
+     public void fillStartsForStructure(final Structure structure, final LongSet referencesForStructure, final Consumer<StructureStart> consumer) {
+         for (long key : referencesForStructure) {
+             SectionPos sectionPos = SectionPos.of(ChunkPos.unpack(key), this.level.getMinSectionY());
++            // A structure may reference a start in a neighbouring region. Loading that
++            // chunk synchronously from this region tick would both violate Folia's
++            // ownership rules and crash ServerChunkCache.syncLoad.
++            if (this.isOutsideTickRegion(sectionPos.x(), sectionPos.z())) {
++                continue;
++            }
+             StructureStart start = this.getStartForStructure(
+                 sectionPos, structure, this.level.getChunk(sectionPos.x(), sectionPos.z(), ChunkStatus.STRUCTURE_STARTS)
+             );
+@@ -151,12 +_,24 @@
+ 
+     public boolean hasAnyStructureAt(final BlockPos pos) {
+         SectionPos sectionPos = SectionPos.of(pos);
++        if (this.isOutsideTickRegion(sectionPos.x(), sectionPos.z())) {
++            return false;
++        }
+         return this.level.getChunk(sectionPos.x(), sectionPos.z(), ChunkStatus.STRUCTURE_REFERENCES).hasAnyStructureReferences();
+     }
+ 
+     public Map<Structure, LongSet> getAllStructuresAt(final BlockPos pos) {
+         SectionPos sectionPos = SectionPos.of(pos);
++        if (this.isOutsideTickRegion(sectionPos.x(), sectionPos.z())) {
++            return Map.of();
++        }
+         return this.level.getChunk(sectionPos.x(), sectionPos.z(), ChunkStatus.STRUCTURE_REFERENCES).getAllReferences();
++    }
++
++    private boolean isOutsideTickRegion(final int chunkX, final int chunkZ) {
++        return this.level instanceof net.minecraft.server.level.ServerLevel serverLevel
++            && ca.spottedleaf.moonrise.common.util.TickThread.isTickThread()
++            && !ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(serverLevel, chunkX, chunkZ);
+     }
+ 
+     public StructureCheckResult checkStructurePresence(

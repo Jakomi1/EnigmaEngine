@@ -58,7 +58,9 @@ public class TickGuard {
         }
     }
 
-    // TODO - move this to Util when https://github.com/PaperMC/Paper/pull/13924 is merged
+    // This belongs in net.minecraft.Util once PaperMC/Paper#13924 lands upstream, which is what
+    // this method was copied from. Until then it has to stay here, otherwise the call sites
+    // cannot be switched over without duplicating the method again.
     public static void ensureGlobalOrStartup(final String reason) {
         if (RegionShutdownThread.isShutdownThread()) {
             // just pass, the shutdown thread owns all

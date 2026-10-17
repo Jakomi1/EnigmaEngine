@@ -1,0 +1,122 @@
+--- a/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
++++ b/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
+@@ -87,20 +_,20 @@
+         public Kick kick;
+ 
+         public class Kick extends ConfigurationPart {
+-            public Component authenticationServersDown = Component.translatable("multiplayer.disconnect.authservers_down");
+-            public Component connectionThrottle = Component.text("Connection throttled! Please wait before reconnecting.");
+-            public Component flyingPlayer = Component.translatable("multiplayer.disconnect.flying");
+-            public Component flyingVehicle = Component.translatable("multiplayer.disconnect.flying");
++            public Component authenticationServersDown = Component.text("Microsoft-Athenticator Server sind down!", NamedTextColor.RED);
++            public Component connectionThrottle = Component.text("Du rejoinst zu schnell!", NamedTextColor.RED);
++            public Component flyingPlayer = Component.text("Dein Bewegungs-Verhalten war auffällig (Automatischer Kick)", NamedTextColor.RED);
++            public Component flyingVehicle = Component.text("Dein Bewegungs-Verhalten war auffällig (Automatischer Kick)", NamedTextColor.RED);
+         }
+ 
+-        public Component noPermission = Component.text("I'm sorry, but you do not have permission to perform this command. Please contact the server administrators if you believe that this is in error.", NamedTextColor.RED);
++        public Component noPermission = Component.text("Du hast dazu keine Berechtigung", NamedTextColor.RED);
+         public boolean useDisplayNameInQuitMessage = false;
+     }
+ 
+     public Spark spark;
+ 
+     public class Spark extends ConfigurationPart {
+-        public boolean enabled = true;
++        public boolean enabled = false;
+         public boolean enableImmediately = false;
+     }
+ 
+@@ -146,14 +_,14 @@
+     public class Console extends ConfigurationPart {
+         public boolean enableBrigadierHighlighting = true;
+         public boolean enableBrigadierCompletions = true;
+-        public boolean hasAllPermissions = false;
++        public boolean hasAllPermissions = true;
+     }
+ 
+     public Watchdog watchdog;
+ 
+     public class Watchdog extends ConfigurationPart {
+         public int earlyWarningEvery = 5000;
+-        public int earlyWarningDelay = 10000;
++        public int earlyWarningDelay = 60000;
+     }
+ 
+     public SpamLimiter spamLimiter;
+@@ -170,20 +_,20 @@
+ 
+     public class UnsupportedSettings extends ConfigurationPart {
+         @Comment("This setting allows for exploits related to end portals, for example sand duping")
+-        public boolean allowUnsafeEndPortalTeleportation = false;
++        public boolean allowUnsafeEndPortalTeleportation = true;
+         @Comment("This setting controls the ability to enable dupes related to tripwires.")
+         public boolean skipTripwireHookPlacementValidation = false;
+         @Comment("This setting controls if players should be able to break bedrock, end portals and other intended to be permanent blocks.")
+-        public boolean allowPermanentBlockBreakExploits = false;
++        public boolean allowPermanentBlockBreakExploits = true;
+         @Comment("This setting controls if player should be able to use TNT duplication, but this also allows duplicating carpet, rails and potentially other items")
+-        public boolean allowPistonDuplication = false;
+-        public boolean performUsernameValidation = true;
++        public boolean allowPistonDuplication = true;
++        public boolean performUsernameValidation = false;
+         @Comment("This setting controls if players should be able to create headless pistons.")
+-        public boolean allowHeadlessPistons = false;
++        public boolean allowHeadlessPistons = true;
+         @Comment("This setting controls if the vanilla damage tick should be skipped if damage was blocked via a shield.")
+         public boolean skipVanillaDamageTickWhenShieldBlocked = false;
+         @Comment("This setting controls if equipment should be updated when handling certain player actions.")
+-        public boolean updateEquipmentOnPlayerActions = true;
++        public boolean updateEquipmentOnPlayerActions = false;
+         @Comment("This setting controls what item data components don't need to be sanitized in oversized item obfuscation. Adding them re-enables exploits, but may be needed for certain resource packs. (Expected: minecraft:container, minecraft:charged_projectiles and minecraft:bundle_contents)")
+         public OversizedItemComponentSanitizer.AssetOversizedItemComponentSanitizerConfiguration oversizedItemComponentSanitizer = new OversizedItemComponentSanitizer.AssetOversizedItemComponentSanitizerConfiguration(Set.of());
+     }
+@@ -191,7 +_,7 @@
+     public Commands commands;
+ 
+     public class Commands extends ConfigurationPart {
+-        public boolean suggestPlayerNamesWhenNullTabCompletions = true;
++        public boolean suggestPlayerNamesWhenNullTabCompletions = false;
+         @Comment("Allow mounting entities to a player in the Vanilla '/ride' command.")
+         public boolean rideCommandAllowPlayerAsVehicle = false;
+     }
+@@ -214,8 +_,8 @@
+ 
+     public class ChunkSystem extends ConfigurationPart {
+ 
+-        public int ioThreads = -1;
+-        public int workerThreads = -1;
++        public int ioThreads = 2;
++        public int workerThreads = 10;
+ 
+         @PostProcess
+         private void postProcess() {
+@@ -324,7 +_,7 @@
+         public boolean sendFullPosForItemEntities = false;
+         public boolean loadPermissionsYmlBeforePlugins = true;
+         @Constraints.Min(4)
+-        public int regionFileCacheSize = 256;
++        public int regionFileCacheSize = 512;
+         @Comment("See https://luckformula.emc.gs")
+         public boolean useAlternativeLuckFormula = false;
+         public boolean useDimensionTypeForCustomSpawners = false;
+@@ -394,16 +_,16 @@
+     public UpdateChecker updateChecker;
+ 
+     public class UpdateChecker extends ConfigurationPart {
+-        public boolean enabled = true;
++        public boolean enabled = false;
+     }
+     // Folia start - threaded regions
+ 
+     public ThreadedRegions threadedRegions;
+     public class ThreadedRegions extends ConfigurationPart {
+ 
+-        public int threads = -1;
++        public int threads = 10;
+         public int gridExponent = 4;
+-        public io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType scheduler = io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType.EDF;
++        public io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType scheduler = io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType.AFFINITY;
+ 
+         @PostProcess
+         public void postProcess() {

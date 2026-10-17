@@ -87,7 +87,7 @@ public interface RegionTickData {
      *
      * @return the CPU utilization of the region
      *
-     * @implNote The returned {@code double} is always between {code 0} and {@code 1}
+     * @implNote The returned {@code double} is always between {@code 0} and {@code 1}
      */
     double getUtilization(final Frame timeFrame);
 

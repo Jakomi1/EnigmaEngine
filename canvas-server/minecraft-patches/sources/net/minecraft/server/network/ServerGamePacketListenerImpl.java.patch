@@ -9,6 +9,17 @@
          this.chatMessageChain = new FutureChain(server.chatExecutor); // CraftBukkit - async chat
          this.commandSuggestionsProvider = new ServerCommandSuggestionsProvider(player);
          this.tickEndEvent = new io.papermc.paper.event.packet.ClientTickEndEvent(player.getBukkitEntity()); // Paper - add client tick end event
+        this.playerGameConnection = new io.papermc.paper.connection.PaperPlayerGameConnection(this); // Paper
+@@ -847,8 +_,7 @@
+            if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(
+                this.player.level(),
+                ca.spottedleaf.moonrise.common.util.CoordinateUtils.getChunkCoordinate(this.awaitingPositionFromClient.x),
+-                ca.spottedleaf.moonrise.common.util.CoordinateUtils.getChunkCoordinate(this.awaitingPositionFromClient.z),
+-                1
++                ca.spottedleaf.moonrise.common.util.CoordinateUtils.getChunkCoordinate(this.awaitingPositionFromClient.z)
+            )) {
+                LOGGER.warn("Disconnecting '{}' for out of region teleport accept", this.player.getScoreboardName());
+                this.disconnect(Component.translatable("multiplayer.disconnect.invalid_player_movement"), org.bukkit.event.player.PlayerKickEvent.Cause.INVALID_PLAYER_MOVEMENT);
 @@ -2607,7 +_,7 @@
          command = event.getMessage().substring(1);
          // CraftBukkit end

@@ -1,0 +1,92 @@
+
+> Configure project :
+Fabric Loom: 1.17.21
+
+> Task :tasks
+
+------------------------------------------------------------
+Tasks runnable from root project 'enigma-client'
+------------------------------------------------------------
+
+Build tasks
+-----------
+assemble - Assembles the outputs of this project.
+build - Assembles and tests this project.
+buildDependents - Assembles and tests this project and all projects that depend on it.
+buildNeeded - Assembles and tests this project and all projects it depends on.
+classes - Assembles main classes.
+clean - Deletes the build directory.
+jar - Assembles a jar archive containing the classes of the 'main' feature.
+sourcesJar - Assembles a jar archive containing the main sources.
+testClasses - Assembles test classes.
+
+Build Setup tasks
+-----------------
+init - Initializes a new Gradle build.
+updateDaemonJvm - Generates or updates the Gradle Daemon JVM criteria.
+wrapper - Generates Gradle wrapper files.
+
+Documentation tasks
+-------------------
+javadoc - Generates Javadoc API documentation for the 'main' feature.
+
+Fabric tasks
+------------
+configureClientLaunch - Setup the required files to launch the Minecraft client
+configureLaunch - Setup the required files to launch Minecraft
+downloadAssets - Downloads required game assets for Minecraft.
+downloadRenderDoc
+exportClasspath
+extractRenderDoc
+generateDLIConfig - Generate the DevLaunchInjector config file
+generateLog4jConfig - Generate the log4j config file
+genSources - Decompile minecraft using the default decompiler.
+genSourcesWithCfr - Decompile minecraft using Cfr.
+genSourcesWithVineflower - Decompile minecraft using Vineflower.
+processIncludeJars
+runClient - Starts the 'client' run configuration
+runClientRenderDoc
+runServer - Starts the 'server' run configuration
+startRenderDocUI
+
+Help tasks
+----------
+artifactTransforms - Displays the Artifact Transforms that can be executed in root project 'enigma-client'.
+buildEnvironment - Displays all buildscript dependencies declared in root project 'enigma-client'.
+dependencies - Displays all dependencies declared in root project 'enigma-client'.
+dependencyInsight - Displays the insight into a specific dependency in root project 'enigma-client'.
+help - Displays a help message.
+javaToolchains - Displays the detected java toolchains.
+kotlinDslAccessorsReport - Prints the Kotlin code for accessing the currently available project extensions.
+outgoingVariants - Displays the outgoing variants of root project 'enigma-client'.
+projects - Displays the sub-projects of root project 'enigma-client'.
+properties - Displays the properties of root project 'enigma-client'.
+resolvableConfigurations - Displays the configurations that can be resolved in root project 'enigma-client'.
+tasks - Displays the tasks runnable from root project 'enigma-client'.
+
+IDE tasks
+---------
+cleanEclipse - Cleans all Eclipse files.
+eclipse - Generates all Eclipse files.
+genEclipseRuns - Generates Eclipse run configurations for this project.
+ideaSyncTask
+vscode - Generates VSCode launch configurations.
+
+Verification tasks
+------------------
+check - Runs all checks.
+test - Runs the test suite.
+validateAccessWidener - Validate all the rules in the access widener against the Minecraft jar
+
+Rules
+-----
+Pattern: clean<TaskName>: Cleans the output files of a task.
+Pattern: build<ConfigurationName>: Assembles the artifacts of a configuration.
+
+To see all tasks and more detail, run gradlew tasks --all
+
+To see more detail about a task, run gradlew help --task <task>
+
+BUILD SUCCESSFUL in 1s
+1 actionable task: 1 executed
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.1/userguide/configuration_cache_enabling.html

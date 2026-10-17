@@ -40,15 +40,22 @@ public class RegionizedTpsBar extends RegionResourceBar {
     }
 
     Pair<Component, Float> buildComponent() {
-        final TickData.TickReportData tickReportData = getWorldData().regionData.getRegionSchedulingHandle().getTickReport5s(System.nanoTime());
-        final TickData.SegmentedAverage tpsAverage = tickReportData.tpsData();
-        final TickData.SegmentedAverage msptAverage = tickReportData.timePerTickData();
-
-        final double utilPercent = tickReportData.utilisation() * 100;
-        final double tps = tpsAverage.segmentAll().average();
-        final double mspt = msptAverage.segmentAll().average() / 1.0E6;
+        final TickRegionScheduler.RegionScheduleHandle scheduleHandle = getWorldData().regionData.getRegionSchedulingHandle();
+        final TickData.TickReportData tickReportData = scheduleHandle != null ? scheduleHandle.getTickReport5s(System.nanoTime()) : null;
+        final double utilPercent;
+        final double tps;
+        final double mspt;
+        if (tickReportData != null && tickReportData.tpsData() != null && tickReportData.timePerTickData() != null) {
+            utilPercent = tickReportData.utilisation() * 100;
+            tps = tickReportData.tpsData().segmentAll().average();
+            mspt = tickReportData.timePerTickData().segmentAll().average() / 1.0E6;
+        } else {
+            utilPercent = 0.0;
+            tps = 20.0;
+            mspt = 0.0;
+        }
         final int players = getWorldData().getPlayerCount();
-        final boolean sprinting = getWorldData().regionData.getRegionSchedulingHandle().getTickManager().isSprinting();
+        final boolean sprinting = scheduleHandle != null && scheduleHandle.getTickManager().isSprinting();
         final String raw = getWorldData().world.canvasConfig().regionBars.tpsBarFormat;
         final String effectiveRaw = (raw == null || raw.isBlank()) ? "" : raw;
 

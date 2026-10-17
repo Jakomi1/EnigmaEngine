@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
+import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
 import io.canvasmc.canvas.world.RegionResourceBar;
 import java.util.Collection;
@@ -22,7 +23,7 @@ public class RegionBarSubCommand implements SubCommand {
         Component.literal("Invalid placement: must be \"action_bar\" or \"boss_bar\".")
     );
     private static final SimpleCommandExceptionType INVALID_BAR_TYPE = new SimpleCommandExceptionType(
-        Component.literal("Invalid bar type: must be \"tps_bar\" or \"ram_bar\".")
+        Component.literal("Invalid bar type: must be \"tps_bar\", \"ram_bar\" or \"cpu_bar\".")
     );
 
     @Override
@@ -105,6 +106,7 @@ public class RegionBarSubCommand implements SubCommand {
         return switch (str.toLowerCase()) {
             case "tps_bar" -> BarType.TPS_BAR;
             case "ram_bar" -> BarType.RAM_BAR;
+            case "cpu_bar" -> BarType.CPU_BAR;
             default -> throw INVALID_BAR_TYPE.create();
         };
     }
@@ -113,6 +115,7 @@ public class RegionBarSubCommand implements SubCommand {
         final RegionResourceBar.DisplayManager display = switch (barType) {
             case RAM_BAR -> entityPlayer.canvas$ramBarDisplay;
             case TPS_BAR -> entityPlayer.canvas$tpsBarDisplay;
+            case CPU_BAR -> entityPlayer.canvas$cpuBarDisplay;
         };
         final RegionResourceBar.Entry current = display.serializeDisplay();
         final RegionResourceBar.Entry updated = new RegionResourceBar.Entry(!current.enabled(), current.placement());
@@ -120,9 +123,11 @@ public class RegionBarSubCommand implements SubCommand {
         // update the display
         display.updateFromEntry(updated);
 
-        final String message = (updated.enabled() ? "Enabled " : "Disabled ") +
-            barType.name() + " for " + entityPlayer.getName().getString();
-        source.sendSuccess(() -> Component.literal(message), true);
+        Style.bullets()
+            .bullet(barType.name() + " for " + entityPlayer.getName().getString(),
+                updated.enabled() ? "enabled" : "disabled",
+                updated.enabled() ? Style.good() : Style.SECONDARY)
+            .send(source);
     }
 
     private static void setRegionBarPlacement(
@@ -135,6 +140,7 @@ public class RegionBarSubCommand implements SubCommand {
         final RegionResourceBar.DisplayManager display = switch (barType) {
             case RAM_BAR -> entityPlayer.canvas$ramBarDisplay;
             case TPS_BAR -> entityPlayer.canvas$tpsBarDisplay;
+            case CPU_BAR -> entityPlayer.canvas$cpuBarDisplay;
         };
         final RegionResourceBar.Entry current = display.serializeDisplay();
         final RegionResourceBar.Entry updated = new RegionResourceBar.Entry(current.enabled(), newPlacement);
@@ -142,13 +148,14 @@ public class RegionBarSubCommand implements SubCommand {
         // update the display
         display.updateFromEntry(updated);
 
-        final String message = "Set " + barType.name() + " bar placement for " + entityPlayer.getName().getString() +
-            " to " + argName;
-        source.sendSuccess(() -> Component.literal(message), true);
+        Style.bullets()
+            .bullet(barType.name() + " placement for " + entityPlayer.getName().getString(), argName, Style.INFORMATION)
+            .send(source);
     }
 
     private enum BarType {
         TPS_BAR,
-        RAM_BAR
+        RAM_BAR,
+        CPU_BAR
     }
 }

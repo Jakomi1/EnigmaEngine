@@ -1,0 +1,37 @@
+Starting a Gradle Daemon (subsequent builds will be faster)
+Calculating task graph as no cached configuration is available for tasks: buildEnigmaClient
+Type-safe project accessors is an incubating feature.
+
+> Configure project :
+weaver-patcher v2.4.5 (running on 'Windows 11')
+
+> Configure project :canvas-server
+weaver-core v2.4.5 (running on 'Windows 11')
+
+> Task :buildEnigmaClient
+
+> Configure project :
+Fabric Loom: 1.17.21
+
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :processIncludeJars UP-TO-DATE
+> Task :jar UP-TO-DATE
+> Task :sourcesJar UP-TO-DATE
+> Task :assemble UP-TO-DATE
+> Task :compileTestJava NO-SOURCE
+> Task :processTestResources NO-SOURCE
+> Task :testClasses UP-TO-DATE
+> Task :test NO-SOURCE
+> Task :validateAccessWidener NO-SOURCE
+> Task :check UP-TO-DATE
+> Task :build UP-TO-DATE
+
+BUILD SUCCESSFUL in 1s
+5 actionable tasks: 5 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.1/userguide/configuration_cache_enabling.html
+
+BUILD SUCCESSFUL in 9s
+1 actionable task: 1 executed
+Configuration cache entry stored.
