@@ -8,7 +8,7 @@
 +            public boolean enabled = true;
              public EngineMode engineMode = EngineMode.HIDE;
 -            public int maxBlockHeight = 64;
-+            public int maxBlockHeight = 100;
++            public int maxBlockHeight = 200;
              public int updateRadius = 2;
 -            public boolean lavaObscures = false;
 +            public boolean lavaObscures = true;
