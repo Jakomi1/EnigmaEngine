@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "io.enigmaclient.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "plugin": "io.enigmaclient.mixin.EnigmaMixinPlugin",
+  "client": [
+    "xaero.MinimapHighlighterRegistryMixin",
+    "xaero.WorldMapHighlighterRegistryMixin",
+    "xaero.MinimapDimensionHighlighterHandlerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
