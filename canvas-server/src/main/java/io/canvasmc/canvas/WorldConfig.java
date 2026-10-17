@@ -41,6 +41,9 @@ public class WorldConfig extends Part {
             "<gradient:blue:aqua><b>Players:</b></gradient> <players>";
     public static final String DEFAULT_RAMBAR_FORMAT =
         "<gradient:green:dark_green><b>RAM:</b></gradient> <used>/<xmx> <dark_gray>(</dark_gray><percent><dark_gray>%)</dark_gray>";
+    public static final String DEFAULT_CPUBAR_FORMAT =
+        "<gradient:light_purple:aqua><b>Cores:</b></gradient> <cores> <dark_gray>-</dark_gray> " +
+            "<gradient:light_purple:aqua><b>CPU:</b></gradient> <cpu>";
 
     // note that Canvas core utilities and loggers and such should go in the global configuration class, as this one
     // doesn't entirely seem that appropriate for that sort of stuff
@@ -111,9 +114,9 @@ public class WorldConfig extends Part {
                 ).endLine()
                 .blank()
                 .wordWrap(
-                    "All defaults for the options provided in this configuration are configured for upstream",
-                    "compatibility over performance. You must do some manual configuration to get some of the performance",
-                    "benefits EnigmaEngine provides."
+                    "The defaults for the options provided in this configuration ship pre-tuned for the recommended",
+                    "EnigmaEngine setup. They can still be adjusted per world or per deployment, but the defaults",
+                    "already enable the performance benefits EnigmaEngine provides."
                 ).endLine()
                 .blank()
                 .wordWrap(
@@ -221,6 +224,13 @@ public class WorldConfig extends Part {
                     "MiniMessage-formatted line for the RAM bar. Placeholders are <used>, <xmx>, <percent>.",
                     "Legacy tokens(%used%, %xmx%, %percent%) are also accepted and auto-converted."
                 ).greedyString();
+            option("enableCpuBar").docs("Enables a regionized per-core CPU-Bar implementation for EnigmaEngine.");
+            option("cpuBarFormat")
+                .docs(
+                    "MiniMessage-formatted line for the CPU bar. Placeholders are <cpu> (process load %),",
+                    "<sys> (system load %) and <cores> (per-core utilisation, Linux only).",
+                    "Legacy tokens(%cpu%, %sys%, %cores%) are also accepted and auto-converted."
+                ).greedyString();
         }
 
         public boolean enableTpsBar = true;
@@ -228,6 +238,9 @@ public class WorldConfig extends Part {
 
         public boolean enableRamBar = true;
         public String ramBarFormat = DEFAULT_RAMBAR_FORMAT;
+
+        public boolean enableCpuBar = true;
+        public String cpuBarFormat = DEFAULT_CPUBAR_FORMAT;
     }
 
     public Visuals visuals = new Visuals();
@@ -255,8 +268,8 @@ public class WorldConfig extends Part {
             }
 
             public boolean disableSprintParticles = false;
-            public boolean disableFallParticles = false;
-            public boolean disableDeathParticles = false;
+            public boolean disableFallParticles = true;
+            public boolean disableDeathParticles = true;
             public boolean disableEffectParticles = false;
             public boolean disableWaterSplashParticles = false;
             public boolean disableBubbleColumnParticles = false;
@@ -325,7 +338,7 @@ public class WorldConfig extends Part {
                 );
         }
 
-        public boolean fastOrbs = false;
+        public boolean fastOrbs = true;
 
         public ItemEntities itemEntities = new ItemEntities();
         public static class ItemEntities extends Part {
@@ -414,9 +427,9 @@ public class WorldConfig extends Part {
             }
 
             @Undocumented("Doesn't require docs.")
-            public int maxProjectileChunkLoadsPerTick = 10;
+            public int maxProjectileChunkLoadsPerTick = 2;
             @Undocumented("Doesn't require docs.")
-            public int maxProjectileChunkLoadsPerProjectileBeforeRemoval = 10;
+            public int maxProjectileChunkLoadsPerProjectileBeforeRemoval = 4;
             public List<String> loadChunks = new ArrayList<>();
             public boolean crossRegionRedirectableProjectileDeflection = false;
 
@@ -448,10 +461,10 @@ public class WorldConfig extends Part {
                     .docs("Whether the server should allow Villagers to load unloaded chunks for Villagers to locate POIs");
             }
 
-            public boolean villagerAcquirePoiTasksLoadChunks = true;
-            public boolean reduceJobSitePoiSearchRange = false;
-            public boolean reduceHomePoiSearchRange = false;
-            public boolean reduceMeetingPointPoiSearchRange = false;
+            public boolean villagerAcquirePoiTasksLoadChunks = false;
+            public boolean reduceJobSitePoiSearchRange = true;
+            public boolean reduceHomePoiSearchRange = true;
+            public boolean reduceMeetingPointPoiSearchRange = true;
         }
 
         @Undocumented("Doesn't require docs.")
@@ -575,8 +588,8 @@ public class WorldConfig extends Part {
 
     public double waypointUpdateScale = 4000.0D;
     public boolean disableCriterionTrigger = false;
-    public boolean cactusCheckSurvivalBeforeGrowth = false;
-    public boolean enableSuffocationOptimization = false;
+    public boolean cactusCheckSurvivalBeforeGrowth = true;
+    public boolean enableSuffocationOptimization = true;
 
     public Sleeping sleeping = new Sleeping();
 

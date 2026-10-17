@@ -1,6 +1,6 @@
 --- a/io/papermc/paper/threadedregions/ThreadedRegionizer.java
 +++ b/io/papermc/paper/threadedregions/ThreadedRegionizer.java
-@@ -268,6 +_,604 @@
+@@ -268,6 +_,638 @@
          }
      }
  
@@ -208,10 +208,35 @@
 +        if (!settings.enabled()) {
 +            return 0;
 +        }
-+        final List<ThreadedRegion<R, S>> candidates = new ArrayList<>();
++        final List<ThreadedRegion<R, S>> snapshot = new ArrayList<>();
 +        // Take an unsynchronised snapshot first so the write lock is only ever held while actually
 +        // mutating. Dead or transient entries in the snapshot are re-checked under the lock.
-+        this.computeForAllRegionsUnsynchronised(candidates::add);
++        this.computeForAllRegionsUnsynchronised(snapshot::add);
++
++        // Enigma start - skip the write lock when there is nothing to collect
++        // Only a ready, merge-free region that currently owns no chunks is worth collecting, and
++        // almost every pass finds none. Filter the snapshot first and never take the regionizer
++        // write lock in that case. The lock used to be taken on every tick (split-pass-interval-ticks
++        // defaults to 1), which forced every region tick thread that needed a read lock to stall and
++        // showed up as tick overruns at low CPU utilisation. These reads may be stale: anything kept
++        // is re-checked under the lock below, and anything missed is picked up on the next pass.
++        final List<ThreadedRegion<R, S>> candidates = new ArrayList<>();
++        for (final ThreadedRegion<R, S> region : snapshot) {
++            if (region.isDead() || region.state != ThreadedRegion.STATE_READY) {
++                continue;
++            }
++            if (!region.mergeIntoLater.isEmpty() || !region.expectingMergeFrom.isEmpty()) {
++                continue;
++            }
++            if (!region.getOwnedChunks().isEmpty()) {
++                continue;
++            }
++            candidates.add(region);
++        }
++        if (candidates.isEmpty()) {
++            return 0;
++        }
++        // Enigma end - skip the write lock when there is nothing to collect
 +
 +        int released = 0;
 +        int absorbed = 0;
@@ -346,14 +371,18 @@
 +        if (sectionCount <= 1) {
 +            return false;
 +        }
-+        if (sectionCount > settings.splitMaxSections()) {
-+            return true;
-+        }
 +        if (sectionCount < settings.splitMinSize()) {
 +            return false;
 +        }
++        // The cooldown must gate every split, including the oversized fast path below. Otherwise a
++        // region that cannot actually be split (for example because coalescing rejects the plan to
++        // preserve the buffer invariant) is re-partitioned on every single chunk release, and the
++        // partitioner dominates the tick at a time when the region holds almost no players.
 +        if (System.currentTimeMillis() - region.enigma$lastSplitTime < settings.splitCooldownMillis()) {
 +            return false;
++        }
++        if (sectionCount > settings.splitMaxSections()) {
++            return true;
 +        }
 +        double mspt = 0.0D;
 +        if (region.data instanceof TickRegions.TickRegionData tickData) {
@@ -424,6 +453,11 @@
 +        if (!settings.enabled()) {
 +            return false;
 +        }
++
++        // Record the attempt before partitioning. When the partitioner's result is later discarded
++        // (buffer-neighbourhood coalescing), the region must still observe the split cooldown so the
++        // next chunk release does not immediately re-run this whole O(n log n) partition.
++        region.enigma$lastSplitTime = System.currentTimeMillis();
 +
 +        // A region is a schedulable work unit, not a dedicated thread. Do not cap
 +        // partitions at Runtime.availableProcessors(): containers often report one

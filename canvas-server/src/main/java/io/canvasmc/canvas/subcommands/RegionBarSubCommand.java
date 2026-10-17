@@ -23,7 +23,7 @@ public class RegionBarSubCommand implements SubCommand {
         Component.literal("Invalid placement: must be \"action_bar\" or \"boss_bar\".")
     );
     private static final SimpleCommandExceptionType INVALID_BAR_TYPE = new SimpleCommandExceptionType(
-        Component.literal("Invalid bar type: must be \"tps_bar\" or \"ram_bar\".")
+        Component.literal("Invalid bar type: must be \"tps_bar\", \"ram_bar\" or \"cpu_bar\".")
     );
 
     @Override
@@ -106,6 +106,7 @@ public class RegionBarSubCommand implements SubCommand {
         return switch (str.toLowerCase()) {
             case "tps_bar" -> BarType.TPS_BAR;
             case "ram_bar" -> BarType.RAM_BAR;
+            case "cpu_bar" -> BarType.CPU_BAR;
             default -> throw INVALID_BAR_TYPE.create();
         };
     }
@@ -114,6 +115,7 @@ public class RegionBarSubCommand implements SubCommand {
         final RegionResourceBar.DisplayManager display = switch (barType) {
             case RAM_BAR -> entityPlayer.canvas$ramBarDisplay;
             case TPS_BAR -> entityPlayer.canvas$tpsBarDisplay;
+            case CPU_BAR -> entityPlayer.canvas$cpuBarDisplay;
         };
         final RegionResourceBar.Entry current = display.serializeDisplay();
         final RegionResourceBar.Entry updated = new RegionResourceBar.Entry(!current.enabled(), current.placement());
@@ -138,6 +140,7 @@ public class RegionBarSubCommand implements SubCommand {
         final RegionResourceBar.DisplayManager display = switch (barType) {
             case RAM_BAR -> entityPlayer.canvas$ramBarDisplay;
             case TPS_BAR -> entityPlayer.canvas$tpsBarDisplay;
+            case CPU_BAR -> entityPlayer.canvas$cpuBarDisplay;
         };
         final RegionResourceBar.Entry current = display.serializeDisplay();
         final RegionResourceBar.Entry updated = new RegionResourceBar.Entry(current.enabled(), newPlacement);
@@ -152,6 +155,7 @@ public class RegionBarSubCommand implements SubCommand {
 
     private enum BarType {
         TPS_BAR,
-        RAM_BAR
+        RAM_BAR,
+        CPU_BAR
     }
 }

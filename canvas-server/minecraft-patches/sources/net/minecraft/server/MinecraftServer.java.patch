@@ -50,12 +50,13 @@
  
              while (this.running) {
                  final long tickStart = System.nanoTime(); // Paper - improve tick loop
-@@ -1837,6 +_,8 @@
+@@ -1837,6 +_,9 @@
          if (false) while (!this.processQueue.isEmpty()) { // Folia - region threading
              this.processQueue.remove().run();
          }
 +        region.world.getCurrentWorldData().getCanvasWorldData().tpsbar.tick(); // Canvas - tpsbar
 +        region.world.getCurrentWorldData().getCanvasWorldData().rambar.tick(); // Canvas - rambar
++        region.world.getCurrentWorldData().getCanvasWorldData().cpubar.tick(); // Canvas - cpubar
  
          this.updateEffectiveRespawnData();
  

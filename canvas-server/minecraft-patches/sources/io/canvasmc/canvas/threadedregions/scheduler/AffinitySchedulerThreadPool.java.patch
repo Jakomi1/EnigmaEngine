@@ -1,5 +1,80 @@
 --- a/io/canvasmc/canvas/threadedregions/scheduler/AffinitySchedulerThreadPool.java
 +++ b/io/canvasmc/canvas/threadedregions/scheduler/AffinitySchedulerThreadPool.java
+@@ -47,6 +_,16 @@
+     public static final long DEFAULT_STEAL_THRESH_MILLIS = 3L;
+     public static final double DEFAULT_RUN_TASKS_BUFFER_MILLIS = (double) 80_000 / 1_000_000; // 0.08ms
+ 
++    // Canvas start - coarse scheduler timer compensation
++    // On platforms whose scheduler timer has a coarse granularity (notably Windows, ~15.6ms),
++    // LockSupport.parkNanos() does not wake at the requested time but up to one timer period later.
++    // Region tick threads then start their tick after the scheduled deadline, which drifts the region
++    // schedule below the server tick rate (sub-20 TPS) even when CPU usage and MSPT are low.
++    // To hit the deadline we only park up to this window before it and spin the remainder. Linux uses
++    // precise nanosecond timers, so no spin is needed and the behaviour there is unchanged.
++    private static final long DEADLINE_SPIN_WINDOW_NS = CpuInfoReport.isLinux() ? 0L : 16_000_000L; // 16ms
++    // Canvas end
++
+     static final Comparator<AffinitySchedulerThreadPool.ScheduledState> TICK_COMPARATOR_BY_TIME = (final AffinitySchedulerThreadPool.ScheduledState s1, final AffinitySchedulerThreadPool.ScheduledState s2) -> {
+         final SchedulableTick t1 = s1.tick;
+         final SchedulableTick t2 = s2.tick;
+@@ -357,9 +_,22 @@
+             best = globalHead;
+         }
+ 
+-        final TickThreadRunner stealingFrom = runners[nextSteal.getAndUpdate(v -> (v + 1) % runners.length)];
++        // Steal from the most loaded runner instead of an arbitrary round-robin victim so
++        // backlog drains from the hot workers instead of being pulled from random ones.
++        // The per task steal deadline above still gates whether stealing is allowed at all;
++        // this only decides which worker to take the task from once it is.
++        TickThreadRunner stealingFrom = null;
++        int stealFromLoad = -1;
++        for (final TickThreadRunner candidate : runners) {
++            if (candidate == runner) continue;
++            final int load = candidate.localQueue.size();
++            if (load > stealFromLoad) {
++                stealFromLoad = load;
++                stealingFrom = candidate;
++            }
++        }
+ 
+-        if (stealingFrom != runner) {
++        if (stealingFrom != null) {
+             final ScheduledState stealCandidate = stealingFrom.localQueue.peekEdf();
+             if (stealCandidate != null && stealCandidate.isStealable(now)) {
+                 if (best == null ||
+@@ -384,15 +_,25 @@
+             if (runner.linked == task.tick) return;
+         }
+ 
+-        // iterate all idle threads, not just the first one
++        // Pick the least loaded idle runner instead of always taking the lowest index, so
++        // freshly scheduled regions land on the worker with the most headroom.
++        TickThreadRunner bestIdle = null;
++        int bestIdleLoad = Integer.MAX_VALUE;
+         for (int i = this.idleThreads.nextSetBit(0); i >= 0; i = this.idleThreads.nextSetBit(i + 1)) {
+-            final TickThreadRunner runner = runners[i];
+-            if (runner.linked == null) {
+-                // push to idle thread
+-                this.idleThreads.clear(i);
+-                runner.acceptTask(task);
+-                return;
++            final TickThreadRunner candidate = runners[i];
++            if (candidate.linked != null) continue;
++            final int load = candidate.localQueue.size();
++            if (load < bestIdleLoad) {
++                bestIdleLoad = load;
++                bestIdle = candidate;
++                if (load == 0) break;
+             }
++        }
++
++        if (bestIdle != null) {
++            this.idleThreads.clear(bestIdle.id);
++            bestIdle.acceptTask(task);
++            return;
+         }
+ 
+         // add to queue, will be picked up later
 @@ -485,7 +_,11 @@
          }
  
@@ -13,3 +88,33 @@
          }
      }
  
+@@ -840,7 +_,28 @@
+                 // shouldn't or couldn't run tasks, park until deadline
+                 //noinspection ResultOfMethodCallIgnored
+                 Thread.interrupted();
+-                LockSupport.parkNanos(startState, diff);
++                // Canvas start - coarse scheduler timer compensation
++                if (DEADLINE_SPIN_WINDOW_NS > 0L) {
++                    if (diff > DEADLINE_SPIN_WINDOW_NS) {
++                        // park up to the spin window before the deadline, then spin the remainder below
++                        LockSupport.parkNanos(startState, diff - DEADLINE_SPIN_WINDOW_NS);
++                    }
++                    else {
++                        // too close to the deadline to park accurately; spin until the deadline,
++                        // bailing out if the runner state changed or a task needs to be serviced
++                        int spin = 0;
++                        while ((deadline - System.nanoTime()) > 0L && this.state == startState && !this.scheduler.halted) {
++                            if ((++spin & 0xFF) == 0 && startStateTask.peekHasTasks()) {
++                                break;
++                            }
++                            Thread.onSpinWait();
++                        }
++                    }
++                }
++                else {
++                    LockSupport.parkNanos(startState, diff);
++                }
++                // Canvas end
+                 if (this.scheduler.halted) {
+                     // just continue to the head of the loop again
+                     // we have a check there for if we halted

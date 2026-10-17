@@ -666,21 +666,21 @@ public final class LoadScaling {
 
     private static NavigableMap<Integer, WorldSettings> defaultLevels() {
         final NavigableMap<Integer, WorldSettings> defaults = new TreeMap<>();
-        defaults.put(0, new WorldSettings(12, 10, 24, Map.of("monster", 70, "animal", 10, "water_animal", 5), Map.of("monster", 1)));
-        defaults.put(5, new WorldSettings(11, 9, 23, Map.of("monster", 56, "animal", 8, "water_animal", 5), Map.of("monster", 1)));
-        defaults.put(10, new WorldSettings(11, 9, 22, Map.of("monster", 46, "animal", 7, "water_animal", 4), Map.of("monster", 2)));
-        defaults.put(15, new WorldSettings(10, 8, 20, Map.of("monster", 38, "animal", 6, "water_animal", 3), Map.of("monster", 2)));
-        defaults.put(20, new WorldSettings(9, 7, 19, Map.of("monster", 31, "animal", 5, "water_animal", 3), Map.of("monster", 3)));
-        defaults.put(25, new WorldSettings(9, 7, 17, Map.of("monster", 25, "animal", 4, "water_animal", 2), Map.of("monster", 3)));
-        defaults.put(30, new WorldSettings(8, 6, 16, Map.of("monster", 19, "animal", 3, "water_animal", 2), Map.of("monster", 4)));
-        defaults.put(35, new WorldSettings(7, 5, 15, Map.of("monster", 15, "animal", 3, "water_animal", 2), Map.of("monster", 4)));
-        defaults.put(40, new WorldSettings(6, 4, 14, Map.of("monster", 12, "animal", 2, "water_animal", 1), Map.of("monster", 5)));
-        defaults.put(45, new WorldSettings(6, 4, 13, Map.of("monster", 9, "animal", 2, "water_animal", 1), Map.of("monster", 5)));
-        defaults.put(50, new WorldSettings(5, 3, 12, Map.of("monster", 7, "animal", 1, "water_animal", 1), Map.of("monster", 6)));
-        defaults.put(60, new WorldSettings(5, 3, 11, Map.of("monster", 5, "animal", 1, "water_animal", 1), Map.of("monster", 7)));
-        defaults.put(75, new WorldSettings(4, 2, 10, Map.of("monster", 4, "animal", 1, "water_animal", 1), Map.of("monster", 8)));
-        defaults.put(100, new WorldSettings(4, 2, 8, Map.of("monster", 3, "animal", 1, "water_animal", 1), Map.of("monster", 9)));
-        defaults.put(150, new WorldSettings(4, 2, 6, Map.of("monster", 2, "animal", 1, "water_animal", 1), Map.of("monster", 10)));
+        defaults.put(0, new WorldSettings(8, 6, 24, Map.of("monster", 88, "animal", 13, "water_animal", 6), Map.of("monster", 1, "animal", 1, "water_animal", 1)));
+        defaults.put(5, new WorldSettings(8, 5, 23, Map.of("monster", 70, "animal", 10, "water_animal", 6), Map.of("monster", 1, "animal", 1, "water_animal", 1)));
+        defaults.put(10, new WorldSettings(8, 5, 22, Map.of("monster", 58, "animal", 9, "water_animal", 5), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
+        defaults.put(15, new WorldSettings(7, 4, 20, Map.of("monster", 48, "animal", 8, "water_animal", 4), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
+        defaults.put(20, new WorldSettings(7, 4, 19, Map.of("monster", 39, "animal", 6, "water_animal", 4), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
+        defaults.put(25, new WorldSettings(6, 4, 17, Map.of("monster", 31, "animal", 5, "water_animal", 3), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
+        defaults.put(30, new WorldSettings(6, 3, 16, Map.of("monster", 24, "animal", 4, "water_animal", 3), Map.of("monster", 3, "animal", 3, "water_animal", 3)));
+        defaults.put(35, new WorldSettings(6, 3, 15, Map.of("monster", 19, "animal", 4, "water_animal", 3), Map.of("monster", 3, "animal", 3, "water_animal", 3)));
+        defaults.put(40, new WorldSettings(5, 3, 14, Map.of("monster", 15, "animal", 3, "water_animal", 1), Map.of("monster", 4, "animal", 4, "water_animal", 4)));
+        defaults.put(45, new WorldSettings(5, 3, 13, Map.of("monster", 11, "animal", 3, "water_animal", 1), Map.of("monster", 4, "animal", 4, "water_animal", 4)));
+        defaults.put(50, new WorldSettings(5, 2, 12, Map.of("monster", 9, "animal", 1, "water_animal", 1), Map.of("monster", 5, "animal", 5, "water_animal", 5)));
+        defaults.put(60, new WorldSettings(4, 2, 11, Map.of("monster", 5, "animal", 1, "water_animal", 1), Map.of("monster", 7, "animal", 7, "water_animal", 7)));
+        defaults.put(75, new WorldSettings(4, 2, 10, Map.of("monster", 4, "animal", 1, "water_animal", 1), Map.of("monster", 8, "animal", 8, "water_animal", 8)));
+        defaults.put(100, new WorldSettings(4, 2, 8, Map.of("monster", 3, "animal", 1, "water_animal", 1), Map.of("monster", 9, "animal", 9, "water_animal", 9)));
+        defaults.put(150, new WorldSettings(4, 2, 6, Map.of("monster", 2, "animal", 1, "water_animal", 1), Map.of("monster", 10, "animal", 10, "water_animal", 10)));
         return Collections.unmodifiableNavigableMap(defaults);
     }
 
@@ -812,8 +812,11 @@ public final class LoadScaling {
         }
 
         final double factor = 1.0D;
-        applySpawnLimits(io.papermc.paper.threadedregions.RegionizedServer.getInstance(), level, selected, base, factor, worldOverride);
-        applyTicksPerSpawn(level, selected, base, factor, worldOverride);
+        // Canvas start - the nether always runs with doubled spawn caps and doubled spawn rates on top of the selected level
+        final double spawnMultiplier = isNetherDimension(dimensionName) ? 2.0D : 1.0D;
+        // Canvas end - the nether always runs with doubled spawn caps and doubled spawn rates on top of the selected level
+        applySpawnLimits(io.papermc.paper.threadedregions.RegionizedServer.getInstance(), level, selected, base, factor, worldOverride, spawnMultiplier);
+        applyTicksPerSpawn(level, selected, base, factor, worldOverride, spawnMultiplier);
     }
 
     private static int applyOverride(final int override) {
@@ -840,12 +843,19 @@ public final class LoadScaling {
         return Math.max(2, Math.min(32, value));
     }
 
+    // Canvas start - detect the nether so its spawn caps and rates can be doubled per level
+    private static boolean isNetherDimension(final String dimensionPath) {
+        return "the_nether".equals(dimensionPath);
+    }
+    // Canvas end - detect the nether so its spawn caps and rates can be doubled per level
+
     private static void applySpawnLimits(
         final io.papermc.paper.threadedregions.RegionizedServer regionizedServer, final ServerLevel level,
         final Map.Entry<Integer, WorldSettings> selected,
         final Map.Entry<Integer, WorldSettings> base,
         final double factor,
-        final WorldSettings worldOverride
+        final WorldSettings worldOverride,
+        final double spawnMultiplier
     ) {
         final org.bukkit.World world = level.getWorld();
         if (world == null) {
@@ -866,12 +876,15 @@ public final class LoadScaling {
                 value = target;
             }
             if (value > 0) {
+                // Canvas start - apply the per-dimension spawn cap multiplier (the nether doubles its caps)
+                final int applied = spawnMultiplier == 1.0D ? value : (int) Math.round(value * spawnMultiplier);
+                // Canvas end - apply the per-dimension spawn cap multiplier (the nether doubles its caps)
                 switch (key) {
-                    case "monster" -> world.setMonsterSpawnLimit(value);
-                    case "animal" -> world.setAnimalSpawnLimit(value);
-                    case "ambient" -> world.setAmbientSpawnLimit(value);
-                    case "water_animal" -> world.setWaterAnimalSpawnLimit(value);
-                    case "water_ambient" -> world.setWaterAmbientSpawnLimit(value);
+                    case "monster" -> world.setMonsterSpawnLimit(applied);
+                    case "animal" -> world.setAnimalSpawnLimit(applied);
+                    case "ambient" -> world.setAmbientSpawnLimit(applied);
+                    case "water_animal" -> world.setWaterAnimalSpawnLimit(applied);
+                    case "water_ambient" -> world.setWaterAmbientSpawnLimit(applied);
                 }
             }
         }
@@ -882,7 +895,8 @@ public final class LoadScaling {
         final Map.Entry<Integer, WorldSettings> selected,
         final Map.Entry<Integer, WorldSettings> base,
         final double factor,
-        final WorldSettings worldOverride
+        final WorldSettings worldOverride,
+        final double spawnMultiplier
     ) {
         final org.bukkit.World world = level.getWorld();
         if (world == null) {
@@ -903,12 +917,15 @@ public final class LoadScaling {
                 value = target;
             }
             if (value > 0) {
+                // Canvas start - apply the per-dimension spawn rate multiplier (the nether doubles its rate by halving the ticks)
+                final int applied = spawnMultiplier == 1.0D ? value : Math.max(1, (int) Math.round(value / spawnMultiplier));
+                // Canvas end - apply the per-dimension spawn rate multiplier (the nether doubles its rate by halving the ticks)
                 switch (key) {
-                    case "monster" -> world.setTicksPerMonsterSpawns(value);
-                    case "animal" -> world.setTicksPerAnimalSpawns(value);
-                    case "ambient" -> world.setTicksPerAmbientSpawns(value);
-                    case "water_animal" -> world.setTicksPerWaterSpawns(value);
-                    case "water_ambient" -> world.setTicksPerWaterAmbientSpawns(value);
+                    case "monster" -> world.setTicksPerMonsterSpawns(applied);
+                    case "animal" -> world.setTicksPerAnimalSpawns(applied);
+                    case "ambient" -> world.setTicksPerAmbientSpawns(applied);
+                    case "water_animal" -> world.setTicksPerWaterSpawns(applied);
+                    case "water_ambient" -> world.setTicksPerWaterAmbientSpawns(applied);
                 }
             }
         }
