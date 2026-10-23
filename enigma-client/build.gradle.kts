@@ -21,6 +21,11 @@ repositories {
     mavenCentral()
     maven("https://maven.fabricmc.net/")
     maven("https://maven.terraformersmc.com/releases/")
+    maven("https://api.modrinth.com/maven") {
+        content {
+            includeGroup("maven.modrinth")
+        }
+    }
 }
 
 dependencies {
@@ -28,6 +33,10 @@ dependencies {
     implementation("net.fabricmc:fabric-loader:${property("loader_version")}")
     implementation("net.fabricmc.fabric-api:fabric-api:${property("fabric_version")}")
     implementation("com.terraformersmc:modmenu:20.0.3")
+    // Xaero integration: compile-only. The chunk map overlay is skipped entirely at runtime when
+    // either mod is missing (see EnigmaMixinPlugin), so Xaero is never a required dependency.
+    compileOnly("maven.modrinth:xaeros-minimap:JRopWECg")
+    compileOnly("maven.modrinth:xaeros-world-map:ebWaQDqf")
     // Embedded EnigmaEngine code (EnigmaDistributedConfig) - compile-time only:
     // the yaml loader path is never called by the mod, so snakeyaml is not shipped.
     compileOnly("org.yaml:snakeyaml:2.2")

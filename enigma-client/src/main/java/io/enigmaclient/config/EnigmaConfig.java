@@ -25,6 +25,21 @@ public class EnigmaConfig {
     public boolean notifications = true;
     public String rconPassword = "";
 
+    /** Zeigt die vom Server gemeldete Chunk-Karte auf Xaero's Minimap/World Map an. */
+    public boolean showChunkMap = false;
+    /** ARGB-Farbe fuer die vom Server geladenen Chunks (gruen, voller flaechenfuellender Block). */
+    public int chunkMapTickingColor = 0x8C22C55A;
+    /** Zeigt den serverseitigen Fusions-Buffer um geladene Chunks in einer separaten Farbe. */
+    public boolean showChunkMapBuffer = false;
+    /** ARGB-Farbe des optional sichtbaren Fusions-Buffers (blau). */
+    public int chunkMapBufferColor = 0x663D8BFF;
+    /** Zeigt die Positionen aller Spieler mit einem repraesentativen Symbol an. */
+    public boolean chunkMapShowPlayers = false;
+    /** Zeigt beim Hovern Details der Region (Entities, Chunks, MSPT, TPS) an. */
+    public boolean chunkMapRegionDebug = false;
+    /** true = Spieler-Marker nur auf World Map/Minimap, nicht in der Spielwelt zeichnen. */
+    public boolean chunkMapPlayersMapOnly = true;
+
     public static EnigmaConfig load() {
         EnigmaConfig config = null;
         boolean legacy = false;

@@ -8,14 +8,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import xaero.common.minimap.highlight.DimensionHighlighterHandler;
 
 /**
- * Folds the Enigma chunk overlay revision into the minimap highlight version so the loaded region
- * is re-rendered whenever the server sends a new chunk snapshot.
+ * Folds the Enigma chunk overlay revision into the minimap highlight version so the rendered
+ * highlights are rebuilt whenever the server sends a new snapshot or the view box moves.
  */
 @Mixin(DimensionHighlighterHandler.class)
 public abstract class MinimapDimensionHighlighterHandlerMixin {
 
     @Inject(method = "getVersion", at = @At("RETURN"), cancellable = true)
     private void enigmaclient$includeChunkMapRevision(CallbackInfoReturnable<Integer> info) {
-        info.setReturnValue(info.getReturnValueI() + (int) (ChunkMapStore.INSTANCE.revision() & 0xFFFFL));
+        long revision = ChunkMapStore.INSTANCE.revision();
+        info.setReturnValue(info.getReturnValueI() + (int) (revision ^ (revision >>> 32)));
     }
 }

@@ -1,7 +1,9 @@
 package io.canvasmc.canvas.distributed.config;
 
+import io.canvasmc.canvas.config.EnigmaConfig;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,9 +11,10 @@ import org.slf4j.LoggerFactory;
 /**
  * Configuration for the EnigmaEngine distributed runtime ({@code WORLD_HOST}/{@code COMPUTE_HOST}).
  *
- * <p>Everything is controlled through {@code -Denigma.distributed.*} system properties on the start
- * command, applied on top of the built-in defaults shown below. There is no configuration file; the
- * only filesystem state is the Ed25519 instance identity key under {@code config/}.</p>
+ * <p>Values are read from the {@code distributed} section of {@code config/enigma-engine.yml} and
+ * can be overridden per start with {@code -Denigma.distributed.<key>=<value>} system properties
+ * (those win). The only other filesystem state is the Ed25519 instance identity key under
+ * {@code config/}.</p>
  */
 public final class EnigmaDistributedConfig {
 
@@ -112,8 +115,10 @@ public final class EnigmaDistributedConfig {
     }
 
     /**
-     * Loads the configuration from {@code -Denigma.distributed.*} system properties on top of the
-     * built-in defaults. Idempotent; the first call caches the result for the lifetime of the process.
+     * Loads the configuration from the {@code distributed} section of {@code config/enigma-engine.yml}
+     * on top of the built-in defaults, then applies {@code -Denigma.distributed.*} system property
+     * overrides (those win). Idempotent; the first call caches the result for the lifetime of the
+     * process.
      */
     public static EnigmaDistributedConfig load() {
         final EnigmaDistributedConfig instance = loaded;
@@ -126,18 +131,74 @@ public final class EnigmaDistributedConfig {
                 return existing;
             }
             final EnigmaDistributedConfig config = new EnigmaDistributedConfig();
+            config.applySectionOverrides(EnigmaConfig.readSection(EnigmaConfig.DISTRIBUTED_SECTION));
             config.applySystemPropertyOverrides();
             loaded = config;
             final Path identity = Path.of(config.identityKeyPath).toAbsolutePath().normalize();
-            LOGGER.info("Enigma distributed config loaded from -Denigma.distributed.* system "
-                    + "properties, identity key at {}", identity);
+            LOGGER.info("Enigma distributed config loaded from config/enigma-engine.yml"
+                    + " (distributed section) + -Denigma.distributed.* overrides, identity key at {}", identity);
             return config;
         }
     }
 
     /**
-     * Applies {@code -Denigma.distributed.*} overrides on top of the built-in defaults so the whole
-     * runtime is configured purely from the start command.
+     * Applies the {@code distributed} config section on top of the current values. Malformed values
+     * are logged and ignored so a hand-edited typo cannot prevent startup.
+     */
+    private void applySectionOverrides(final Map<String, Object> section) {
+        if (section.isEmpty()) {
+            return;
+        }
+        this.enabled = sectionBoolean(section, "enabled", this.enabled);
+        final Object roleValue = section.get("role");
+        if (roleValue != null) {
+            this.role = String.valueOf(roleValue);
+        }
+        this.worldHostAddress = sectionString(section, "worldHost", this.worldHostAddress);
+        this.bindAddress = sectionString(section, "bind", this.bindAddress);
+        this.identityKeyPath = sectionString(section, "identityKey", this.identityKeyPath);
+        this.port = sectionInt(section, "port", this.port);
+        this.worldHostPort = sectionInt(section, "worldHostPort", this.worldHostPort);
+        this.leaseTtlSeconds = sectionInt(section, "leaseTtlSeconds", this.leaseTtlSeconds);
+        this.leaseRenewalIntervalSeconds = sectionInt(section, "leaseRenewalIntervalSeconds", this.leaseRenewalIntervalSeconds);
+        this.snapshotChunkSizeKb = sectionInt(section, "snapshotChunkSizeKb", this.snapshotChunkSizeKb);
+        this.maxSnapshotSizeMb = sectionInt(section, "maxSnapshotSizeMb", this.maxSnapshotSizeMb);
+        this.debugLogging = sectionBoolean(section, "debugLogging", this.debugLogging);
+        this.autoMigrate = sectionBoolean(section, "autoMigrate", this.autoMigrate);
+        this.autoMigrateIntervalSeconds = sectionInt(section, "autoMigrateIntervalSeconds", this.autoMigrateIntervalSeconds);
+        this.autoMigratePerRun = sectionInt(section, "autoMigratePerRun", this.autoMigratePerRun);
+        this.autoMigrateMaxConcurrent = sectionInt(section, "autoMigrateMaxConcurrent", this.autoMigrateMaxConcurrent);
+        this.autoMigrateMinChunks = sectionInt(section, "autoMigrateMinChunks", this.autoMigrateMinChunks);
+    }
+
+    private static String sectionString(final Map<String, Object> section, final String key, final String fallback) {
+        final Object value = section.get(key);
+        return value == null ? fallback : String.valueOf(value);
+    }
+
+    private static boolean sectionBoolean(final Map<String, Object> section, final String key, final boolean fallback) {
+        final Object value = section.get(key);
+        return value instanceof Boolean bool ? bool : fallback;
+    }
+
+    private static int sectionInt(final Map<String, Object> section, final String key, final int fallback) {
+        final Object value = section.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text) {
+            try {
+                return Integer.parseInt(text.trim());
+            } catch (final NumberFormatException ignored) {
+                LOGGER.warn("Ignoring non-integer value \"{}\" for {} in the distributed config section", text, key);
+            }
+        }
+        return fallback;
+    }
+
+    /**
+     * Applies {@code -Denigma.distributed.*} overrides on top of the section values so the whole
+     * runtime can still be configured purely from the start command.
      */
     private void applySystemPropertyOverrides() {
         this.enabled = readBoolean("enabled", this.enabled);

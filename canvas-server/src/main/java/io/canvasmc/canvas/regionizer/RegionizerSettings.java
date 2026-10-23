@@ -26,6 +26,7 @@ public final class RegionizerSettings {
     private final int partitionMinSections;
     private final double partitionSlack;
     private final int partitionRefinementPasses;
+    private final boolean debug;
 
     private static volatile RegionizerSettings INSTANCE = defaults();
 
@@ -116,7 +117,8 @@ public final class RegionizerSettings {
             16,
             1,
             0.15D,
-            2
+            2,
+            false
         );
     }
 
@@ -144,10 +146,11 @@ public final class RegionizerSettings {
         final int splitMaxRegions,
         final int partitionMinSections,
         final double partitionSlack,
-        final int partitionRefinementPasses
+        final int partitionRefinementPasses,
+        final boolean debug
     ) {
-        // AUTO is deliberately always active. FOLIA mode is the explicit runtime opt-out for
-        // Enigma's region decisions; a stale YAML value must not leave hot regions unsplittable.
+        // Hard buffer isolation is deliberately always active. A runtime Folia-mode switch must
+        // not re-enable shell-contact merges or leave separated buffer components unsplit.
         this.enabled = true;
         this.mergeOverlapThreshold = mergeOverlapThreshold;
         this.mergeMinRegionSections = mergeMinRegionSections;
@@ -172,41 +175,44 @@ public final class RegionizerSettings {
         this.partitionMinSections = Math.max(1, partitionMinSections);
         this.partitionSlack = Math.max(0.0D, Math.min(1.0D, partitionSlack));
         this.partitionRefinementPasses = Math.max(0, partitionRefinementPasses);
+        this.debug = debug;
     }
 
     /**
      * The hard, aggressive in-code defaults for the Enigma adaptive regionizer.
      *
-     * <p>These are the only persistent defaults: the live values are stored exclusively in
-     * {@code config/enigma-regionizer.yml} (see {@code LoadScaling}) and are seeded from here on
-     * first start. {@code canvas-server.yml} no longer carries a regionizer section.</p>
+     * <p>These are the only persistent defaults: the live values are stored exclusively in the
+     * {@code regionizer} section of {@code config/enigma-engine.yml} (see {@code LoadScaling}) and
+     * are seeded from here on first start. {@code canvas-server.yml} no longer carries a regionizer
+     * section.</p>
      */
     public static RegionizerSettings defaults() {
         return new RegionizerSettings(
             true,
             0.99D,
-            2,
+            1,
             0.8D,
             0.2D,
             120_000L,
-            750L,
+            60_000L,
             2,
             16,
             4.0D,
             20,
             10,
-            1,
+            20,
             false,
             false,
             6,
             1,
             100,
-            16,
+            8,
             true,
             32,
             1,
             0.0D,
-            3
+            3,
+            false
         );
     }
 
@@ -244,14 +250,12 @@ public final class RegionizerSettings {
 
         final int baseTarget = worldRegionizerSections > 0 ? worldRegionizerSections : 2;
 
-        // At 100% aggression: target is 1 section per region (maximum parallelization).
+        // At 100% aggression: the configured sections per region target (maximum parallelization
+        // without overriding operator intent).
         // At 0% aggression: conservative sizing.
-        final int targetSections;
-        if (aggr >= 90) {
-            targetSections = 1;
-        } else {
-            targetSections = Math.max(1, (int) Math.round(baseTarget + (1.0D - a) * Math.max(2, baseTarget * 2)));
-        }
+        // The configured regionizer-sections value always wins; load-scaling may only scale
+        // up from it at lower aggression, never force it down to 1.
+        final int targetSections = Math.max(1, (int) Math.round(baseTarget + (1.0D - a) * Math.max(2, baseTarget * 2)));
 
         // splitMinSize: minimum sections a region must have before it is considered for splitting.
         // At 100% aggression: 2 sections (1 section cannot be split).
@@ -259,35 +263,29 @@ public final class RegionizerSettings {
         final int dynamicSplitMinSize = Math.max(2, (int) Math.round(32 - 30 * a));
         final int splitMinSize = Math.min(Math.max(2, base.splitMaxSections()), dynamicSplitMinSize);
 
-        // splitMaxSections: hard split limit.
-        // At 100% aggression: 2 sections (any region with > 2 sections is hard-split).
-        // At 0% aggression: 128 sections.
+        // splitMaxSections: hard split limit. Enigma hard-border prefers small action bubbles.
+        // At 100% aggression: 16 sections (aggressive micro-splitting).
+        // At 0% aggression: 24 sections.
         final int dynamicSplitMaxSections = Math.max(splitMinSize,
-            (int) Math.round(128 - (128 - Math.max(2, targetSections * 2)) * a));
-        // The configured maximum is a non-negotiable safety ceiling. Load-scaling may request
-        // smaller regions, but never a larger one, even at low aggression.
+            (int) Math.round(24 - (24 - 16) * a));
         final int splitMaxSections = Math.max(splitMinSize, Math.min(base.splitMaxSections(), dynamicSplitMaxSections));
 
         // splitHighLoadMspt:
-        // At 100% aggression: 0.5 MSPT (any loaded region can split to spread load across threads).
+        // At 100% aggression: 4.0 MSPT (only regions under real load split to spread
+        // load across threads; a lower floor fragments the world into micro-regions
+        // whose cross-region coordination cost dwarfs any parallelisation gain).
         // At 0% aggression: 15.0 MSPT.
-        final double splitHighLoadMspt = Math.min(base.splitHighLoadMspt(), 15.0D * (1.0D - a) + 0.5D * a);
+        final double splitHighLoadMspt = Math.min(base.splitHighLoadMspt(), 15.0D * (1.0D - a) + 4.0D * a);
 
         // mergeMinRegionSections:
-        // At 100% aggression: 1 section (regions never auto-merge just for being small).
-        // At 0% aggression: 16 sections.
+        // At 100% aggression: 1 section.
         final int mergeMinRegionSections = Math.max(1, (int) Math.round(16 - 15 * a));
 
-        // mergeOverlapThreshold:
-        // At 100% aggression: 0.90 (refuses almost all merges unless coupling is extreme).
-        // At 0% aggression: 0.30.
-        // The global threshold is an operator-selected floor. Load-scaling may
-        // tighten it as aggression increases, but must never silently make a
-        // deliberately anti-merge configuration more permissive.
-        final double mergeOverlapThreshold = Math.max(base.mergeOverlapThreshold(), 0.30D + 0.60D * a);
+        // mergeOverlapThreshold: make merges much harder
+        final double mergeOverlapThreshold = Math.max(base.mergeOverlapThreshold(), 0.95D + 0.04D * a);
 
-        final long mergeCooldownMillis = base.mergeCooldownMillis();
-        final long splitCooldownMillis = base.splitCooldownMillis();
+        final long mergeCooldownMillis = Math.max(base.mergeCooldownMillis(), (long)(60_000L + 60_000L * (1.0D - a)));
+        final long splitCooldownMillis = Math.max(base.splitCooldownMillis(), (long)(1_000L));
 
         return new RegionizerSettings(
             true,
@@ -313,7 +311,8 @@ public final class RegionizerSettings {
             base.splitMaxRegions(),
             base.partitionMinSections(),
             base.partitionSlack(),
-            base.partitionRefinementPasses()
+            base.partitionRefinementPasses(),
+            base.debug()
         );
     }
 
@@ -411,5 +410,9 @@ public final class RegionizerSettings {
 
     public int partitionRefinementPasses() {
         return this.partitionRefinementPasses;
+    }
+
+    public boolean debug() {
+        return this.debug;
     }
 }

@@ -1,7 +1,9 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 import io.papermc.paperweight.core.tasks.patchroulette.AbstractPatchRouletteTask
-import io.papermc.paperweight.util.Git
+
+
+import java.util.Properties
 
 plugins {
     java
@@ -126,42 +128,29 @@ tasks.register("fixupMinecraftFilePatches") {
     dependsOn(":canvas-server:fixupMinecraftSourcePatches")
 }
 
-abstract class CopyPaperclipJar : DefaultTask() {
-    @get:InputDirectory
-    abstract val libsDir: DirectoryProperty
 
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
-
-    @TaskAction
-    fun run() {
-        val paperclipFile = libsDir.get().asFile
-            .listFiles()
-            ?.filter { it.name.startsWith("canvas-paperclip") && it.name.endsWith(".jar") }
-            ?.maxByOrNull { it.lastModified() }
-            ?: error("Paperclip-Jar nicht gefunden in ${libsDir.get()}")
-
-        val target = outputFile.get().asFile
-        target.parentFile.mkdirs()
-        paperclipFile.copyTo(target, overwrite = true)
-        println("Server-Jar kopiert nach: ${target.absolutePath}")
-    }
-}
 
 val serverJarDir = layout.projectDirectory.dir("serverJar")
 
-val enigmaEngineJarName = Git(rootProject.layout.projectDirectory.path)
-    .exec(providers, "rev-parse", "--abbrev-ref", "HEAD")
-    .map { raw ->
-        val branch = raw.trim()
-        val version = when {
-            branch.startsWith("experimental/") -> branch.removePrefix("experimental/") + "-exp"
-            branch.startsWith("ver/") -> branch.removePrefix("ver/")
-            branch.isBlank() || branch == "HEAD" -> "dev"
-            else -> branch
-        }
-        "EnigmaEngine-$version.jar"
+val enigmaEngineJarName = providers.exec {
+    workingDir = rootProject.layout.projectDirectory.asFile
+    commandLine("git", "rev-parse", "--abbrev-ref", "HEAD")
+}.standardOutput.asText.map { raw ->
+    val branch = raw.trim()
+    val version = when {
+        branch.startsWith("experimental/") -> branch.removePrefix("experimental/") + "-exp"
+        branch.startsWith("ver/") -> branch.removePrefix("ver/")
+        branch.isBlank() || branch == "HEAD" -> "dev"
+        else -> branch
     }
+    "EnigmaEngine-$version.jar"
+}
+
+val enigmaClientVersion: String = Properties().apply {
+    file("enigma-client/gradle.properties").inputStream().use { load(it) }
+}.getProperty("mod_version", "1.0.0")
+
+val enigmaClientJarName = "EnigmaClient-$enigmaClientVersion.jar"
 
 tasks.register<CopyPaperclipJar>("buildEnigmaEngine") {
     description = "Baut die Server-Jar und kopiert sie nach serverJar/EnigmaEngine-<branch>.jar"
@@ -169,22 +158,41 @@ tasks.register<CopyPaperclipJar>("buildEnigmaEngine") {
 
     dependsOn(":canvas-server:createPaperclipJar")
 
+    val outDir = serverJarDir
     libsDir.set(file("canvas-server/build/libs"))
-    outputFile.set(enigmaEngineJarName.map { name -> serverJarDir.file(name).asFile })
+    outputFile.set(enigmaEngineJarName.map { name -> outDir.file(name) })
 }
 
 tasks.register<Exec>("buildEnigmaClient") {
-    description = "Baut die EnigmaClient-Fabric-Mod (enigma-client/)"
+    description = "Baut die EnigmaClient-Fabric-Mod und legt sie als EnigmaClient-<version>.jar in serverJar/ ab"
     group = "build"
 
-    workingDir = layout.projectDirectory.dir("enigma-client").asFile
+    val clientDir = layout.projectDirectory.dir("enigma-client")
+    val clientBuildLibs = clientDir.dir("build/libs")
+    val clientJarNameLocal = enigmaClientJarName
+    val targetClientJar = serverJarDir.file(enigmaClientJarName)
+
+    workingDir = clientDir.asFile
     commandLine("cmd", "/c", "gradlew.bat", "build", "--console=plain")
 
-    inputs.dir(layout.projectDirectory.dir("enigma-client/src"))
+    inputs.dir(clientDir.dir("src"))
     inputs.files(
-        layout.projectDirectory.file("enigma-client/build.gradle.kts"),
-        layout.projectDirectory.file("enigma-client/settings.gradle.kts"),
-        layout.projectDirectory.file("enigma-client/gradle.properties")
+        clientDir.file("build.gradle.kts"),
+        clientDir.file("settings.gradle.kts"),
+        clientDir.file("gradle.properties")
     )
-    outputs.dir(layout.projectDirectory.dir("enigma-client/build/libs"))
+    outputs.dir(clientBuildLibs)
+    outputs.file(targetClientJar)
+
+    doLast {
+        val built = clientBuildLibs.file(clientJarNameLocal).asFile
+        if (!built.isFile) {
+            error("EnigmaClient-Jar nicht gefunden: ${built.absolutePath}")
+        }
+
+        val target = targetClientJar.asFile
+        target.parentFile.mkdirs()
+        built.copyTo(target, overwrite = true)
+        println("EnigmaClient-Jar kopiert nach: ${target.absolutePath}")
+    }
 }

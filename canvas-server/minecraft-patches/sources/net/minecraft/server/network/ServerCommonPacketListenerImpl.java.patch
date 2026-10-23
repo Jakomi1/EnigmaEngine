@@ -1,5 +1,18 @@
 --- a/net/minecraft/server/network/ServerCommonPacketListenerImpl.java
 +++ b/net/minecraft/server/network/ServerCommonPacketListenerImpl.java
+@@ -151,6 +_,12 @@
+ 
+         final net.minecraft.resources.Identifier identifier = packet.payload().type().id();
+         final byte[] data = discardedPayload.data();
++        // Enigma start - chunk map subscription
++        if (io.canvasmc.canvas.chunkmap.EnigmaChunkMapService.SUBSCRIBE_CHANNEL.equals(identifier)) {
++            io.canvasmc.canvas.chunkmap.EnigmaChunkMapService.handleSubscribe(this, data);
++            return;
++        }
++        // Enigma end - chunk map subscription
+         try {
+             final boolean registerChannel = CUSTOM_REGISTER.equals(identifier);
+             if (registerChannel || CUSTOM_UNREGISTER.equals(identifier)) {
 @@ -305,11 +_,48 @@
      }
      // Canvas end - optimize flush calls with region threading

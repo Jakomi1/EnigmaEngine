@@ -1,6 +1,7 @@
 package io.enigmaclient;
 
 import io.enigmaclient.command.EnigmaCommands;
+import io.enigmaclient.chunkmap.ChunkMapClient;
 import io.enigmaclient.config.EnigmaConfig;
 import io.enigmaclient.host.ComputeHostService;
 import io.enigmaclient.hud.EnigmaHud;
@@ -31,6 +32,7 @@ public class EnigmaClient implements ClientModInitializer {
         EnigmaHud.register();
         EnigmaCommands.register();
         EnigmaKeybinds.register();
+        ChunkMapClient.register();
 
         Runtime.getRuntime().addShutdownHook(new Thread(
                 ComputeHostService::shutdown,

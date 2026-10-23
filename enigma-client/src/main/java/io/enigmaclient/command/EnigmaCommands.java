@@ -4,6 +4,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import io.enigmaclient.EnigmaClient;
+import io.enigmaclient.chunkmap.ChunkMapClient;
 import io.enigmaclient.config.EnigmaConfig;
 import io.enigmaclient.host.ComputeHostService;
 import io.enigmaclient.host.DistributedStatus;
@@ -75,6 +76,16 @@ public final class EnigmaCommands {
                     config.save();
                     ctx.getSource().sendFeedback(EnigmaClient.prefix(
                             "Benachrichtigungen " + (config.notifications ? "ein" : "aus")));
+                    return 1;
+                }))
+                .then(ClientCommands.literal("chunkmap").executes(ctx -> {
+                    EnigmaConfig config = EnigmaClient.config;
+                    config.showChunkMap = !config.showChunkMap;
+                    config.save();
+                    ChunkMapClient.syncSubscription();
+                    ctx.getSource().sendFeedback(EnigmaClient.prefix(
+                            "Server-Chunk-Karte auf Xaero " + (config.showChunkMap ? "ein" : "aus")
+                                    + (config.showChunkMap ? "" : " (Daten werden freigegeben)")));
                     return 1;
                 }))
                 .then(ClientCommands.literal("debug").executes(ctx -> {
@@ -191,6 +202,7 @@ public final class EnigmaCommands {
 
         source.sendFeedback(Component.literal("  HUD: " + onOff(config.showHud)
                 + " \u00B7 Benachrichtigungen: " + onOff(config.notifications)
+                + " \u00B7 Server-Chunk-Karte: " + onOff(config.showChunkMap)
                 + " \u00B7 Xmx: " + config.xmxMb + " MB"
                 + " \u00B7 Verzeichnis: " + ComputeHostService.DIR_NAME));
     }

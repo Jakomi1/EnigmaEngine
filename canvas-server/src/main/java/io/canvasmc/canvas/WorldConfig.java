@@ -44,6 +44,11 @@ public class WorldConfig extends Part {
     public static final String DEFAULT_CPUBAR_FORMAT =
         "<gradient:light_purple:aqua><b>Cores:</b></gradient> <cores> <dark_gray>-</dark_gray> " +
             "<gradient:light_purple:aqua><b>CPU:</b></gradient> <cpu>";
+    public static final String DEFAULT_NETWORKBAR_FORMAT =
+        "<gradient:gold:red><b>In:</b></gradient> <rx>  <dark_gray>-</dark_gray>  " +
+            "<gradient:gold:red><b>Out:</b></gradient> <tx>  <dark_gray>-</dark_gray>  " +
+            "<gradient:gold:red><b>Ping:</b></gradient> <ping>  <dark_gray>-</dark_gray>  " +
+            "<gradient:gold:red><b>Players:</b></gradient> <players>";
 
     // note that Canvas core utilities and loggers and such should go in the global configuration class, as this one
     // doesn't entirely seem that appropriate for that sort of stuff
@@ -205,7 +210,7 @@ public class WorldConfig extends Part {
     }
 
     {
-        option("regionBars").docs("Region resource bars config. You can toggle these on players with the \"/regionbar\" command");
+        option("regionBars").docs("Region resource bars config. You can toggle these on players with the \"/enigma regionbar\" command");
     }
 
     public RegionBars regionBars = new RegionBars();
@@ -228,8 +233,16 @@ public class WorldConfig extends Part {
             option("cpuBarFormat")
                 .docs(
                     "MiniMessage-formatted line for the CPU bar. Placeholders are <cpu> (process load %),",
-                    "<sys> (system load %) and <cores> (per-core utilisation, Linux only).",
+                    "<sys> (system load %) and <cores> (per-core utilisation, e.g. C0:12.0% C1:3.4% -",
+                    "read from /proc/stat on Linux and native CPU times on Windows).",
                     "Legacy tokens(%cpu%, %sys%, %cores%) are also accepted and auto-converted."
+                ).greedyString();
+            option("enableNetworkBar").docs("Enables a server-wide network bar implementation for EnigmaEngine.");
+            option("networkBarFormat")
+                .docs(
+                    "MiniMessage-formatted line for the network bar. Placeholders are <rx> (received packets/s),",
+                    "<tx> (sent packets/s), <ping> (average ping in ms) and <players> (online players).",
+                    "Legacy tokens(%rx%, %tx%, %ping%, %players%) are also accepted and auto-converted."
                 ).greedyString();
         }
 
@@ -241,6 +254,9 @@ public class WorldConfig extends Part {
 
         public boolean enableCpuBar = true;
         public String cpuBarFormat = DEFAULT_CPUBAR_FORMAT;
+
+        public boolean enableNetworkBar = true;
+        public String networkBarFormat = DEFAULT_NETWORKBAR_FORMAT;
     }
 
     public Visuals visuals = new Visuals();

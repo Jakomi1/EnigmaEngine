@@ -758,7 +758,9 @@ index 936f8388c84b3d83a85390ec337a5d0a317838f4..d45d23600b2c3585109378a523290b1a
 +    public class ThreadedRegions extends ConfigurationPart {
 +
 +        public int threads = -1;
-+        public int gridExponent = 4;
++        public int gridExponent = 0;
++        @Constraints.Min(1)
++        public int bufferRadius = 4;
 +        public io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType scheduler = io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType.EDF;
 +
 +        @PostProcess

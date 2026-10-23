@@ -31,6 +31,20 @@ public final class RegionCoupling {
         return COUNTERS.size();
     }
 
+    /**
+     * Drops every pair counter that references the given region id. Called when a region dies so a
+     * recycled id never observes stale pair statistics. The pair key packs both ids into 32 bits
+     * each, which stays exact because the id free list keeps region ids small.
+     */
+    public static void clearRegion(final long regionId) {
+        final int id = (int) regionId;
+        COUNTERS.keySet().removeIf(key -> {
+            final int a = (int) (long) key;
+            final int b = (int) (key >>> 32);
+            return a == id || b == id;
+        });
+    }
+
     public static void decay() {
         COUNTERS.forEach((key, value) -> {
             final long before = value.get();

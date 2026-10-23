@@ -975,7 +975,7 @@ index 54b2492c3ab6bf9ff52cec53dc4635f725f9eb4f..9d8a8e51add49ffab07fb5131a0d6565
          for (int currChunkZ = minChunkZ; currChunkZ <= maxChunkZ; ++currChunkZ) {
              for (int currChunkX = minChunkX; currChunkX <= maxChunkX; ++currChunkX) {
 +                // Folia start - region threading
-+                if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(world, currChunkX, currChunkZ, 4)) {
++                if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(world, currChunkX, currChunkZ, 2)) {
 +                    if (checkOnly) {
 +                        return true;
 +                    } else {
@@ -9564,7 +9564,7 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +                    ret.addAll(section.getChunks());
 +                }
 +
-+                return ret.elements();
++                return ret.toLongArray();
 +            } finally {
 +                if (lock) {
 +                    this.regioniser.regionLock.tryUnlockRead();
@@ -11118,10 +11118,17 @@ index 8424cf9d4617b4732d44cc460d25b04481068989..abcc8ae0a5ab4d089c6e888519b1b094
 +
 +    private static final Logger LOGGER = LogUtils.getClassLogger(); // Canvas - region threading
 +    private static int regionShift = 31;
++    private static int bufferRadiusChunks = 4;
  
      public static int getRegionChunkShift() {
 -        return ca.spottedleaf.moonrise.patches.chunk_system.scheduling.ThreadedTicketLevelPropagator.SECTION_SHIFT;
 +        return regionShift;
++    }
++
++    /** Converts the configured chunk radius to sections, rounding up if needed. */
++    public static int getBufferRadiusSections() {
++        final int sectionSize = 1 << regionShift;
++        return Math.max(1, (bufferRadiusChunks + sectionSize - 1) / sectionSize);
 +    }
 +
 +    private static boolean initialised;
@@ -11165,6 +11172,7 @@ index 8424cf9d4617b4732d44cc460d25b04481068989..abcc8ae0a5ab4d089c6e888519b1b094
 +        gridExponent = Math.max(0, gridExponent);
 +        gridExponent = Math.min(31, gridExponent);
 +        regionShift = gridExponent;
++        bufferRadiusChunks = Math.max(1, config.bufferRadius);
 +        scheduler = new TickRegionScheduler(config.scheduler, tickThreads);
 +        LOGGER.info("Initialised {} Folia scheduler with initial {} target thread(s)", config.scheduler, tickThreads);
 +    }
@@ -20791,8 +20799,8 @@ index 24321fb6687ef75ffd75b239bc7fbcc11b2c6a7c..00f0604b44b5e152c8605e47ff3082c6
 +        this.regioniser = new io.papermc.paper.threadedregions.ThreadedRegionizer<>(
 +            (int)Math.max(1L, (8L * 16L * 16L) / (1L << (2 * (io.papermc.paper.threadedregions.TickRegions.getRegionChunkShift())))),
 +            (1.0 / 6.0),
-+            Math.max(1, 8 / (1 << io.papermc.paper.threadedregions.TickRegions.getRegionChunkShift())),
-+            1,
++            io.papermc.paper.threadedregions.TickRegions.getBufferRadiusSections(),
++            io.papermc.paper.threadedregions.TickRegions.getBufferRadiusSections(),
 +            io.papermc.paper.threadedregions.TickRegions.getRegionChunkShift(),
 +            this,
 +            this.tickRegions

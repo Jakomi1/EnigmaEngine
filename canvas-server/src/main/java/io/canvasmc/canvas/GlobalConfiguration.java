@@ -8,19 +8,18 @@ import io.canvasmc.canvas.configuration.Resolver;
 import io.canvasmc.canvas.configuration.Style;
 import io.canvasmc.canvas.configuration.Undocumented;
 import io.canvasmc.canvas.configuration.Validator;
+import io.canvasmc.canvas.chunkmap.EnigmaChunkMapSubCommand;
 import io.canvasmc.canvas.distributed.command.DistributedSubCommand;
 import io.canvasmc.canvas.distributed.config.EnigmaDistributedConfig;
 import io.canvasmc.canvas.regionizer.RegionizerSettings;
 import io.canvasmc.canvas.regionizer.loadscaling.LoadScaling;
 import io.canvasmc.canvas.simd.SIMDDetection;
-import io.canvasmc.canvas.subcommands.MobCapsSubCommand;
-import io.canvasmc.canvas.subcommands.RegionBarSubCommand;
-import io.canvasmc.canvas.subcommands.RegionDataCommand;
+import io.canvasmc.canvas.subcommands.DisplaySubCommand;
+import io.canvasmc.canvas.subcommands.LimitsSubCommand;
 import io.canvasmc.canvas.subcommands.RegionTickSubCommand;
 import io.canvasmc.canvas.subcommands.RegionizerSubCommand;
+import io.canvasmc.canvas.subcommands.RegionsSubCommand;
 import io.canvasmc.canvas.subcommands.ReloadSubCommand;
-import io.canvasmc.canvas.subcommands.SetMaxPlayersSubCommand;
-import io.canvasmc.canvas.subcommands.WorldDistanceSubCommand;
 import io.canvasmc.canvas.util.FasterRandomSource;
 import io.canvasmc.canvas.util.LockedReference;
 import io.canvasmc.canvas.util.TimeSpan;
@@ -157,13 +156,19 @@ public class GlobalConfiguration extends Part {
         // validate the configuration so users don't end up doing a stupid
         Validator.validateObject(configuration);
 
-        // cross-field validation for distributed config. The whole distributed runtime is configured
-        // purely through -Denigma.distributed.* system properties (see EnigmaDistributedConfig.load).
+        // migrate legacy config files into config/enigma-engine.yml before anything reads them.
+        // Idempotent: legacy files are only deleted once the new file holds their data.
+        io.canvasmc.canvas.config.EnigmaConfig.migrateLegacyFiles();
+
+        // cross-field validation for distributed config. Loaded from the "distributed" section of
+        // config/enigma-engine.yml, overlaid by -Denigma.distributed.* system properties
+        // (see EnigmaDistributedConfig.load).
         final EnigmaDistributedConfig distributed = EnigmaDistributedConfig.load();
         distributed.validateCrossField();
 
-        // The adaptive regionizer now lives exclusively in config/enigma-regionizer.yml, seeded
-        // from RegionizerSettings.defaults() and then overlaid by LoadScaling.reload().
+        // The adaptive regionizer now lives exclusively in the "regionizer" section of
+        // config/enigma-engine.yml, seeded from RegionizerSettings.defaults() and then overlaid
+        // by LoadScaling.reload().
         RegionizerSettings.set(RegionizerSettings.defaults());
         LoadScaling.reload();
 
@@ -252,18 +257,16 @@ public class GlobalConfiguration extends Part {
                 // distributed-property value is malformed.
             }
 
-            // Register the local Enigma command tree. Chunk-map diagnostics were intentionally
-            // removed: they produced a costly per-region snapshot but are no longer a command.
+            // Register the local Enigma command tree.
             CanvasCommands.register(
-                SetMaxPlayersSubCommand.class,
-                RegionBarSubCommand.class,
-                WorldDistanceSubCommand.class,
+                DisplaySubCommand.class,
+                RegionsSubCommand.class,
                 ReloadSubCommand.class,
-                MobCapsSubCommand.class,
+                LimitsSubCommand.class,
                 RegionTickSubCommand.class,
                 RegionizerSubCommand.class,
                 io.canvasmc.canvas.subcommands.InfoSubCommand.class,
-                RegionDataCommand.class
+                EnigmaChunkMapSubCommand.class
             );
             // Distributed is opt-in. Only advertise /enigma distributed (and the root prepare-stop
             // alias) when it is actually enabled, so it never shows up in tab completion otherwise.

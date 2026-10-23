@@ -22,6 +22,21 @@ build
 /*-plugin/
 /serverJar/
 /test/
-/error_logs.log
-test/test.zip
-test/test.zip
+
+# Logs and crash dumps
+*.log
+*.log.gz
+logs/
+crash-reports/
+hs_err_pid*.log
+replay_pid*.log
+
+# Xaero mod artifacts (extracted jar, used for code reference only)
+# Reference copies live in /local/xaero-mod/, these rules catch re-extractions into the repo root
+/xaero/
+/assets/
+/META-INF/
+/fabric.mod.json
+/pack.mcmeta
+/xaeroworldmap.mixins.json
+/xaeroworldmap.fabric.mixins.json

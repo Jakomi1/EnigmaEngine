@@ -7,7 +7,12 @@
   "client": [
     "xaero.MinimapHighlighterRegistryMixin",
     "xaero.WorldMapHighlighterRegistryMixin",
-    "xaero.MinimapDimensionHighlighterHandlerMixin"
+    "xaero.MinimapDimensionHighlighterHandlerMixin",
+    "xaero.WorldMapHighlighterHandlerMixin",
+    "xaero.MinimapPlayerTrackerCollectorMixin",
+    "xaero.MinimapPlayerTrackerRendererMixin",
+    "xaero.WorldMapPlayerTrackerCollectorMixin",
+    "xaero.WorldMapPlayerTrackerRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

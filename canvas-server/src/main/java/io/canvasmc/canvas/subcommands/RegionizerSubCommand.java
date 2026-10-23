@@ -2,43 +2,55 @@ package io.canvasmc.canvas.subcommands;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import io.canvasmc.canvas.GlobalConfiguration;
 import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
-import io.canvasmc.canvas.region.RegionTickData;
 import io.canvasmc.canvas.regionizer.RegionizerMode;
 import io.canvasmc.canvas.regionizer.loadscaling.LoadScaling;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.TextDecoration;
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.DimensionArgument;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 
 import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
 
+/**
+ * Configuration of the adaptive regionizer (load scaling, mode, aggression, per-player-count and
+ * per-world overrides). Read-only region information lives in {@code /enigma regions} and
+ * {@code /enigma info}; this command only changes state.
+ *
+ * <p>The old {@code info}, {@code settings}, {@code regions} and {@code reload} children are
+ * still accepted as aliases, but the canonical commands are {@code /enigma info},
+ * {@code /enigma regions ...} and {@code /enigma reload}.</p>
+ */
 public class RegionizerSubCommand implements SubCommand {
 
     @Override
     public String getDescription() {
-        return "Controls the Enigma adaptive regionizer load scaling system";
+        return "Changes regionizer load scaling, mode, aggression and per-level/per-world overrides";
     }
 
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> construct(final LiteralArgumentBuilder<CommandSourceStack> base, final CommandBuildContext buildContext) {
         return base
+            .then(literal("status")
+                .requires(this.check("status"))
+                .executes(InfoSubCommand::info))
             .then(literal("info")
                 .requires(this.check("info"))
-                .executes(RegionizerSubCommand::info))
+                .executes(InfoSubCommand::info))
+            .then(literal("settings")
+                .requires(this.check("settings"))
+                .executes(InfoSubCommand::info))
             .then(literal("mode")
                 .requires(this.check("mode"))
                 .then(argument("mode", StringArgumentType.word())
@@ -48,24 +60,15 @@ public class RegionizerSubCommand implements SubCommand {
                         return builder.buildFuture();
                     })
                     .executes(RegionizerSubCommand::mode)))
-            .then(literal("aggr")
-                .requires(this.check("aggr"))
-                .then(argument("percent", IntegerArgumentType.integer(0, 100)).executes(RegionizerSubCommand::aggr)))
-            .then(literal("settings")
-                .requires(this.check("settings"))
-                .executes(RegionizerSubCommand::settings))
-            .then(literal("setting")
-                .requires(this.check("setting"))
-                .then(argument("key", StringArgumentType.word())
-                    .suggests(RegionizerSubCommand::suggestRegionizerSettings)
-                    .then(argument("value", StringArgumentType.greedyString())
-                        .executes(RegionizerSubCommand::setting))))
-            .then(literal("reload")
-                .requires(this.check("reload"))
-                .executes(RegionizerSubCommand::reload))
+            .then(aggression(literal("aggression").requires(this.check("aggression"))))
+            .then(aggression(literal("aggr").requires(this.check("aggr"))))
+            .then(setting(literal("set").requires(this.check("set"))))
+            .then(setting(literal("setting").requires(this.check("setting"))))
             .then(literal("regions")
                 .requires(this.check("regions"))
-                .then(argument("dimension", DimensionArgument.dimension()).executes(RegionizerSubCommand::regions)))
+                .then(argument("dimension", DimensionArgument.dimension())
+                    .executes(context -> RegionsSubCommand.listFor(
+                        context, DimensionArgument.getDimension(context, "dimension")))))
             .then(literal("level")
                 .requires(this.check("level"))
                 .then(argument("players", IntegerArgumentType.integer(0))
@@ -116,9 +119,25 @@ public class RegionizerSubCommand implements SubCommand {
                         .executes(RegionizerSubCommand::worldRemove))));
     }
 
-    private static java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestMobTypes(
+    @Override
+    public String getName() {
+        return "regionizer";
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> aggression(final LiteralArgumentBuilder<CommandSourceStack> node) {
+        return node.then(argument("percent", IntegerArgumentType.integer(0, 100)).executes(RegionizerSubCommand::aggression));
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> setting(final LiteralArgumentBuilder<CommandSourceStack> node) {
+        return node.then(argument("key", StringArgumentType.word())
+            .suggests(RegionizerSubCommand::suggestRegionizerSettings)
+            .then(argument("value", StringArgumentType.greedyString())
+                .executes(RegionizerSubCommand::setting)));
+    }
+
+    private static CompletableFuture<Suggestions> suggestMobTypes(
         final CommandContext<CommandSourceStack> context,
-        final com.mojang.brigadier.suggestion.SuggestionsBuilder builder
+        final SuggestionsBuilder builder
     ) {
         for (final String type : LoadScaling.SPAWN_LIMIT_KEYS) {
             builder.suggest(type);
@@ -126,120 +145,14 @@ public class RegionizerSubCommand implements SubCommand {
         return builder.buildFuture();
     }
 
-    private static java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestRegionizerSettings(
+    private static CompletableFuture<Suggestions> suggestRegionizerSettings(
         final CommandContext<CommandSourceStack> context,
-        final com.mojang.brigadier.suggestion.SuggestionsBuilder builder
+        final SuggestionsBuilder builder
     ) {
         for (final String key : LoadScaling.REGIONIZER_SETTING_KEYS) {
             builder.suggest(key);
         }
         return builder.buildFuture();
-    }
-
-    @Override
-    public String getName() {
-        return "regionizer";
-    }
-
-    public static int info(final CommandContext<CommandSourceStack> context) {
-        final CommandSourceStack source = context.getSource();
-        final net.minecraft.server.MinecraftServer server = source.getServer();
-
-        final Style.Report report = Style.report("Enigma Engine Info");
-
-        // TPS 1m/5m/15m, each number coloured like /tps colours TPS.
-        final double[] tps = server.getTPS();
-        report.bullet("TPS 1m, 5m, 15m", Component.text()
-            .append(Style.tps(Math.min(tps[0], 20.0)))
-            .append(Component.text(", ", Style.LIST))
-            .append(Style.tps(Math.min(tps[1], 20.0)))
-            .append(Component.text(", ", Style.LIST))
-            .append(Style.tps(Math.min(tps[2], 20.0)))
-            .build());
-
-        final double msptMs = server.getAverageTickTimeNanos() / 1_000_000.0;
-        report.bullet("MSPT", Style.mspt(msptMs));
-
-        // Load scaling.
-        report.bullet("Regionizer mode", RegionizerMode.get().name());
-        report.bullet("Aggression", LoadScaling.getAggression() + "%");
-        report.bullet("Config", LoadScaling.hasConfig() ? "enigma-regionizer.yml" : "defaults");
-
-        // Memory.
-        final Runtime runtime = Runtime.getRuntime();
-        final long usedMB = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
-        final long maxMB = runtime.maxMemory() / (1024 * 1024);
-        report.bullet("Memory", Component.text()
-            .append(Style.value(usedMB))
-            .append(Component.text(" MB / ", Style.SECONDARY))
-            .append(Style.value(maxMB))
-            .append(Component.text(" MB", Style.SECONDARY))
-            .build());
-
-        // Region stats per world.
-        report.subHeader("Region Stats");
-
-        long totalRegions = 0;
-        long totalTicking = 0;
-        long totalIdle = 0;
-        long totalCoupling = 0;
-
-        for (final ServerLevel level : server.getAllLevels()) {
-            final int[] stateCounts = new int[2];
-            final long[] sizes = new long[2];
-            final long[] coupling = {0};
-
-            level.regioniser.computeForAllChunkRegions((region) -> {
-                final int sections = region.getOwnedPackedChunkPositions().length;
-                if (region.getState() == io.canvasmc.canvas.region.WorldRegionizer.ChunkRegion.State.TICKING) {
-                    stateCounts[0]++;
-                    sizes[0] += sections;
-                } else {
-                    stateCounts[1]++;
-                    sizes[1] += sections;
-                }
-            });
-            coupling[0] = io.canvasmc.canvas.regionizer.RegionCoupling.size();
-
-            final long worldTotal = stateCounts[0] + stateCounts[1];
-            totalRegions += worldTotal;
-            totalTicking += stateCounts[0];
-            totalIdle += stateCounts[1];
-            totalCoupling += coupling[0];
-
-            final String dimName = level.dimension().identifier().getPath();
-            report.bullet(dimName, Component.text()
-                .append(Style.value(worldTotal))
-                .append(Component.text(" regions, ", Style.SECONDARY))
-                .append(Component.text("ticking ", Style.SECONDARY))
-                .append(Style.value(stateCounts[0]))
-                .append(Component.text(", idle ", Style.SECONDARY))
-                .append(Style.value(stateCounts[1]))
-                .append(Component.text(", coupling ", Style.SECONDARY))
-                .append(Style.value(coupling[0]))
-                .build());
-        }
-
-        report.bullet("Total", Component.text()
-            .append(Style.value(totalRegions))
-            .append(Component.text(" regions (ticking=", Style.SECONDARY))
-            .append(Style.value(totalTicking))
-            .append(Component.text(", idle=", Style.SECONDARY))
-            .append(Style.value(totalIdle))
-            .append(Component.text(", coupling=", Style.SECONDARY))
-            .append(Style.value(totalCoupling))
-            .append(Component.text(")", Style.SECONDARY))
-            .build());
-
-        if (source.getEntity() instanceof final ServerPlayer player) {
-            final String desc = LoadScaling.describeCurrent((ServerLevel) player.level());
-            if (desc != null) {
-                report.bullet("Your level", desc);
-            }
-        }
-
-        report.send(source);
-        return Command.SINGLE_SUCCESS;
     }
 
     private static int mode(final CommandContext<CommandSourceStack> context) {
@@ -260,25 +173,13 @@ public class RegionizerSubCommand implements SubCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int aggr(final CommandContext<CommandSourceStack> context) {
+    private static int aggression(final CommandContext<CommandSourceStack> context) {
         final CommandSourceStack source = context.getSource();
         final int percent = IntegerArgumentType.getInteger(context, "percent");
         LoadScaling.setAggression(percent);
         LoadScaling.save();
         Style.bullets().bullet("Aggression", percent + "%").send(source);
         GlobalConfiguration.broadcast("Enigma regionizer aggression set to " + percent + "%", GlobalConfiguration.INFO);
-        return Command.SINGLE_SUCCESS;
-    }
-
-    private static int settings(final CommandContext<CommandSourceStack> context) {
-        final Style.Report report = Style.report("Enigma Regionizer Settings");
-        report.bullet("Mode", RegionizerMode.get().name());
-        report.bullet("Aggression", LoadScaling.getAggression() + "%");
-        for (final java.util.Map.Entry<String, Object> entry : LoadScaling.regionizerSettingsSnapshot().entrySet()) {
-            report.bullet(entry.getKey(), String.valueOf(entry.getValue()));
-        }
-        report.bullet("Edit", "/enigma regionizer setting <key> <value>");
-        report.send(context.getSource());
         return Command.SINGLE_SUCCESS;
     }
 
@@ -291,7 +192,7 @@ public class RegionizerSubCommand implements SubCommand {
             Style.bullets()
                 .bullet("Regionizer setting", key)
                 .bullet("Value", saved)
-                .bullet("Saved", "config/enigma-regionizer.yml", Style.good())
+                .bullet("Saved", "config/enigma-engine.yml (regionizer)", Style.good())
                 .send(source);
             GlobalConfiguration.broadcast("Enigma regionizer setting " + key + " set to " + saved, GlobalConfiguration.INFO);
             return Command.SINGLE_SUCCESS;
@@ -299,90 +200,6 @@ public class RegionizerSubCommand implements SubCommand {
             Style.fail(source, thrown.getMessage());
             return 0;
         }
-    }
-
-    private static int reload(final CommandContext<CommandSourceStack> context) {
-        final CommandSourceStack source = context.getSource();
-        LoadScaling.reload();
-        Style.bullets().bullet("Load scaling config", "reloaded", Style.good()).send(source);
-        GlobalConfiguration.broadcast("Reloaded Enigma load scaling configuration", GlobalConfiguration.INFO);
-        return Command.SINGLE_SUCCESS;
-    }
-
-    private static int regions(final CommandContext<CommandSourceStack> context) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        final ServerLevel level = DimensionArgument.getDimension(context, "dimension");
-        final CommandSourceStack source = context.getSource();
-
-        final int[] stateCounts = new int[2];
-        final long[] sizes = new long[2];
-        final List<RegionRow> rows = new ArrayList<>();
-        final double[] loads = new double[2];
-        final long[] coupling = new long[1];
-
-        level.regioniser.computeForAllChunkRegions((region) -> {
-            final int sections = region.getOwnedPackedChunkPositions().length;
-            final double mspt = Math.max(0.0D, region.getTickData().getMSPT(RegionTickData.Frame._5_SECONDS));
-            if (region.getState() == io.canvasmc.canvas.region.WorldRegionizer.ChunkRegion.State.TICKING) {
-                stateCounts[0]++;
-                sizes[0] += sections;
-                loads[0] += mspt;
-                rows.add(new RegionRow(region.getId(), true, sections, mspt));
-            } else {
-                stateCounts[1]++;
-                sizes[1] += sections;
-                rows.add(new RegionRow(region.getId(), false, sections, mspt));
-            }
-        });
-        coupling[0] = io.canvasmc.canvas.regionizer.RegionCoupling.size();
-
-        final long total = stateCounts[0] + stateCounts[1];
-        rows.sort((a, b) -> Integer.compare(b.sections(), a.sections()));
-
-        final Style.Report report = Style.report("Regions in " + level.dimension().identifier().getPath());
-        report.bullet("Total", Component.text()
-            .append(Style.value(total))
-            .append(Component.text(" regions (ticking=", Style.SECONDARY))
-            .append(Style.value(stateCounts[0]))
-            .append(Component.text(", idle=", Style.SECONDARY))
-            .append(Style.value(stateCounts[1]))
-            .append(Component.text(", coupling=", Style.SECONDARY))
-            .append(Style.value(coupling[0]))
-            .append(Component.text(")", Style.SECONDARY))
-            .build());
-        report.bullet("Average sections", Component.text()
-            .append(stateCounts[0] == 0 ? Component.text("-", Style.SECONDARY) : Style.value(sizes[0] / stateCounts[0]))
-            .append(Component.text(" ticking, ", Style.SECONDARY))
-            .append(stateCounts[1] == 0 ? Component.text("-", Style.SECONDARY) : Style.value(sizes[1] / stateCounts[1]))
-            .append(Component.text(" idle", Style.SECONDARY))
-            .build());
-        report.bullet("Average MSPT (ticking)", stateCounts[0] == 0
-            ? Component.text("-", Style.SECONDARY)
-            : Style.mspt(loads[0] / stateCounts[0]));
-
-        final int shown = Math.min(10, rows.size());
-        if (shown > 0) {
-            report.gap();
-            report.subHeader("Top " + shown + " regions by sections");
-            for (int i = 0; i < shown; i++) {
-                final RegionRow row = rows.get(i);
-                report.line(Component.text()
-                    .append(Component.text(" - ", Style.LIST, TextDecoration.BOLD))
-                    .append(Component.text("Region ", Style.PRIMARY))
-                    .append(Style.value(row.id()))
-                    .append(Component.text(", ", Style.SECONDARY))
-                    .append(Component.text(row.ticking() ? "ticking" : "idle",
-                        row.ticking() ? Style.good() : Style.SECONDARY))
-                    .append(Component.text(", ", Style.SECONDARY))
-                    .append(Style.value(row.sections()))
-                    .append(Component.text(" sections, ", Style.SECONDARY))
-                    .append(Style.mspt(row.mspt()))
-                    .append(Component.text(" MSPT", Style.SECONDARY))
-                    .build());
-            }
-        }
-
-        report.send(source);
-        return Command.SINGLE_SUCCESS;
     }
 
     private static LoadScaling.WorldSettings currentLevel(final int players) {
@@ -412,7 +229,7 @@ public class RegionizerSubCommand implements SubCommand {
         Style.bullets()
             .bullet("Level", players + " players")
             .bullet(label, value)
-            .bullet("Saved", "config/enigma-regionizer.yml", Style.good())
+            .bullet("Saved", "config/enigma-engine.yml (regionizer)", Style.good())
             .send(source);
         GlobalConfiguration.broadcast("Enigma regionizer level " + players + " " + label + " set to " + value, GlobalConfiguration.INFO);
         return Command.SINGLE_SUCCESS;
@@ -425,7 +242,7 @@ public class RegionizerSubCommand implements SubCommand {
         Style.bullets()
             .bullet("World", dimension)
             .bullet(label, value)
-            .bullet("Saved", "config/enigma-regionizer.yml", Style.good())
+            .bullet("Saved", "config/enigma-engine.yml (regionizer)", Style.good())
             .send(source);
         GlobalConfiguration.broadcast("Enigma regionizer world " + dimension + " " + label + " set to " + value, GlobalConfiguration.INFO);
         return Command.SINGLE_SUCCESS;
@@ -481,25 +298,25 @@ public class RegionizerSubCommand implements SubCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int worldViewDistance(final CommandContext<CommandSourceStack> context) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int worldViewDistance(final CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         final String dimension = DimensionArgument.getDimension(context, "dimension").dimension().identifier().getPath();
         final int value = IntegerArgumentType.getInteger(context, "value");
         return commitWorld(context, dimension, currentWorld(dimension).withViewDistance(value), "view-distance", String.valueOf(value));
     }
 
-    private static int worldSimulationDistance(final CommandContext<CommandSourceStack> context) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int worldSimulationDistance(final CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         final String dimension = DimensionArgument.getDimension(context, "dimension").dimension().identifier().getPath();
         final int value = IntegerArgumentType.getInteger(context, "value");
         return commitWorld(context, dimension, currentWorld(dimension).withSimulationDistance(value), "simulation-distance", String.valueOf(value));
     }
 
-    private static int worldRegionizerSections(final CommandContext<CommandSourceStack> context) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int worldRegionizerSections(final CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         final String dimension = DimensionArgument.getDimension(context, "dimension").dimension().identifier().getPath();
         final int value = IntegerArgumentType.getInteger(context, "value");
         return commitWorld(context, dimension, currentWorld(dimension).withRegionizerSections(value), "regionizer-sections", String.valueOf(value));
     }
 
-    private static int worldSpawnLimit(final CommandContext<CommandSourceStack> context) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int worldSpawnLimit(final CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         final String dimension = DimensionArgument.getDimension(context, "dimension").dimension().identifier().getPath();
         final String type = StringArgumentType.getString(context, "type");
         if (!validateMobType(context.getSource(), type)) {
@@ -509,7 +326,7 @@ public class RegionizerSubCommand implements SubCommand {
         return commitWorld(context, dimension, currentWorld(dimension).withSpawnLimit(type, value), "spawn-limit " + type, String.valueOf(value));
     }
 
-    private static int worldTicksPerSpawn(final CommandContext<CommandSourceStack> context) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int worldTicksPerSpawn(final CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         final String dimension = DimensionArgument.getDimension(context, "dimension").dimension().identifier().getPath();
         final String type = StringArgumentType.getString(context, "type");
         if (!validateMobType(context.getSource(), type)) {
@@ -519,7 +336,7 @@ public class RegionizerSubCommand implements SubCommand {
         return commitWorld(context, dimension, currentWorld(dimension).withTicksPerSpawn(type, value), "ticks-per-spawn " + type, String.valueOf(value));
     }
 
-    private static int worldRemove(final CommandContext<CommandSourceStack> context) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int worldRemove(final CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         final String dimension = DimensionArgument.getDimension(context, "dimension").dimension().identifier().getPath();
         final CommandSourceStack source = context.getSource();
         if (!LoadScaling.removeWorld(dimension)) {
@@ -529,8 +346,5 @@ public class RegionizerSubCommand implements SubCommand {
         Style.bullets().bullet("Removed world override", dimension, Style.good()).send(source);
         GlobalConfiguration.broadcast("Enigma regionizer removed world override " + dimension, GlobalConfiguration.INFO);
         return Command.SINGLE_SUCCESS;
-    }
-
-    private record RegionRow(long id, boolean ticking, int sections, double mspt) {
     }
 }

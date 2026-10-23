@@ -14,6 +14,7 @@ import net.minecraft.client.Minecraft;
 public final class ChunkMapClient {
 
     private static boolean registered;
+    private static boolean protocolWarned;
 
     private ChunkMapClient() {
     }
@@ -29,13 +30,26 @@ public final class ChunkMapClient {
 
         ClientPlayNetworking.registerGlobalReceiver(ChunkMapPayload.TYPE, (payload, context) -> {
             EnigmaConfig config = EnigmaClient.config;
-            if (config != null && config.showChunkMap) {
-                ChunkMapStore.INSTANCE.apply(payload);
+            if (config == null || !config.showChunkMap) {
+                return;
             }
+            if (payload.version() != ChunkMapPayload.PROTOCOL_VERSION || payload.dimension() == null) {
+                ChunkMapStore.INSTANCE.clear();
+                warnIncompatibleServer(payload.version());
+                return;
+            }
+            ChunkMapStore.INSTANCE.apply(payload);
         });
 
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> syncSubscription());
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ChunkMapStore.INSTANCE.clear());
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            protocolWarned = false;
+            ChunkMapStore.INSTANCE.clear();
+            syncSubscription();
+        });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            ChunkMapStore.INSTANCE.clear();
+            protocolWarned = false;
+        });
     }
 
     /**
@@ -53,5 +67,14 @@ public final class ChunkMapClient {
             ChunkMapStore.INSTANCE.clear();
         }
         ClientPlayNetworking.send(new ChunkMapSubscribePayload(subscribed));
+    }
+
+    private static void warnIncompatibleServer(int version) {
+        if (protocolWarned) {
+            return;
+        }
+        protocolWarned = true;
+        EnigmaClient.notifyUser("Chunk-Karte inaktiv: Server-Protokoll v" + version
+                + " ist nicht kompatibel (erwartet v" + ChunkMapPayload.PROTOCOL_VERSION + ")", true);
     }
 }
