@@ -31,6 +31,7 @@ public class ReloadSubCommand implements SubCommand {
             // reload global and world configs
             GlobalConfiguration.reload();
             WorldConfig.reload();
+            io.canvasmc.canvas.chunkmap.EnigmaChunkMapService.getInstance().reload();
 
             final String took = Util.formatNanosToLargestWholeUnit(System.nanoTime() - start);
             Style.bullets().bullet("Configs", "reloaded in " + took, Style.good()).send(source);
@@ -40,11 +41,6 @@ public class ReloadSubCommand implements SubCommand {
             );
             return Command.SINGLE_SUCCESS;
         });
-    }
-
-    @Override
-    public boolean isAllowedSelfCommand() {
-        return false;
     }
 
     @Override

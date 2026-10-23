@@ -1,14 +1,11 @@
 package io.canvasmc.canvas.regionizer.loadscaling;
 
+import io.canvasmc.canvas.config.EnigmaConfig;
 import io.canvasmc.canvas.regionizer.RegionizerSettings;
 import io.canvasmc.canvas.regionizer.RegionizerMode;
 import io.papermc.paper.FeatureHooks;
 import io.papermc.paper.threadedregions.RegionizedServer;
 import io.papermc.paper.threadedregions.TickRegions;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -20,12 +17,10 @@ import net.minecraft.server.level.ServerLevel;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.yaml.snakeyaml.Yaml;
 
 public final class LoadScaling {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("EnigmaLoad");
-    private static final Path CONFIG_PATH = Path.of("config/enigma-regionizer.yml").toAbsolutePath().normalize();
     public static final String[] SPAWN_LIMIT_KEYS = {"monster", "animal", "ambient", "water_animal", "water_ambient"};
     public static final String[] TICKS_PER_SPAWN_KEYS = {"monster", "animal", "ambient", "water_animal", "water_ambient"};
 
@@ -33,42 +28,6 @@ public final class LoadScaling {
     // This debounces the dynamic distance changer so a single player spamming join/quit cannot
     // cause the view/simulation distance to oscillate and repeatedly reload chunks.
     public static final int DEFAULT_PLAYER_COUNT_BUFFER_TICKS = 100;
-
-    private static final String HEADER = """
-        # Enigma regionizer adaptive load scaling.
-        #
-        # This file is the persistent store for the /enigma regionizer commands. It is read at
-        # startup and on "/enigma reload", and every value changed through a command is written
-        # back here automatically, so the file always mirrors the live configuration. It may be
-        # edited by hand as well; the values are picked up on the next reload.
-        #
-        #   regionizer-mode: auto | folia. AUTO is Enigma's adaptive regionizer; FOLIA
-        #                    leaves region decisions to Folia without restarting.
-        #   aggression: 0-100
-        #   regionizer:  all global Enigma regionizer limits. These were migrated from
-        #                canvas-server.yml so this is the only persistent file for
-        #                Enigma's adaptive regionizer. Use
-        #                "/enigma regionizer setting <key> <value>" at runtime.
-        #   levels:     thresholds keyed by online player count. The entry with the smallest key
-        #               that is >= the current player count is applied. A view-distance,
-        #               simulation-distance or regionizer-sections of 0 (or less) means "leave
-        #               that value unchanged". This is the table adjusted via
-        #               "/enigma regionizer level <players> ...".
-        #   worlds:     per-dimension overrides keyed by the dimension path (e.g. world,
-        #               world_nether, world_the_end). Adjusted via
-        #               "/enigma regionizer world <dimension> ...".
-        #
-        #   player-count-buffer-ticks:
-        #               The number of ticks the online player count must remain stable before
-        #               the selected level is (re)applied to the worlds. This buffers the
-        #               dynamic view/simulation distance and spawn scaling so that a player
-        #               rapidly joining and leaving cannot thrash chunk loading (which would
-        #               otherwise make the server unplayable). Set to 0 to apply immediately
-        #               and disable the buffer.
-        #
-        # spawn-limit / ticks-per-spawn keys:
-        #   monster, animal, ambient, water_animal, water_ambient
-        """;
 
 
     private static volatile int aggression = 100;
@@ -183,7 +142,7 @@ public final class LoadScaling {
     }
 
     public static boolean hasConfig() {
-        return Files.isRegularFile(CONFIG_PATH);
+        return EnigmaConfig.hasSection(EnigmaConfig.REGIONIZER_SECTION);
     }
 
     public static int getOnlinePlayerCount() {
@@ -215,21 +174,18 @@ public final class LoadScaling {
 
     public static void reload() {
         if (!hasConfig()) {
-            LOGGER.warn("No {} present, using built-in defaults", CONFIG_PATH.getFileName());
+            LOGGER.warn("No \"{}\" section present, using built-in defaults", EnigmaConfig.REGIONIZER_SECTION);
             levels = defaultLevels();
             worldOverrides = Map.of();
             playerCountBufferTicks = DEFAULT_PLAYER_COUNT_BUFFER_TICKS;
             // RegionizerSettings already contains the canvas-server.yml compatibility defaults.
-            // Persist them here immediately so future restarts no longer depend on that file.
-            // Seed the file so the command-managed store exists from the start.
+            // Seed the section so the command-managed store exists from the start.
             save();
             applyToAllWorlds();
             return;
         }
-        try (final java.io.Reader reader = Files.newBufferedReader(CONFIG_PATH)) {
-            final Yaml yaml = new Yaml();
-            final Object root = yaml.load(reader);
-            final Map<String, Object> rootMap = asMap(root);
+        try {
+            final Map<String, Object> rootMap = EnigmaConfig.readSection(EnigmaConfig.REGIONIZER_SECTION);
             final NavigableMap<Integer, WorldSettings> parsedLevels = new TreeMap<>();
             final Map<String, WorldSettings> parsedOverrides = new LinkedHashMap<>();
 
@@ -247,7 +203,6 @@ public final class LoadScaling {
                 }
             }
 
-            final boolean migrateRegionizer = !rootMap.containsKey("regionizer");
             final RegionizerMode.Mode parsedMode = parseRegionizerMode(rootMap.get("regionizer-mode"));
             if (parsedMode != null) {
                 RegionizerMode.set(parsedMode);
@@ -265,14 +220,10 @@ public final class LoadScaling {
 
             levels = Collections.unmodifiableNavigableMap(parsedLevels);
             worldOverrides = Map.copyOf(parsedOverrides);
-            LOGGER.info("Loaded {} load scaling level(s) from {}", parsedLevels.size(), CONFIG_PATH.getFileName());
+            LOGGER.info("Loaded {} load scaling level(s) from the \"{}\" section", parsedLevels.size(), EnigmaConfig.REGIONIZER_SECTION);
             applyToAllWorlds();
-            if (migrateRegionizer) {
-                LOGGER.info("Migrated Enigma regionizer settings into {}", CONFIG_PATH.getFileName());
-                save();
-            }
-        } catch (final IOException | RuntimeException thrown) {
-            LOGGER.error("Failed to load {}, keeping previous configuration", CONFIG_PATH.getFileName(), thrown);
+        } catch (final RuntimeException thrown) {
+            LOGGER.error("Failed to load the \"{}\" section, keeping previous configuration", EnigmaConfig.REGIONIZER_SECTION, thrown);
         }
     }
 
@@ -283,15 +234,15 @@ public final class LoadScaling {
         try {
             return RegionizerMode.Mode.valueOf(String.valueOf(value).trim().toUpperCase(java.util.Locale.ROOT));
         } catch (final IllegalArgumentException ignored) {
-            LOGGER.warn("Ignoring invalid mode \"{}\" in {}", value, CONFIG_PATH.getFileName());
+            LOGGER.warn("Ignoring invalid mode \"{}\" in the \"{}\" section", value, EnigmaConfig.REGIONIZER_SECTION);
             return null;
         }
     }
 
     /**
      * Writes the current configuration (regionizer settings, aggression, levels and world overrides) back to
-     * {@code config/enigma-regionizer.yml}. Called by every command that mutates the state so the
-     * file always reflects the live configuration.
+     * the {@code regionizer} section of {@code config/enigma-engine.yml}. Called by every command that
+     * mutates the state so the section always reflects the live configuration.
      */
     public static void save() {
         final Map<String, Object> root = new LinkedHashMap<>();
@@ -312,15 +263,7 @@ public final class LoadScaling {
         }
         root.put("worlds", worldsNode);
 
-        try {
-            final Path parent = CONFIG_PATH.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
-            Files.writeString(CONFIG_PATH, HEADER + new Yaml().dump(root), StandardCharsets.UTF_8);
-        } catch (final IOException thrown) {
-            LOGGER.error("Failed to save {}", CONFIG_PATH.getFileName(), thrown);
-        }
+        EnigmaConfig.writeSection(EnigmaConfig.REGIONIZER_SECTION, root);
     }
 
     private static Map<String, Object> serialise(final WorldSettings settings) {
@@ -344,7 +287,7 @@ public final class LoadScaling {
         "split-high-load-mspt", "split-low-load-percent", "split-idle-seconds", "split-pass-interval-ticks",
         "instant-unload-enabled", "instant-unload-active-regions", "instant-unload-idle-radius",
         "instant-unload-max-chunks-per-pass", "partition-enabled", "split-max-regions", "partition-min-sections",
-        "partition-slack", "partition-refinement-passes", "player-count-buffer-ticks"
+        "partition-slack", "partition-refinement-passes", "player-count-buffer-ticks", "debug"
     };
 
     /**
@@ -397,6 +340,7 @@ public final class LoadScaling {
         final int partitionMinSections;
         final double partitionSlack;
         final int partitionRefinementPasses;
+        final boolean debug;
 
         try {
             mergeOverlapThreshold = normalisedKey.equals("merge-overlap-threshold") ? parseDouble(rawValue, normalisedKey) : current.mergeOverlapThreshold();
@@ -420,6 +364,7 @@ public final class LoadScaling {
             partitionMinSections = normalisedKey.equals("partition-min-sections") ? parseInt(rawValue, normalisedKey) : current.partitionMinSections();
             partitionSlack = normalisedKey.equals("partition-slack") ? parseDouble(rawValue, normalisedKey) : current.partitionSlack();
             partitionRefinementPasses = normalisedKey.equals("partition-refinement-passes") ? parseInt(rawValue, normalisedKey) : current.partitionRefinementPasses();
+            debug = normalisedKey.equals("debug") ? parseBoolean(rawValue, normalisedKey) : current.debug();
         } catch (final NumberFormatException thrown) {
             throw new IllegalArgumentException("\"" + rawValue + "\" is not a valid value for " + normalisedKey);
         }
@@ -450,7 +395,7 @@ public final class LoadScaling {
             splitLowLoadPercent, splitIdleSeconds, splitPassIntervalTicks, instantUnloadEnabled,
             instantUnloadActiveRegions, instantUnloadIdleRadius, instantUnloadMaxChunksPerPass, 100,
             splitMaxSections, partitionEnabled, splitMaxRegions, partitionMinSections, partitionSlack,
-            partitionRefinementPasses
+            partitionRefinementPasses, debug
         );
         RegionizerSettings.set(updated);
         lastAppliedByWorld.set(Map.of());
@@ -490,6 +435,7 @@ public final class LoadScaling {
         node.put("partition-min-sections", settings.partitionMinSections());
         node.put("partition-slack", settings.partitionSlack());
         node.put("partition-refinement-passes", settings.partitionRefinementPasses());
+        node.put("debug", settings.debug());
         return node;
     }
 
@@ -518,7 +464,8 @@ public final class LoadScaling {
             intValue(node.get("split-max-regions"), fallback.splitMaxRegions()),
             intValue(node.get("partition-min-sections"), fallback.partitionMinSections()),
             doubleValue(node.get("partition-slack"), fallback.partitionSlack()),
-            intValue(node.get("partition-refinement-passes"), fallback.partitionRefinementPasses())
+            intValue(node.get("partition-refinement-passes"), fallback.partitionRefinementPasses()),
+            booleanValue(node.get("debug"), fallback.debug())
         );
     }
 
@@ -666,20 +613,20 @@ public final class LoadScaling {
 
     private static NavigableMap<Integer, WorldSettings> defaultLevels() {
         final NavigableMap<Integer, WorldSettings> defaults = new TreeMap<>();
-        defaults.put(0, new WorldSettings(8, 6, 24, Map.of("monster", 88, "animal", 13, "water_animal", 6), Map.of("monster", 1, "animal", 1, "water_animal", 1)));
-        defaults.put(5, new WorldSettings(8, 5, 23, Map.of("monster", 70, "animal", 10, "water_animal", 6), Map.of("monster", 1, "animal", 1, "water_animal", 1)));
-        defaults.put(10, new WorldSettings(8, 5, 22, Map.of("monster", 58, "animal", 9, "water_animal", 5), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
-        defaults.put(15, new WorldSettings(7, 4, 20, Map.of("monster", 48, "animal", 8, "water_animal", 4), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
-        defaults.put(20, new WorldSettings(7, 4, 19, Map.of("monster", 39, "animal", 6, "water_animal", 4), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
-        defaults.put(25, new WorldSettings(6, 4, 17, Map.of("monster", 31, "animal", 5, "water_animal", 3), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
-        defaults.put(30, new WorldSettings(6, 3, 16, Map.of("monster", 24, "animal", 4, "water_animal", 3), Map.of("monster", 3, "animal", 3, "water_animal", 3)));
-        defaults.put(35, new WorldSettings(6, 3, 15, Map.of("monster", 19, "animal", 4, "water_animal", 3), Map.of("monster", 3, "animal", 3, "water_animal", 3)));
-        defaults.put(40, new WorldSettings(5, 3, 14, Map.of("monster", 15, "animal", 3, "water_animal", 1), Map.of("monster", 4, "animal", 4, "water_animal", 4)));
-        defaults.put(45, new WorldSettings(5, 3, 13, Map.of("monster", 11, "animal", 3, "water_animal", 1), Map.of("monster", 4, "animal", 4, "water_animal", 4)));
-        defaults.put(50, new WorldSettings(5, 2, 12, Map.of("monster", 9, "animal", 1, "water_animal", 1), Map.of("monster", 5, "animal", 5, "water_animal", 5)));
-        defaults.put(60, new WorldSettings(4, 2, 11, Map.of("monster", 5, "animal", 1, "water_animal", 1), Map.of("monster", 7, "animal", 7, "water_animal", 7)));
-        defaults.put(75, new WorldSettings(4, 2, 10, Map.of("monster", 4, "animal", 1, "water_animal", 1), Map.of("monster", 8, "animal", 8, "water_animal", 8)));
-        defaults.put(100, new WorldSettings(4, 2, 8, Map.of("monster", 3, "animal", 1, "water_animal", 1), Map.of("monster", 9, "animal", 9, "water_animal", 9)));
+        defaults.put(0, new WorldSettings(8, 6, 12, Map.of("monster", 88, "animal", 13, "water_animal", 6), Map.of("monster", 1, "animal", 1, "water_animal", 1)));
+        defaults.put(5, new WorldSettings(8, 5, 12, Map.of("monster", 70, "animal", 10, "water_animal", 6), Map.of("monster", 1, "animal", 1, "water_animal", 1)));
+        defaults.put(10, new WorldSettings(8, 5, 11, Map.of("monster", 58, "animal", 9, "water_animal", 5), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
+        defaults.put(15, new WorldSettings(7, 4, 11, Map.of("monster", 48, "animal", 8, "water_animal", 4), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
+        defaults.put(20, new WorldSettings(7, 4, 10, Map.of("monster", 39, "animal", 6, "water_animal", 4), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
+        defaults.put(25, new WorldSettings(6, 4, 10, Map.of("monster", 31, "animal", 5, "water_animal", 3), Map.of("monster", 2, "animal", 2, "water_animal", 2)));
+        defaults.put(30, new WorldSettings(6, 3, 9, Map.of("monster", 24, "animal", 4, "water_animal", 3), Map.of("monster", 3, "animal", 3, "water_animal", 3)));
+        defaults.put(35, new WorldSettings(6, 3, 9, Map.of("monster", 19, "animal", 4, "water_animal", 3), Map.of("monster", 3, "animal", 3, "water_animal", 3)));
+        defaults.put(40, new WorldSettings(5, 3, 8, Map.of("monster", 15, "animal", 3, "water_animal", 1), Map.of("monster", 4, "animal", 4, "water_animal", 4)));
+        defaults.put(45, new WorldSettings(5, 3, 8, Map.of("monster", 11, "animal", 3, "water_animal", 1), Map.of("monster", 4, "animal", 4, "water_animal", 4)));
+        defaults.put(50, new WorldSettings(5, 2, 7, Map.of("monster", 9, "animal", 1, "water_animal", 1), Map.of("monster", 5, "animal", 5, "water_animal", 5)));
+        defaults.put(60, new WorldSettings(4, 2, 7, Map.of("monster", 7, "animal", 1, "water_animal", 1), Map.of("monster", 7, "animal", 7, "water_animal", 7)));
+        defaults.put(75, new WorldSettings(4, 2, 6, Map.of("monster", 4, "animal", 1, "water_animal", 1), Map.of("monster", 8, "animal", 8, "water_animal", 8)));
+        defaults.put(100, new WorldSettings(4, 2, 6, Map.of("monster", 3, "animal", 1, "water_animal", 1), Map.of("monster", 9, "animal", 9, "water_animal", 9)));
         defaults.put(150, new WorldSettings(4, 2, 6, Map.of("monster", 2, "animal", 1, "water_animal", 1), Map.of("monster", 10, "animal", 10, "water_animal", 10)));
         return Collections.unmodifiableNavigableMap(defaults);
     }

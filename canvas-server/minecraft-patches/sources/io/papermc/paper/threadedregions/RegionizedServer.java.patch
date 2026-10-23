@@ -1,9 +1,12 @@
 --- a/io/papermc/paper/threadedregions/RegionizedServer.java
 +++ b/io/papermc/paper/threadedregions/RegionizedServer.java
-@@ -299,6 +_,19 @@
+@@ -299,6 +_,25 @@
  
          // player list
          minecraftServer.getPlayerList().tick();
++        // Enigma start - server-wide network bar snapshot
++        io.canvasmc.canvas.world.RegionizedNetworkBar.globalTick();
++        // Enigma end - server-wide network bar snapshot
 +        // Enigma start - buffered dynamic distance changer (player count debounce)
 +        io.canvasmc.canvas.regionizer.loadscaling.LoadScaling.tick();
 +        // Enigma end - buffered dynamic distance changer
@@ -17,6 +20,9 @@
 +            io.canvasmc.canvas.distributed.DistributedBootstrap.getInstance().tick();
 +        }
 +        // Enigma end - distributed runtime tick
++        // Enigma start - chunk map snapshots
++        io.canvasmc.canvas.chunkmap.EnigmaChunkMapService.globalTick();
++        // Enigma end - chunk map snapshots
          // Canvas start - region threading
  
          // gui tick

@@ -13,19 +13,37 @@ public final class HighlightPattern {
     private HighlightPattern() {
     }
 
+    /**
+     * Converts standard ARGB (A<<24 | R<<16 | G<<8 | B) to Xaero's format
+     * (B<<24 | G<<16 | R<<8 | A).
+     */
+    private static int toXaeroColor(int argb) {
+        int a = (argb >> 24) & 0xFF;
+        int r = (argb >> 16) & 0xFF;
+        int g = (argb >> 8) & 0xFF;
+        int b = argb & 0xFF;
+        return (b << 24) | (g << 16) | (r << 8) | a;
+    }
+
+    /** Fills the whole chunk, for chunks the server reports as actively ticking. */
     public static int[] solid(int[] target, int color) {
-        Arrays.fill(target, color);
+        Arrays.fill(target, toXaeroColor(color));
         return target;
     }
 
-    public static int[] dashed(int[] target, int color) {
+    /** Dashed outline along the chunk border, for chunks the server sent to this player. */
+    public static int[] border(int[] target, int color) {
+        int xaeroColor = toXaeroColor(color);
         Arrays.fill(target, 0);
-        for (int z = 0; z < 16; z++) {
-            for (int x = 0; x < 16; x++) {
-                if (((x + z) & 3) < 2) {
-                    target[(z << 4) | x] = color;
-                }
+        for (int i = 0; i < 16; i++) {
+            // Two blocks on, two blocks off, so the dashes stay readable at low zoom levels.
+            if (((i >> 1) & 1) != 0) {
+                continue;
             }
+            target[(0 << 4) | i] = xaeroColor;
+            target[(15 << 4) | i] = xaeroColor;
+            target[(i << 4) | 0] = xaeroColor;
+            target[(i << 4) | 15] = xaeroColor;
         }
         return target;
     }

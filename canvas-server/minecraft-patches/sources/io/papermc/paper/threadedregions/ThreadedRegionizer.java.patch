@@ -6,85 +6,28 @@
  
 +    // Enigma start - adaptive regionizer
 +    private boolean enigma$shouldMerge(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> into) {
-+        // FOLIA mode deliberately bypasses every Enigma merge policy and preserves upstream's
-+        // original merge decision.
-+        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()) {
-+            return true;
-+        }
-+
 +        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
 +        if (!settings.enabled()) {
 +            // upstream behavior
 +            return true;
 +        }
-+
-+        // Two regions whose sections are within the regionizer's merge radius MUST be one region.
-+        // ChunkTaskScheduler.scheduleTickingState only hands a load to the region that owns the
-+        // whole access-radius box around the tick target, and Folia preserves that by merging
-+        // regions as soon as a chunk is added between them. Never veto that merge, whatever the
-+        // adaptive policy, sibling lockout or cooldown say, otherwise a player walking up to a
-+        // neighbouring region leaves it unmerged and the load can never be scheduled.
-+        if (this.enigma$computeOverlap(from, into) > 0.0D) {
-+            return true;
++        // Buffer overlap is deliberately the sole merge criterion. Policy scores,
++        // cooldowns and section-shell contact must not make two regions merge earlier or later.
++        final boolean overlaps = this.enigma$bufferZonesOverlap(from, into);
++        if (settings.debug()) {
++            LOGGER.info("[MergeDebug] from={} into={} bufferRadius={} chunks -> {}",
++                from.id, into.id, this.enigma$bufferRadiusChunks(), overlaps ? "merge" : "separate");
 +        }
++        return overlaps;
++    }
 +
-+        final long now = System.currentTimeMillis();
-+
-+        // Sibling lockout: regions produced by the same split must not be merged back into each
-+        // other, otherwise the partitioner would immediately be undone by the merge logic.
-+        if (from.enigma$partitionGroup != 0L && from.enigma$partitionGroup == into.enigma$partitionGroup) {
-+            return false;
-+        }
-+
-+        // Strict cooldown check on BOTH merges and splits to prevent split-merge oscillation
-+        if (now - from.enigma$lastMergeTime < settings.mergeCooldownMillis()
-+            || now - into.enigma$lastMergeTime < settings.mergeCooldownMillis()
-+            || now - from.enigma$lastSplitTime < settings.splitCooldownMillis()
-+            || now - into.enigma$lastSplitTime < settings.splitCooldownMillis()) {
-+            return false;
-+        }
-+
-+        // A merge should fill a region towards the active target, not create another oversized
-+        // outlier that needs splitting again. One section of tolerance covers indivisible,
-+        // connected shapes while keeping the region population as even as possible.
-+        final int combinedSections = from.sectionByKey.size() + into.sectionByKey.size();
-+        // Never build a region larger than the active split ceiling. At aggressive settings this
-+        // also prevents two one-section children from immediately collapsing into one again.
-+        final int balancedMergeLimit = Math.min(settings.splitMaxSections(), settings.targetSections());
-+        if (combinedSections > balancedMergeLimit) {
-+            return false;
-+        }
-+
-+        // At high aggression (>= 90%), preserve independent small regions down to 1 section
-+        if (settings.aggression() >= 90) {
-+            final double coupling = io.canvasmc.canvas.regionizer.RegionCoupling.getNormalized(from.id, into.id);
-+            return coupling >= settings.mergeOverlapThreshold();
-+        }
-+
-+        final double coupling = io.canvasmc.canvas.regionizer.RegionCoupling.getNormalized(from.id, into.id);
-+        final double overlap = this.enigma$computeOverlap(from, into);
-+        final double score = (settings.couplingWeight() * coupling) + (settings.overlapWeight() * overlap);
-+
-+        if (score >= settings.mergeOverlapThreshold()) {
-+            return true;
-+        }
-+
-+        // Only merge small regions below mergeMinRegionSections if they are low load/idle and actually touch
-+        if ((from.sectionByKey.size() < settings.mergeMinRegionSections() || into.sectionByKey.size() < settings.mergeMinRegionSections())
-+            && overlap > 0.0D) {
-+            double msptFrom = -1.0D, msptInto = -1.0D;
-+            if (from.data instanceof TickRegions.TickRegionData td) {
-+                msptFrom = td.getMSPT(io.canvasmc.canvas.region.RegionTickData.Frame._5_SECONDS);
-+            }
-+            if (into.data instanceof TickRegions.TickRegionData td) {
-+                msptInto = td.getMSPT(io.canvasmc.canvas.region.RegionTickData.Frame._5_SECONDS);
-+            }
-+            if (msptFrom < 1.0D && msptInto < 1.0D) {
-+                return true;
-+            }
-+        }
-+
-+        return false;
++    /**
++     * Merge decision for the case where a region would otherwise break the regionizer's
++     * adjacency invariant. Every operating mode shares this one merge rule, including deferred
++     * paths: the configured buffer zones around real loaded chunks overlap.
++     */
++    private boolean enigma$shouldMergeRequired(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> into) {
++        return this.enigma$shouldMerge(from, into);
 +    }
 +
 +    private double enigma$computeOverlap(final ThreadedRegion<R, S> a, final ThreadedRegion<R, S> b) {
@@ -96,31 +39,278 @@
 +            large = swap;
 +        }
 +        int boundary = 0;
++        int content = 0;
 +        for (final ThreadedRegionSection<R, S> section : small.sectionByKey.values()) {
++            // Only a section that actually owns chunks may connect two regions. Empty buffer
++            // sections are created around a region's loaded chunks and stay behind when those
++            // chunks unload, so a whole chain of them can bridge two regions whose loaded
++            // content is hundreds of blocks apart. Counting them as a boundary made the
++            // regionizer merge those regions and built regions that span entire worlds.
++            if (section.chunkCount <= 0) {
++                continue;
++            }
++            ++content;
 +            final int x = section.sectionX;
 +            final int z = section.sectionZ;
-+            if (large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x - 1, z))
-+                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x + 1, z))
-+                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x, z - 1))
-+                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x, z + 1))
-+                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x - 1, z - 1))
-+                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x + 1, z - 1))
-+                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x - 1, z + 1))
-+                || large.sectionByKey.containsKey(CoordinateUtils.getChunkKey(x + 1, z + 1))) {
-+                ++boundary;
++            for (int dz = -1; dz <= 1; ++dz) {
++                for (int dx = -1; dx <= 1; ++dx) {
++                    if ((dx | dz) == 0) {
++                        continue;
++                    }
++                    final ThreadedRegionSection<R, S> other =
++                        large.sectionByKey.get(CoordinateUtils.getChunkKey(x + dx, z + dz));
++                    if (other != null && other.chunkCount > 0) {
++                        ++boundary;
++                        break;
++                    }
++                }
 +            }
 +        }
-+        if (boundary == 0) {
++        if (boundary == 0 || content == 0) {
 +            return 0.0D;
 +        }
-+        return Math.min(1.0D, (double) boundary / (double) Math.max(1, small.sectionByKey.size()));
++        return Math.min(1.0D, (double) boundary / (double) content);
++    }
++
++    /**
++     * Returns the distance in region sections between the chunks that two regions own. Empty
++     * buffer sections are ignored on purpose: they only mark the edge of a region and may sit
++     * arbitrarily far away from the region's loaded content, so they must never be used to judge
++     * how close two regions are.
++     *
++     * @return the section distance, or {@code mergeReach() + 1} when the regions are further
++     *         apart than the reach allows
++     */
++    public int enigma$contentDistance(final ThreadedRegion<R, S> a, final ThreadedRegion<R, S> b) {
++        return this.enigma$distance(a, b, true, true);
++    }
++
++    /**
++     * Returns the distance in region sections between any section of {@code from} and the loaded
++     * content of {@code to}. Used when a chunk-less husk is folded into a neighbour: the husk
++     * itself owns no chunks, so only the neighbour's loaded content decides how far away the
++     * husk really is.
++     *
++     * @return the section distance, or {@code mergeReach() + 1} when the husk is further away
++     */
++    public int enigma$distanceToContentOf(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> to) {
++        return this.enigma$distance(from, to, false, true);
++    }
++
++    /**
++     * The distance that decides whether two regions may be merged. The distance is measured
++     * between the loaded chunks of the two regions. A region that owns no chunks at all (a husk)
++     * is measured by its sections, because a husk has no content that could be used as an
++     * anchor. Two regions that both own no chunks are only as close as their sections are.
++     *
++     * @return the section distance, or {@code mergeReach() + 1} when the regions are further
++     *         apart than the reach allows
++     */
++    public int enigma$mergeDistance(final ThreadedRegion<R, S> a, final ThreadedRegion<R, S> b) {
++        final boolean aHasContent = this.enigma$hasContent(a);
++        final boolean bHasContent = this.enigma$hasContent(b);
++        if (aHasContent && bHasContent) {
++            return this.enigma$distance(a, b, true, true);
++        }
++        if (aHasContent) {
++            return this.enigma$distance(b, a, false, true);
++        }
++        if (bHasContent) {
++            return this.enigma$distance(a, b, false, true);
++        }
++        return this.enigma$distance(a, b, false, false);
++    }
++
++    /**
++     * Whether a region owns at least one chunk.
++     */
++    public boolean enigma$hasContent(final ThreadedRegion<R, S> region) {
++        for (final ThreadedRegionSection<R, S> section : region.sectionByKey.values()) {
++            if (section.chunkCount > 0) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    /** Returns the configured empty-shell radius in chunks. */
++    private int enigma$bufferRadiusChunks() {
++        return this.emptySectionCreateRadius * this.regionSectionChunkSize;
++    }
++
++    /**
++     * Returns true only when the configured square buffer zones around real loaded chunks
++     * overlap. For a radius of four, chunks eight coordinates apart are the last pair whose
++     * buffers still touch. Empty region sections, coupling and load are intentionally ignored.
++     */
++    private boolean enigma$bufferZonesOverlap(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> into) {
++        final int overlapReach = this.enigma$bufferRadiusChunks() * 2;
++        for (final ThreadedRegionSection<R, S> section : from.sectionByKey.values()) {
++            if (section.chunkCount <= 0) {
++                continue;
++            }
++            for (final long chunkKey : section.getChunks()) {
++                final int chunkX = CoordinateUtils.getChunkX(chunkKey);
++                final int chunkZ = CoordinateUtils.getChunkZ(chunkKey);
++                for (int dz = -overlapReach; dz <= overlapReach; ++dz) {
++                    for (int dx = -overlapReach; dx <= overlapReach; ++dx) {
++                        final int otherChunkX = chunkX + dx;
++                        final int otherChunkZ = chunkZ + dz;
++                        final ThreadedRegionSection<R, S> other = this.sections.get(CoordinateUtils.getChunkKey(
++                            otherChunkX >> this.sectionChunkShift, otherChunkZ >> this.sectionChunkShift
++                        ));
++                        if (other != null && other.getRegionPlain() == into
++                            && other.containsChunk(otherChunkX, otherChunkZ)) {
++                            return true;
++                        }
++                    }
++                }
++            }
++        }
++        return false;
++    }
++
++    /**
++     * Searches for the smallest section distance between two regions. Only the ring of the
++     * distance that is currently tested is inspected, so the search stays cheap even for regions
++     * with hundreds of sections.
++     */
++    private int enigma$distance(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> to,
++                                 final boolean fromMustHaveContent, final boolean toMustHaveContent) {
++        final int reach = this.enigma$mergeReach();
++        // The distance is symmetric, so the search always iterates over the smaller region.
++        // A region may own thousands of sections and this search runs on every chunk that
++        // lands in a section that was empty before.
++        ThreadedRegion<R, S> iter = from;
++        ThreadedRegion<R, S> other = to;
++        boolean iterMustHaveContent = fromMustHaveContent;
++        boolean otherMustHaveContent = toMustHaveContent;
++        if (iter.sectionByKey.size() > other.sectionByKey.size()) {
++            final ThreadedRegion<R, S> swap = iter;
++            iter = other;
++            other = swap;
++            final boolean swapContent = iterMustHaveContent;
++            iterMustHaveContent = otherMustHaveContent;
++            otherMustHaveContent = swapContent;
++        }
++        for (int distance = 0; distance <= reach; ++distance) {
++            if (this.enigma$hasNeighbour(iter, other, distance, iterMustHaveContent, otherMustHaveContent)) {
++                return distance;
++            }
++        }
++        return reach + 1;
++    }
++
++    /**
++     * Checks whether a section of {@code from} has a matching section in {@code to} at exactly the
++     * given Chebyshev distance.
++     */
++    private boolean enigma$hasNeighbour(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> to,
++                                         final int distance, final boolean fromMustHaveContent, final boolean toMustHaveContent) {
++        for (final ThreadedRegionSection<R, S> section : from.sectionByKey.values()) {
++            if (fromMustHaveContent && section.chunkCount <= 0) {
++                continue;
++            }
++            for (int dz = -distance; dz <= distance; ++dz) {
++                for (int dx = -distance; dx <= distance; ++dx) {
++                    if (Math.max(Math.abs(dx), Math.abs(dz)) != distance) {
++                        continue;
++                    }
++                    final ThreadedRegionSection<R, S> other =
++                        to.sectionByKey.get(CoordinateUtils.getChunkKey(section.sectionX + dx, section.sectionZ + dz));
++                    if (other == null) {
++                        continue;
++                    }
++                    if (toMustHaveContent && other.chunkCount <= 0) {
++                        continue;
++                    }
++                    return true;
++                }
++            }
++        }
++        return false;
++    }
++
++    /**
++     * Checks that every section a region owns is still within the given reach of the region's own
++     * loaded content. A region whose footprint has drifted away from its content covers unloaded
++     * ground and must not be grown any further.
++     */
++    public boolean enigma$footprintWithinReach(final ThreadedRegion<R, S> region, final int reach) {
++        int minX = Integer.MAX_VALUE;
++        int maxX = Integer.MIN_VALUE;
++        int minZ = Integer.MAX_VALUE;
++        int maxZ = Integer.MIN_VALUE;
++        boolean hasContent = false;
++        for (final ThreadedRegionSection<R, S> section : region.sectionByKey.values()) {
++            if (section.chunkCount <= 0) {
++                continue;
++            }
++            hasContent = true;
++            minX = Math.min(minX, section.sectionX);
++            maxX = Math.max(maxX, section.sectionX);
++            minZ = Math.min(minZ, section.sectionZ);
++            maxZ = Math.max(maxZ, section.sectionZ);
++        }
++        if (!hasContent) {
++            return true;
++        }
++        for (final ThreadedRegionSection<R, S> section : region.sectionByKey.values()) {
++            final int driftX = Math.max(minX - section.sectionX, section.sectionX - maxX);
++            final int driftZ = Math.max(minZ - section.sectionZ, section.sectionZ - maxZ);
++            if (Math.max(driftX, driftZ) > reach) {
++                return false;
++            }
++        }
++        return true;
++    }
++
++    /**
++     * The furthest apart two regions may be and still be merged into one. This mirrors the reach
++     * upstream Folia uses when it merges the regions around a freshly loaded chunk: the merge
++     * radius plus the buffer radius that surrounds the loaded chunks on either side.
++     */
++    public int enigma$mergeReach() {
++        return (2 * this.emptySectionCreateRadius) + this.regionSectionMergeRadius;
++    }
++
++    /**
++     * Whether the regionizer should emit its merge and split diagnostics.
++     */
++    public boolean enigma$debug() {
++        return this.world.enigma$regionizerSettings.debug();
++    }
++
++    /**
++     * A compact description of a region for the diagnostics. {@link ThreadedRegion#toString()}
++     * dumps every section including its chunk bitset, which produced multi megabyte log lines
++     * for the larger regions, so the diagnostics use this summary instead.
++     */
++    public String enigma$describe(final ThreadedRegion<R, S> region) {
++        int minX = Integer.MAX_VALUE;
++        int maxX = Integer.MIN_VALUE;
++        int minZ = Integer.MAX_VALUE;
++        int maxZ = Integer.MIN_VALUE;
++        int content = 0;
++        int chunks = 0;
++        for (final ThreadedRegionSection<R, S> section : region.sectionByKey.values()) {
++            minX = Math.min(minX, section.sectionX);
++            maxX = Math.max(maxX, section.sectionX);
++            minZ = Math.min(minZ, section.sectionZ);
++            maxZ = Math.max(maxZ, section.sectionZ);
++            if (section.chunkCount > 0) {
++                ++content;
++                chunks += section.chunkCount;
++            }
++        }
++        if (region.sectionByKey.isEmpty()) {
++            return "id=" + region.id + " secs=0";
++        }
++        return "id=" + region.id + " secs=" + region.sectionByKey.size() + " content=" + content
++            + " chunks=" + chunks + " bbox=[" + minX + ".." + maxX + "/" + minZ + ".." + maxZ + "]";
 +    }
 +
 +    public void enigma$runRegionMaintenance() {
-+        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()) {
-+            return;
-+        }
-+
 +        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
 +        if (!settings.enabled()) {
 +            return;
@@ -187,6 +377,26 @@
 +            }
 +        }
 +        // Enigma end - regionizer driven eviction
++
++        // Re-evaluate live regions on the maintenance cadence as well as on chunk release.
++        // A player entering a new area adds content rather than removing it, so release-only
++        // splitting left a large shared region intact until somebody later went away.
++        final List<ThreadedRegion<R, S>> splitCandidates = new ArrayList<>();
++        this.computeForAllRegionsUnsynchronised(splitCandidates::add);
++        this.acquireWriteLock();
++        try {
++            for (final ThreadedRegion<R, S> region : splitCandidates) {
++                if (region.isDead() || region.state != ThreadedRegion.STATE_READY
++                    || !region.mergeIntoLater.isEmpty() || !region.expectingMergeFrom.isEmpty()) {
++                    continue;
++                }
++                if (this.enigma$shouldSplit(region)) {
++                    this.enigma$splitRegion(region);
++                }
++            }
++        } finally {
++            this.releaseWriteLock();
++        }
 +    }
 +
 +    /**
@@ -200,10 +410,6 @@
 +     * @return the number of regions that were dropped
 +     */
 +    public int enigma$garbageCollectRegions() {
-+        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()) {
-+            return 0;
-+        }
-+
 +        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
 +        if (!settings.enabled()) {
 +            return 0;
@@ -274,27 +480,10 @@
 +                    }
 +                }
 +
-+                // A chunk-less region that still owns live boundary sections is a player-less
-+                // husk: those sections only survive because a populated neighbour rendered them
-+                // alive. Fold the husk back into that neighbour so no standalone player-less
-+                // region is left behind. Absorbing the sections (rather than deleting them)
-+                // keeps the regionizer's adjacency grid intact, so the strict tick-safety guard
-+                // is not weakened.
-+                final ThreadedRegion<R, S> absorbInto = this.enigma$findAbsorbingRegion(region);
-+                if (absorbInto != null) {
-+                    try {
-+                        if (region.killAndMergeInto(absorbInto)) {
-+                            absorbed++;
-+                            continue;
-+                        }
-+                    } catch (final Throwable t) {
-+                        LOGGER.warn("Region GC could not absorb player-less region {} into {}: {}",
-+                                region.id, absorbInto.id, t.toString());
-+                    }
-+                }
-+
-+                // No idle neighbour to absorb into: the sections are structurally isolated and
-+                // the next region release reclaims them.
++                // Never use garbage collection to merge a shell into another region. A shell has
++                // no loaded chunks, therefore it has no buffer zone that could overlap. Folding it
++                // into a neighbour was an invisible third merge path and could reconnect two
++                // otherwise isolated player regions through stale empty sections.
 +                retainedStructural++;
 +                retainedStructuralSections += totalSections;
 +            }
@@ -347,6 +536,31 @@
 +                        // Only fold into a populated region: absorbing a player-less husk into another
 +                        // player-less husk would just shuffle it around the grid on every pass.
 +                        if (!neighbourRegion.getOwnedChunks().isEmpty()) {
++                            // Enigma start - an absorption must not bridge unloaded ground
++                            // A husk is folded into a neighbour that touches it in section space.
++                            // That neighbour's own footprint may however reach far past its
++                            // loaded chunks, and folding the husk into it would let a region grow
++                            // across a gap of unloaded sections one husk at a time. Only fold the
++                            // husk in when the neighbour's loaded content is still within reach and
++                            // when the neighbour's footprint has not already drifted away from its
++                            // own content.
++                            final int contentDistance = this.enigma$distanceToContentOf(region, neighbourRegion);
++                            final int reach = this.enigma$mergeReach();
++                            if (contentDistance > reach) {
++                                if (this.world.enigma$regionizerSettings.debug()) {
++                                    LOGGER.info("[MergeDebug] absorb {} -> {} refused: content distance {} exceeds reach {}",
++                                        region.id, neighbourRegion.id, contentDistance, reach);
++                                }
++                                continue;
++                            }
++                            if (!this.enigma$footprintWithinReach(neighbourRegion, reach)) {
++                                if (this.world.enigma$regionizerSettings.debug()) {
++                                    LOGGER.info("[MergeDebug] absorb {} -> {} refused: target footprint drifted from its content",
++                                        region.id, neighbourRegion.id);
++                                }
++                                continue;
++                            }
++                            // Enigma end - an absorption must not bridge unloaded ground
 +                            return neighbourRegion;
 +                        }
 +                    }
@@ -357,47 +571,157 @@
 +    }
 +
 +    private boolean enigma$shouldSplit(final ThreadedRegion<R, S> region) {
-+        // FOLIA mode has no Enigma-triggered partitions. Upstream's normal region lifecycle is
-+        // otherwise untouched because the surrounding caller simply continues when this is false.
-+        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()) {
-+            return false;
-+        }
-+
 +        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
 +        if (!settings.enabled()) {
 +            return false;
 +        }
-+        final int sectionCount = region.sectionByKey.size();
-+        if (sectionCount <= 1) {
-+            return false;
++        // The inverse of the sole merge rule is also the sole split rule. Size, player count and
++        // tick time must not carve a still-overlapping buffer island into artificial regions:
++        // such children would immediately qualify for a merge again. As soon as the loaded
++        // content forms more than one non-overlapping buffer component, split without a cooldown.
++        final boolean separated = this.enigma$hasDisconnectedBufferContent(region);
++        if (separated && settings.debug()) {
++            LOGGER.info("[SplitDebug] region={} -> split (buffer zones no longer overlap)",
++                this.enigma$describe(region));
 +        }
-+        if (sectionCount < settings.splitMinSize()) {
-+            return false;
-+        }
-+        // The cooldown must gate every split, including the oversized fast path below. Otherwise a
-+        // region that cannot actually be split (for example because coalescing rejects the plan to
-+        // preserve the buffer invariant) is re-partitioned on every single chunk release, and the
-+        // partitioner dominates the tick at a time when the region holds almost no players.
-+        if (System.currentTimeMillis() - region.enigma$lastSplitTime < settings.splitCooldownMillis()) {
-+            return false;
-+        }
-+        if (sectionCount > settings.splitMaxSections()) {
-+            return true;
-+        }
-+        double mspt = 0.0D;
-+        if (region.data instanceof TickRegions.TickRegionData tickData) {
-+            // Player density alone can justify a spatial split before its aggregate tick cost
-+            // reaches the emergency threshold. The planner keeps roughly two players per child.
-+            if (tickData.getRegionStats().getPlayerCount() > 2) {
-+                return true;
-+            }
-+            try {
-+                mspt = tickData.getMSPT(io.canvasmc.canvas.region.RegionTickData.Frame._5_SECONDS);
-+            } catch (final Throwable ignored) {
-+                mspt = 0.0D;
++        return separated;
++    }
++
++    /**
++     * Tests whether all real loaded chunks in a region are connected through overlapping buffer
++     * squares. Empty sections deliberately never participate in this graph.
++     */
++    private boolean enigma$hasDisconnectedBufferContent(final ThreadedRegion<R, S> region) {
++        final it.unimi.dsi.fastutil.longs.LongOpenHashSet remaining = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
++        for (final ThreadedRegionSection<R, S> section : region.sectionByKey.values()) {
++            if (section.chunkCount > 0) {
++                remaining.addAll(section.getChunks());
 +            }
 +        }
-+        return mspt >= settings.splitHighLoadMspt();
++        if (remaining.size() <= 1) {
++            return false;
++        }
++
++        final it.unimi.dsi.fastutil.longs.LongArrayList queue = new it.unimi.dsi.fastutil.longs.LongArrayList();
++        final LongIterator first = remaining.iterator();
++        final long seed = first.nextLong();
++        remaining.remove(seed);
++        queue.add(seed);
++        final int overlapReach = this.enigma$bufferRadiusChunks() * 2;
++        for (int index = 0; index < queue.size(); ++index) {
++            final long chunkKey = queue.getLong(index);
++            final int chunkX = CoordinateUtils.getChunkX(chunkKey);
++            final int chunkZ = CoordinateUtils.getChunkZ(chunkKey);
++            for (int dz = -overlapReach; dz <= overlapReach; ++dz) {
++                for (int dx = -overlapReach; dx <= overlapReach; ++dx) {
++                    final long neighbour = CoordinateUtils.getChunkKey(chunkX + dx, chunkZ + dz);
++                    if (remaining.remove(neighbour)) {
++                        queue.add(neighbour);
++                    }
++                }
++            }
++        }
++        return !remaining.isEmpty();
++    }
++
++    /**
++     * Builds the exact strict-isolation split plan. Each part contains one connected component
++     * of loaded chunks plus the empty shell owned by that component. Adjacent empty shells never
++     * connect components.
++     */
++    private List<List<ThreadedRegionSection<R, S>>> enigma$partitionByBufferComponents(final ThreadedRegion<R, S> region) {
++        final it.unimi.dsi.fastutil.longs.LongOpenHashSet remaining = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
++        for (final ThreadedRegionSection<R, S> section : region.sectionByKey.values()) {
++            if (section.chunkCount > 0) {
++                remaining.addAll(section.getChunks());
++            }
++        }
++        if (remaining.isEmpty()) {
++            return List.of();
++        }
++
++        final List<it.unimi.dsi.fastutil.longs.LongArrayList> components = new ArrayList<>();
++        final int overlapReach = this.enigma$bufferRadiusChunks() * 2;
++        while (!remaining.isEmpty()) {
++            final it.unimi.dsi.fastutil.longs.LongArrayList component = new it.unimi.dsi.fastutil.longs.LongArrayList();
++            final LongIterator first = remaining.iterator();
++            final long seed = first.nextLong();
++            remaining.remove(seed);
++            component.add(seed);
++            for (int index = 0; index < component.size(); ++index) {
++                final long chunkKey = component.getLong(index);
++                final int chunkX = CoordinateUtils.getChunkX(chunkKey);
++                final int chunkZ = CoordinateUtils.getChunkZ(chunkKey);
++                for (int dz = -overlapReach; dz <= overlapReach; ++dz) {
++                    for (int dx = -overlapReach; dx <= overlapReach; ++dx) {
++                        final long neighbour = CoordinateUtils.getChunkKey(chunkX + dx, chunkZ + dz);
++                        if (remaining.remove(neighbour)) {
++                            component.add(neighbour);
++                        }
++                    }
++                }
++            }
++            components.add(component);
++        }
++        if (components.size() == 1) {
++            return List.of(new ArrayList<>(region.sectionByKey.values()));
++        }
++
++        final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap sectionOwner =
++            new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap(region.sectionByKey.size());
++        sectionOwner.defaultReturnValue(-1);
++        final int bufferRadius = this.emptySectionCreateRadius;
++        for (int componentIndex = 0; componentIndex < components.size(); ++componentIndex) {
++            for (final long chunkKey : components.get(componentIndex)) {
++                final int chunkX = CoordinateUtils.getChunkX(chunkKey);
++                final int chunkZ = CoordinateUtils.getChunkZ(chunkKey);
++                final int sectionX = chunkX >> this.sectionChunkShift;
++                final int sectionZ = chunkZ >> this.sectionChunkShift;
++                sectionOwner.put(CoordinateUtils.getChunkKey(sectionX, sectionZ), componentIndex);
++                for (int dz = -bufferRadius; dz <= bufferRadius; ++dz) {
++                    for (int dx = -bufferRadius; dx <= bufferRadius; ++dx) {
++                        final long shellKey = CoordinateUtils.getChunkKey(sectionX + dx, sectionZ + dz);
++                        if (region.sectionByKey.containsKey(shellKey) && sectionOwner.get(shellKey) < 0) {
++                            sectionOwner.put(shellKey, componentIndex);
++                        }
++                    }
++                }
++            }
++        }
++
++        final List<List<ThreadedRegionSection<R, S>>> result = new ArrayList<>(components.size());
++        for (int index = 0; index < components.size(); ++index) {
++            result.add(new ArrayList<>());
++        }
++        for (final ThreadedRegionSection<R, S> section : region.sectionByKey.values()) {
++            int owner = sectionOwner.get(section.sectionKey);
++            if (owner < 0) {
++                owner = this.enigma$nearestBufferComponent(section, components);
++            }
++            result.get(owner).add(section);
++        }
++        return result;
++    }
++
++    private int enigma$nearestBufferComponent(final ThreadedRegionSection<R, S> section,
++                                               final List<it.unimi.dsi.fastutil.longs.LongArrayList> components) {
++        final int sectionChunkX = section.sectionX << this.sectionChunkShift;
++        final int sectionChunkZ = section.sectionZ << this.sectionChunkShift;
++        int nearest = 0;
++        int nearestDistance = Integer.MAX_VALUE;
++        for (int componentIndex = 0; componentIndex < components.size(); ++componentIndex) {
++            for (final long chunkKey : components.get(componentIndex)) {
++                final int distance = Math.max(
++                    Math.abs(CoordinateUtils.getChunkX(chunkKey) - sectionChunkX),
++                    Math.abs(CoordinateUtils.getChunkZ(chunkKey) - sectionChunkZ)
++                );
++                if (distance < nearestDistance) {
++                    nearest = componentIndex;
++                    nearestDistance = distance;
++                }
++            }
++        }
++        return nearest;
 +    }
 +
 +    /**
@@ -454,61 +778,12 @@
 +            return false;
 +        }
 +
-+        // Record the attempt before partitioning. When the partitioner's result is later discarded
-+        // (buffer-neighbourhood coalescing), the region must still observe the split cooldown so the
-+        // next chunk release does not immediately re-run this whole O(n log n) partition.
-+        region.enigma$lastSplitTime = System.currentTimeMillis();
-+
-+        // A region is a schedulable work unit, not a dedicated thread. Do not cap
-+        // partitions at Runtime.availableProcessors(): containers often report one
-+        // CPU even when the affinity scheduler has several usable worker cores.
-+        final int maxPartitionRegions = settings.splitMaxRegions();
-+        // A static section target cannot see that one region currently owns most players or
-+        // tick time. Reduce the target for this split so the partitioner creates enough children
-+        // to share that live work, while its topology pass keeps every child contiguous.
-+        final int targetSections = this.enigma$splitTargetSections(region, settings);
-+        List<List<ThreadedRegionSection<R, S>>> newRegions = settings.partitionEnabled()
-+            ? io.canvasmc.canvas.regionizer.BalancedPartitioner.partition(
-+                region.sectionByKey.values(),
-+                s -> s.sectionX,
-+                s -> s.sectionZ,
-+                s -> Math.max(1, s.chunkCount),
-+                targetSections,
-+                maxPartitionRegions,
-+                settings.partitionMinSections(),
-+                settings.partitionSlack(),
-+                settings.partitionRefinementPasses(),
-+                maxPartitionRegions
-+            )
-+            : io.canvasmc.canvas.regionizer.DynamicRegionPartitioner.partition(
-+                region.sectionByKey.values(),
-+                s -> s.sectionX,
-+                s -> s.sectionZ,
-+                s -> Math.max(1, s.chunkCount),
-+                targetSections,
-+                settings.splitMaxSections(),
-+                maxPartitionRegions
-+            );
-+
++        // Splitting uses the exact inverse of the merge graph. A generic size/load partition
++        // would create children with overlapping buffers, which violates hard isolation.
++        final List<List<ThreadedRegionSection<R, S>>> newRegions = this.enigma$partitionByBufferComponents(region);
 +        if (newRegions.size() <= 1) {
 +            return false;
 +        }
-+
-+        // Enigma start - preserve the regionizer's buffer invariant across a split.
-+        // ChunkTaskScheduler.scheduleTickingState only hands a load to the region that owns the whole
-+        // access-radius box around the target chunk. Folia keeps that guarantee by never letting a
-+        // non-empty section drift away from its emptySectionCreateRadius / regionSectionMergeRadius
-+        // neighbourhood. The partitioner slices individual sections, so it can tear a non-empty
-+        // section away from its buffer sections; the target's region then no longer owns the radius
-+        // box and the scheduleTickingState retry re-queues forever. Coalesce every pair of children
-+        // that a non-empty section's buffer neighbourhood would otherwise split.
-+        newRegions = this.enigma$coalesceBufferNeighbourhoods(newRegions);
-+        if (newRegions.size() <= 1) {
-+            // the split could only be achieved by separating a non-empty section from its buffer
-+            // sections, which would break the scheduler's region ownership guarantee.
-+            return false;
-+        }
-+        // Enigma end - preserve the regionizer's buffer invariant across a split
 +
 +        final List<ThreadedRegion<R, S>> newRegionObjects = new ArrayList<>(newRegions.size());
 +        for (int i = 0, len = newRegions.size(); i < len; ++i) {
@@ -663,7 +938,56 @@
              }
              // due to the fast check from above, we know the section is empty whether we needed to create it or not
  
+@@ -354,5 +_,41 @@
+             if (newSections.isEmpty()) {
+-                // if we didn't add any sections, then we don't need to merge any regions or create a region
+-                return;
++                // Enigma start - a section that already existed just received its first chunk
++                // Upstream skips the merge here because it assumes that a section and all of
++                // its neighbouring sections always belong to the same region. A split breaks
++                // that assumption: two regions end up next to each other and the section that
++                // just received its first chunk has neighbours in the other region. The
++                // access-radius box around that chunk then crosses the region border, the
++                // chunk can never be scheduled and the player is stuck at the border. Merge
++                // the regions that own the neighbourhood into the region that owns the
++                // section, that is the merge upstream would have done when the section was
++                // created.
++                final ThreadedRegion<R, S> enigma$owner = section.getRegionPlain();
++                if (enigma$owner != null && !enigma$owner.isDead()) {
++                    // The section may have been an empty shell long before it received its
++                    // first chunk. Search the full upstream candidate radius, not only the
++                    // immediately adjacent shells, then let the exact chunk-buffer test decide.
++                    final int enigma$searchRadius = this.emptySectionCreateRadius + this.regionSectionMergeRadius;
++                    for (int dz = -enigma$searchRadius; dz <= enigma$searchRadius; ++dz) {
++                        for (int dx = -enigma$searchRadius; dx <= enigma$searchRadius; ++dx) {
++                            if ((dx | dz) == 0) {
++                                continue;
++                            }
++                            final ThreadedRegionSection<R, S> enigma$neighbour =
++                                this.sections.get(CoordinateUtils.getChunkKey(section.sectionX + dx, section.sectionZ + dz));
++                            if (enigma$neighbour == null) {
++                                continue;
++                            }
++                            final ThreadedRegion<R, S> enigma$other = enigma$neighbour.getRegionPlain();
++                            if (enigma$other == null || enigma$other == enigma$owner || enigma$other.isDead()) {
++                                continue;
++                            }
++                            if (!this.enigma$shouldMergeRequired(enigma$other, enigma$owner)) {
++                                continue;
++                            }
++                            if (!enigma$other.killAndMergeInto(enigma$owner)) {
++                                // the region is ticking right now, it merges as soon as it unlocks
++                                enigma$owner.mergeIntoLater(enigma$other);
++                            }
++                        }
++                    }
++                }
++                return;
++                // Enigma end - a section that already existed just received its first chunk
+             }
+
 @@ -412,6 +_,13 @@
+
                          continue;
                      }
  
@@ -695,6 +1019,25 @@
          }
          if (!section.hasOnlyOneChunk()) {
              // chunk will not go empty, so we don't need to acquire the lock
+@@ -515,6 +_,20 @@
+         if (hasExpectingMerges) {
+             // merge the regions into this one
+             final ReferenceOpenHashSet<ThreadedRegion<R, S>> expectingMergeFrom = region.expectingMergeFrom.clone();
+             for (final ThreadedRegion<R, S> mergeFrom : expectingMergeFrom) {
++                // The source may have moved while it was ticking. Revalidate a queued merge at
++                // the only point it can actually execute; otherwise a once-valid overlap can
++                // fuse regions after their loaded content has separated again.
++                if (this.world.enigma$regionizerSettings.enabled()
++                    && !this.enigma$shouldMerge(mergeFrom, region)) {
++                    if (!mergeFrom.mergeIntoLater.remove(region) || !region.expectingMergeFrom.remove(mergeFrom)) {
++                        throw new IllegalStateException("Inconsistent cancelled merge " + mergeFrom + " -> " + region);
++                    }
++                    continue;
++                }
+                 if (!mergeFrom.killAndMergeInto(region)) {
+                     throw new IllegalStateException("Merge from region " + mergeFrom + " should be killable! Trying to merge into " + region);
+                 }
+             }
 @@ -560,6 +_,12 @@
          // if we removed dead sections, we should check if the region can be split into smaller ones
          // otherwise, the region remains alive
@@ -721,7 +1064,7 @@
              // no need to split anything, we're done here
              region.state = ThreadedRegion.STATE_READY;
              if (!region.expectingMergeFrom.isEmpty() || !region.mergeIntoLater.isEmpty()) {
-@@ -785,6 +_,12 @@
+@@ -785,9 +_,21 @@
          private final ReferenceOpenHashSet<ThreadedRegion<R, S>> mergeIntoLater = new ReferenceOpenHashSet<>();
          private final ReferenceOpenHashSet<ThreadedRegion<R, S>> expectingMergeFrom = new ReferenceOpenHashSet<>();
  
@@ -729,11 +1072,47 @@
 +        volatile long enigma$lastMergeTime;
 +        volatile long enigma$lastSplitTime;
 +        volatile long enigma$partitionGroup;
++        volatile long enigma$lastSplitDebugTime;
 +        // Enigma end - adaptive regionizer
++
++        // Enigma start - region ID recycling: ids of dead regions are reused so the coupling
++        // table and the pairKey packing (a | (b << 32)) stay bounded over long uptimes
++        private static final java.util.concurrent.ConcurrentLinkedQueue<Long> REGION_ID_FREE_LIST = new java.util.concurrent.ConcurrentLinkedQueue<>();
++        // Enigma end - region ID recycling
 +
          public ThreadedRegion(final @NonNull ThreadedRegionizer<R, S> regioniser) {
              this.regioniser = regioniser;
-             this.id = REGION_ID_GENERATOR.getAndIncrement();
+-            this.id = REGION_ID_GENERATOR.getAndIncrement();
++            final Long recycledId = REGION_ID_FREE_LIST.poll();
++            this.id = recycledId != null ? recycledId : REGION_ID_GENERATOR.getAndIncrement();
+             this.state = STATE_TRANSIENT;
++            // A newly born region is as independent as a split child. Start its separation
++            // timer now so a brief first contact cannot immediately turn two bases into one.
++            this.enigma$lastSplitTime = System.currentTimeMillis();
+             this.data = regioniser.callbacks.createNewData(this);
+         }
+@@ -904,7 +_,21 @@
+         private void onRemove(final boolean wasActive) {
+             if (wasActive) {
+                 this.regioniser.callbacks.onRegionInactive(this);
+             }
+             this.regioniser.callbacks.onRegionDestroy(this);
+             this.regioniser.onRegionDestroy(this);
++            this.enigma$recycleId();
++        }
++
++        // Enigma start - region ID recycling: onRemove is the single death point for every region
++        // (merge kill, split, GC). Hand the id back to the free list and drop the coupling
++        // counters so recycled ids never observe stale pair statistics.
++        private boolean enigma$idRecycled;
++
++        private void enigma$recycleId() {
++            if (!this.enigma$idRecycled) {
++                this.enigma$idRecycled = true;
++                io.canvasmc.canvas.regionizer.RegionCoupling.clearRegion(this.id);
++                REGION_ID_FREE_LIST.add(this.id);
++            }
+         }
 @@ -928,6 +_,13 @@
                  return false;
              }
@@ -748,10 +1127,19 @@
              this.regioniser.callbacks.preMerge(this, mergeTarget);
  
              this.tryKill();
-@@ -990,6 +_,12 @@
+@@ -990,6 +_,30 @@
              if (region.isDead()) {
                  throw new IllegalStateException("Trying to merge later into a dead region: " + region);
              }
++            // A deferred merge must obey exactly the same hard border and cooldown as an
++            // immediate merge. Otherwise a pending upstream merge can bypass the content gate
++            // and reconnect children through nothing but their buffer shells.
++            if (!this.regioniser.enigma$shouldMerge(this, region)) {
++                if (this.regioniser.enigma$debug()) {
++                    LOGGER.info("[MergeDebug] pending merge {} -> {} dropped by hard-border policy", this.id, region.id);
++                }
++                return;
++            }
 +            final long mergeTime = System.currentTimeMillis();
 +            this.enigma$lastMergeTime = mergeTime;
 +            region.enigma$lastMergeTime = mergeTime;

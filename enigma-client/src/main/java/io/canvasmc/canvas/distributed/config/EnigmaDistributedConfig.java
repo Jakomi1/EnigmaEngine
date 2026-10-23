@@ -17,8 +17,9 @@ import org.yaml.snakeyaml.Yaml;
  *
  * <p>Unlike {@code io.canvasmc.canvas.GlobalConfiguration} (which lives in
  * {@code config/canvas-server.yml}) this part of the configuration is intentionally standalone:
- * it is read from {@code config/enigma-engine.yml} so all Enigma state lives under {@code config/}
- * next to the identity key and {@code config/enigma-regionizer.yml}. Values are applied in this order:
+ * it is read from the {@code distributed} section of {@code config/enigma-engine.yml} so all Enigma
+ * state lives under {@code config/} next to the identity key. Flat keys at the root of the file
+ * (the pre-section layout) are still honoured as a fallback. Values are applied in this order:
  * built-in defaults &lt; {@code config/enigma-engine.yml} &lt; {@code -Denigma.distributed.*} system
  * properties.</p>
  */
@@ -159,31 +160,34 @@ public final class EnigmaDistributedConfig {
                 return;
             }
             final Map<@Nullable Object, @Nullable Object> values = (Map<@Nullable Object, @Nullable Object>) raw;
-            if (values.containsKey("enabled")) {
-                this.enabled = boolValue(values.get("enabled"), this.enabled);
+            // Prefer the "distributed" section; fall back to flat root keys for the pre-section layout.
+            final Object section = values.get("distributed");
+            final Map<?, ?> effective = section instanceof Map<?, ?> sectionMap ? sectionMap : values;
+            if (effective.containsKey("enabled")) {
+                this.enabled = boolValue(effective.get("enabled"), this.enabled);
             }
-            final String roleValue = stringValue(values.get("role"), null);
+            final String roleValue = stringValue(effective.get("role"), null);
             if (roleValue != null) {
                 this.role = roleValue;
             }
-            this.worldHostAddress = stringValue(values.get("worldHost"), this.worldHostAddress);
-            this.bindAddress = stringValue(values.get("bind"), this.bindAddress);
-            this.identityKeyPath = stringValue(values.get("identityKey"), this.identityKeyPath);
-            this.port = intValue(values.get("port"), this.port);
-            this.worldHostPort = intValue(values.get("worldHostPort"), this.worldHostPort);
-            this.leaseTtlSeconds = intValue(values.get("leaseTtlSeconds"), this.leaseTtlSeconds);
+            this.worldHostAddress = stringValue(effective.get("worldHost"), this.worldHostAddress);
+            this.bindAddress = stringValue(effective.get("bind"), this.bindAddress);
+            this.identityKeyPath = stringValue(effective.get("identityKey"), this.identityKeyPath);
+            this.port = intValue(effective.get("port"), this.port);
+            this.worldHostPort = intValue(effective.get("worldHostPort"), this.worldHostPort);
+            this.leaseTtlSeconds = intValue(effective.get("leaseTtlSeconds"), this.leaseTtlSeconds);
             this.leaseRenewalIntervalSeconds =
-                    intValue(values.get("leaseRenewalIntervalSeconds"), this.leaseRenewalIntervalSeconds);
-            this.snapshotChunkSizeKb = intValue(values.get("snapshotChunkSizeKb"), this.snapshotChunkSizeKb);
-            this.maxSnapshotSizeMb = intValue(values.get("maxSnapshotSizeMb"), this.maxSnapshotSizeMb);
-            this.debugLogging = boolValue(values.get("debugLogging"), this.debugLogging);
-            this.autoMigrate = boolValue(values.get("autoMigrate"), this.autoMigrate);
+                    intValue(effective.get("leaseRenewalIntervalSeconds"), this.leaseRenewalIntervalSeconds);
+            this.snapshotChunkSizeKb = intValue(effective.get("snapshotChunkSizeKb"), this.snapshotChunkSizeKb);
+            this.maxSnapshotSizeMb = intValue(effective.get("maxSnapshotSizeMb"), this.maxSnapshotSizeMb);
+            this.debugLogging = boolValue(effective.get("debugLogging"), this.debugLogging);
+            this.autoMigrate = boolValue(effective.get("autoMigrate"), this.autoMigrate);
             this.autoMigrateIntervalSeconds =
-                    intValue(values.get("autoMigrateIntervalSeconds"), this.autoMigrateIntervalSeconds);
-            this.autoMigratePerRun = intValue(values.get("autoMigratePerRun"), this.autoMigratePerRun);
+                    intValue(effective.get("autoMigrateIntervalSeconds"), this.autoMigrateIntervalSeconds);
+            this.autoMigratePerRun = intValue(effective.get("autoMigratePerRun"), this.autoMigratePerRun);
             this.autoMigrateMaxConcurrent =
-                    intValue(values.get("autoMigrateMaxConcurrent"), this.autoMigrateMaxConcurrent);
-            this.autoMigrateMinChunks = intValue(values.get("autoMigrateMinChunks"), this.autoMigrateMinChunks);
+                    intValue(effective.get("autoMigrateMaxConcurrent"), this.autoMigrateMaxConcurrent);
+            this.autoMigrateMinChunks = intValue(effective.get("autoMigrateMinChunks"), this.autoMigrateMinChunks);
         } catch (final IOException | RuntimeException thrown) {
             LOGGER.error("Failed to load {}, keeping built-in defaults", CONFIG_PATH.getFileName(), thrown);
         }
@@ -359,63 +363,67 @@ public final class EnigmaDistributedConfig {
 
     private static final String DEFAULT_TEMPLATE = """
             # -----------------------------------------------
-            #  EnigmaEngine distributed runtime configuration
+            #  EnigmaEngine configuration
             # -----------------------------------------------
-            #  This file replaces the former "distributed" section of canvas-server.yml. Every value
-            #  can also be overridden per start with -Denigma.distributed.<key>=<value> (those win).
+            #  Single persistent store for all Enigma state. Sections:
+            #    regionizer:  adaptive regionizer load scaling (formerly enigma-regionizer.yml)
+            #    chunkmap:    chunk map server settings (formerly enigma-chunkmap.yml)
+            #    distributed: this runtime's configuration
+            #  Every distributed value can also be overridden per start with
+            #  -Denigma.distributed.<key>=<value> (those win).
             #
-            #  Identity key:              config/enigma_identity.key
-            #  Load scaling (regionizer): config/enigma-regionizer.yml
+            #  Identity key: config/enigma_identity.key
             # -----------------------------------------------
 
-            # Master switch. Both World Hosts and Compute Hosts need this enabled to start the
-            # distributed runtime at all.
-            enabled: false
+            distributed:
+              # Master switch. Both World Hosts and Compute Hosts need this enabled to start the
+              # distributed runtime at all.
+              enabled: false
 
-            # Role of this instance: WORLD_HOST or COMPUTE_HOST. Required when enabled.
-            role: ''
+              # Role of this instance: WORLD_HOST or COMPUTE_HOST. Required when enabled.
+              role: ''
 
-            # Address of the World Host's runtime control channel as seen by Compute Hosts.
-            # Ignored on the World Host, which uses the bind address instead.
-            worldHost: localhost
+              # Address of the World Host's runtime control channel as seen by Compute Hosts.
+              # Ignored on the World Host, which uses the bind address instead.
+              worldHost: localhost
 
-            # Address the World Host's runtime listener binds to. Ignored on the Compute Host.
-            bind: 0.0.0.0
+              # Address the World Host's runtime listener binds to. Ignored on the Compute Host.
+              bind: 0.0.0.0
 
-            # Port the World Host binds and a Compute Host connects to. Must not collide with the
-            # Minecraft server port.
-            port: 25567
+              # Port the World Host binds and a Compute Host connects to. Must not collide with the
+              # Minecraft server port.
+              port: 25567
 
-            # Port a Compute Host connects to on the World Host. 0 means "use the port value".
-            # Ignored on the World Host, which always binds the port value.
-            worldHostPort: 0
+              # Port a Compute Host connects to on the World Host. 0 means "use the port value".
+              # Ignored on the World Host, which always binds the port value.
+              worldHostPort: 0
 
-            # Where the Ed25519 instance identity key is stored, relative to the server directory.
-            identityKey: config/enigma_identity.key
+              # Where the Ed25519 instance identity key is stored, relative to the server directory.
+              identityKey: config/enigma_identity.key
 
-            # Lease TTL in seconds. The Compute Host must renew before this expires, otherwise the
-            # World Host reclaims the region.
-            leaseTtlSeconds: 5
+              # Lease TTL in seconds. The Compute Host must renew before this expires, otherwise the
+              # World Host reclaims the region.
+              leaseTtlSeconds: 5
 
-            # Interval in seconds at which the lease is renewed. Must be smaller than leaseTtlSeconds.
-            leaseRenewalIntervalSeconds: 2
+              # Interval in seconds at which the lease is renewed. Must be smaller than leaseTtlSeconds.
+              leaseRenewalIntervalSeconds: 2
 
-            # Maximum size of each snapshot chunk in KB.
-            snapshotChunkSizeKb: 64
+              # Maximum size of each snapshot chunk in KB.
+              snapshotChunkSizeKb: 64
 
-            # Maximum total snapshot size in MB.
-            maxSnapshotSizeMb: 512
+              # Maximum total snapshot size in MB.
+              maxSnapshotSizeMb: 512
 
-            # Automatic region migration, World Host only. Every interval, up to autoMigratePerRun
-            # new regions are handed to connected Compute Hosts while at most autoMigrateMaxConcurrent
-            # migrations run at the same time. Regions smaller than autoMigrateMinChunks are ignored.
-            autoMigrate: true
-            autoMigrateIntervalSeconds: 10
-            autoMigratePerRun: 2
-            autoMigrateMaxConcurrent: 3
-            autoMigrateMinChunks: 100
+              # Automatic region migration, World Host only. Every interval, up to autoMigratePerRun
+              # new regions are handed to connected Compute Hosts while at most autoMigrateMaxConcurrent
+              # migrations run at the same time. Regions smaller than autoMigrateMinChunks are ignored.
+              autoMigrate: true
+              autoMigrateIntervalSeconds: 10
+              autoMigratePerRun: 2
+              autoMigrateMaxConcurrent: 3
+              autoMigrateMinChunks: 100
 
-            # Enable verbose distributed logging.
-            debugLogging: false
+              # Enable verbose distributed logging.
+              debugLogging: false
             """;
 }

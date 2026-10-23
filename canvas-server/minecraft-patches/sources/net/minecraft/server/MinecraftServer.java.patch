@@ -50,13 +50,14 @@
  
              while (this.running) {
                  final long tickStart = System.nanoTime(); // Paper - improve tick loop
-@@ -1825,6 +_,9 @@
+@@ -1825,6 +_,10 @@
         if (false) while (!this.processQueue.isEmpty()) { // Folia - region threading
             this.processQueue.remove().run();
         }
 +        regionizedWorldData.getCanvasWorldData().tpsbar.tick(); // Canvas - tpsbar
 +        regionizedWorldData.getCanvasWorldData().rambar.tick(); // Canvas - rambar
 +        regionizedWorldData.getCanvasWorldData().cpubar.tick(); // Canvas - cpubar
++        regionizedWorldData.getCanvasWorldData().netbar.tick(); // Canvas - netbar
  
          // this.updateEffectiveRespawnData(); // Canvas - region threading - moved to global region tick - we don't need every damn region calling this...
  

@@ -4,14 +4,15 @@ import io.enigmaclient.EnigmaClient;
 import io.enigmaclient.config.EnigmaConfig;
 import io.enigmaclient.chunkmap.ChunkMapStore;
 import io.enigmaclient.chunkmap.HighlightPattern;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import xaero.common.minimap.highlight.ChunkHighlighter;
 import xaero.hud.minimap.info.render.compile.InfoDisplayCompiler;
 
 /**
- * Draws the server reported chunk map onto Xaero's Minimap. Loaded chunks get a solid tint, ticking
- * chunks a dashed tint on top.
+ * Draws the server reported chunk map onto Xaero's Minimap: every chunk the server has loaded is
+ * filled green. Hovering a chunk shows the region that owns it.
  */
 public final class EnigmaMinimapHighlighter extends ChunkHighlighter {
 
@@ -26,16 +27,29 @@ public final class EnigmaMinimapHighlighter extends ChunkHighlighter {
         return config != null && config.showChunkMap ? config : null;
     }
 
+    private static String stateName(final byte state) {
+        return state == ChunkMapStore.TICKING ? "Ticking" : state == ChunkMapStore.BUFFER ? "Fusions-Buffer" : "?";
+    }
+
+    private static String statValue(final int value) {
+        return value < 0 ? "?" : Integer.toString(value);
+    }
+
     @Override
     public boolean regionHasHighlights(ResourceKey<Level> level, int regionX, int regionZ) {
-        return config() != null
-                && ChunkMapStore.INSTANCE.regionHasHighlights(level.identifier(), regionX, regionZ);
+        if (config() == null) {
+            return false;
+        }
+        return ChunkMapStore.INSTANCE.regionHasHighlights(level.identifier(), regionX, regionZ);
     }
 
     @Override
     public boolean chunkIsHighlit(ResourceKey<Level> level, int chunkX, int chunkZ) {
-        return config() != null
-                && ChunkMapStore.INSTANCE.state(level.identifier(), chunkX, chunkZ) != ChunkMapStore.NONE;
+        if (config() == null) {
+            return false;
+        }
+        final byte state = ChunkMapStore.INSTANCE.state(level.identifier(), chunkX, chunkZ);
+        return state == ChunkMapStore.TICKING || (state == ChunkMapStore.BUFFER && config().showChunkMapBuffer);
     }
 
     @Override
@@ -49,24 +63,46 @@ public final class EnigmaMinimapHighlighter extends ChunkHighlighter {
         if (config == null) {
             return null;
         }
-        byte state = ChunkMapStore.INSTANCE.state(level.identifier(), chunkX, chunkZ);
+        final byte state = ChunkMapStore.INSTANCE.state(level.identifier(), chunkX, chunkZ);
         if (state == ChunkMapStore.TICKING) {
-            return HighlightPattern.dashed(this.resultStore, config.chunkMapTickingColor);
+            return HighlightPattern.solid(this.resultStore, config.chunkMapTickingColor);
         }
-        if (state == ChunkMapStore.LOADED) {
-            return HighlightPattern.solid(this.resultStore, config.chunkMapLoadedColor);
+        if (state == ChunkMapStore.BUFFER && config.showChunkMapBuffer) {
+            return HighlightPattern.solid(this.resultStore, config.chunkMapBufferColor);
         }
         return null;
     }
 
     @Override
     public void addChunkHighlightTooltips(InfoDisplayCompiler compiler, ResourceKey<Level> level,
-                                          int chunkX, int chunkZ, int color) {
-        byte state = ChunkMapStore.INSTANCE.state(level.identifier(), chunkX, chunkZ);
-        if (state == ChunkMapStore.TICKING) {
-            compiler.addLine(EnigmaClient.prefix("Chunk " + chunkX + ", " + chunkZ + " - getickt"));
-        } else if (state == ChunkMapStore.LOADED) {
-            compiler.addLine(EnigmaClient.prefix("Chunk " + chunkX + ", " + chunkZ + " - geladen"));
+                                          int chunkX, int chunkZ, int blockY) {
+        EnigmaConfig config = config();
+        if (config == null) {
+            return;
+        }
+        ChunkMapStore.ChunkInfo info = ChunkMapStore.INSTANCE.chunkInfo(level.identifier(), chunkX, chunkZ);
+        if (info.state() == ChunkMapStore.BUFFER && !config.showChunkMapBuffer) {
+            return;
+        }
+        if (info.state() == ChunkMapStore.NONE && !info.hasRegion()) {
+            return;
+        }
+        compiler.addLine(Component.literal("Chunk " + chunkX + ", " + chunkZ
+                + (info.state() == ChunkMapStore.NONE ? "" : " - " + stateName(info.state()))));
+        if (info.state() == ChunkMapStore.BUFFER) {
+            compiler.addLine(Component.literal("Buffer-Radius: " + ChunkMapStore.INSTANCE.bufferRadiusChunks() + " Chunks"));
+        }
+        if (info.hasRegion()) {
+            compiler.addLine(Component.literal("Region #" + info.region()));
+            if (config.chunkMapRegionDebug && info.stats() != null) {
+                ChunkMapStore.RegionStats stats = info.stats();
+                compiler.addLine(Component.literal("Entities: " + statValue(stats.entities())
+                        + ", Chunks: " + stats.chunks()));
+                compiler.addLine(Component.literal(String.format("MSPT: %.2f, TPS: %.2f",
+                        stats.msptMilli() / 1000.0D, stats.tpsMilli() / 1000.0D)));
+            }
+        } else {
+            compiler.addLine(Component.literal("keine Region"));
         }
     }
 }

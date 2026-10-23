@@ -1,0 +1,37 @@
+--- a/src/main/java/ca/spottedleaf/moonrise/common/util/TickThread.java
++++ b/src/main/java/ca/spottedleaf/moonrise/common/util/TickThread.java
+@@ -411,13 +_,34 @@
+         // pass through the check if the entity is removed and we own its chunk
+         if (worldData.hasEntity(entity)) {
+             return true;
+         }
+ 
+         if (entity instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+             net.minecraft.server.network.ServerGamePacketListenerImpl conn = serverPlayer.connection;
+             return conn != null && worldData.hasConnection(conn.connection);
+         } else {
+             return ((entity.hasNullCallback() || entity.isRemoved())) && isTickThreadFor(world, entity.chunkPosition());
+         }
+     }
++
++    // Canvas start - region threading
++    public static AABB clipAABBToOwnedRegion(final Level world, final AABB box) {
++        final Thread thread = Thread.currentThread();
++        final ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> region;
++        if (thread instanceof TickRegionScheduler.TickThreadRunner threadRunner) {
++            region = threadRunner.currentTickingRegion;
++        } else if (thread instanceof RegionShutdownThread shutdownThread) {
++            region = shutdownThread.shuttingDown;
++        } else {
++            region = null;
++        }
++        if (region == null) {
++            return box;
++        }
++        if (!(world instanceof net.minecraft.server.level.ServerLevel serverLevel) || serverLevel.regioniser != region.regioniser) {
++            return box;
++        }
++        return box;
++    }
++    // Canvas end - region threading
+ }

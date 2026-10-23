@@ -300,65 +300,103 @@ public final class BalancedPartitioner {
         final int lowerTarget = component.size() / sizes.length;
         final int upperTarget = (component.size() + sizes.length - 1) / sizes.length;
 
+        // The move search below only ever removes a boundary section whose source keeps a
+        // surplus above the balanced target, so it converges after at most a handful of moves.
+        // The old guard (component.size() * regionCount) combined with a per-candidate O(n) scan
+        // and BFS made this O(n^3) and dominated the regionizer's hot path for large components.
+        final int maxMoves = component.size();
+        int moves = 0;
         boolean moved = true;
-        int guard = component.size() * Math.max(1, sizes.length);
-        while (moved && guard-- > 0) {
+        while (moved && moves < maxMoves) {
             moved = false;
             for (int source = 0; source < sizes.length && !moved; source++) {
                 if (sizes[source] <= upperTarget) {
                     continue;
                 }
 
-                Node<T> bestNode = null;
-                int destination = -1;
+                // Collect the boundary candidates that touch a region still below the balanced
+                // target, deterministically ordered exactly like the previous implementation, then
+                // move the first one whose removal keeps the source region connected. Connectivity
+                // is verified lazily per candidate (with a leaf fast path) instead of for every node.
+                final List<MoveCandidate<T>> candidates = new ArrayList<>();
                 for (final Node<T> node : component) {
-                    if (owner[index.get(node)] != source || !canRemoveWithoutDisconnecting(node, source, owner, index)) {
+                    if (owner[index.get(node)] != source) {
                         continue;
                     }
+                    int bestDestination = -1;
                     for (final Node<T> neighbour : node.neighbours) {
                         final int candidate = owner[index.get(neighbour)];
                         if (candidate != source && sizes[candidate] < lowerTarget
-                            && (bestNode == null || node.key < bestNode.key
-                                || (node.key == bestNode.key && candidate < destination))) {
-                            bestNode = node;
-                            destination = candidate;
+                            && (bestDestination < 0 || candidate < bestDestination)) {
+                            bestDestination = candidate;
                         }
+                    }
+                    if (bestDestination >= 0) {
+                        candidates.add(new MoveCandidate<>(node, bestDestination));
                     }
                 }
 
-                if (bestNode != null) {
-                    owner[index.get(bestNode)] = destination;
-                    load[source] -= bestNode.weight;
-                    load[destination] += bestNode.weight;
-                    sizes[source]--;
-                    sizes[destination]++;
-                    moved = true;
+                if (!candidates.isEmpty()) {
+                    candidates.sort(MoveCandidate.order());
+                    final int checkLimit = Math.min(candidates.size(), 256);
+                    for (int c = 0; c < checkLimit; c++) {
+                        final MoveCandidate<T> candidate = candidates.get(c);
+                        if (!canRemoveWithoutDisconnecting(candidate.node, source, owner, sizes, index)) {
+                            continue;
+                        }
+                        final int nodeIndex = index.get(candidate.node);
+                        final int destination = candidate.destination;
+                        owner[nodeIndex] = destination;
+                        load[source] -= candidate.node.weight;
+                        load[destination] += candidate.node.weight;
+                        sizes[source]--;
+                        sizes[destination]++;
+                        moved = true;
+                        moves++;
+                        break;
+                    }
                 }
             }
         }
     }
 
-    /** Returns whether removing {@code node} leaves all remaining source nodes connected. */
+    /**
+     * Returns whether removing {@code node} leaves all remaining source nodes connected.
+     *
+     * <p>The previous implementation rebuilt the source set by scanning the whole {@code index}
+     * map for every candidate and then ran a BFS, making the caller O(n^3). The source size is
+     * already tracked in {@code sizes}, so the connectivity test only needs a flood fill that
+     * stays inside the source region. A leaf (at most one surviving same-region neighbour) is
+     * always safe and short-circuits before any allocation, which is the common case when the
+     * rebalance moves boundary sections.</p>
+     */
     private static <T> boolean canRemoveWithoutDisconnecting(
         final Node<T> node,
         final int source,
         final int[] owner,
+        final int[] sizes,
         final Map<Node<T>, Integer> index
     ) {
-        final int nodeIndex = index.get(node);
-        Node<T> start = null;
-        int sourceCount = 0;
-        for (final Map.Entry<Node<T>, Integer> entry : index.entrySet()) {
-            if (entry.getValue() != nodeIndex && owner[entry.getValue()] == source) {
-                start = entry.getKey();
-                sourceCount++;
-            }
-        }
-        if (sourceCount <= 1) {
+        final int remaining = sizes[source] - 1;
+        if (remaining <= 1) {
             return true;
         }
 
-        final java.util.Set<Node<T>> visited = new java.util.HashSet<>();
+        final int nodeIndex = index.get(node);
+        Node<T> start = null;
+        int remainingNeighbours = 0;
+        for (final Node<T> neighbour : node.neighbours) {
+            if (index.get(neighbour) != nodeIndex && owner[index.get(neighbour)] == source) {
+                start = neighbour;
+                remainingNeighbours++;
+            }
+        }
+        if (remainingNeighbours <= 1) {
+            // A leaf can never be an articulation point of its own region.
+            return true;
+        }
+
+        final java.util.Set<Node<T>> visited = new java.util.HashSet<>(remaining * 2);
         final Queue<Node<T>> queue = new ArrayDeque<>();
         visited.add(start);
         queue.add(start);
@@ -370,7 +408,7 @@ public final class BalancedPartitioner {
                 }
             }
         }
-        return visited.size() == sourceCount;
+        return visited.size() == remaining;
     }
 
     private static <T> Node<T> pollUnassigned(
@@ -716,6 +754,17 @@ public final class BalancedPartitioner {
 
     public static long coordKey(final int x, final int z) {
         return ((long) x << 32) | (z & 0xFFFFFFFFL);
+    }
+
+    /** A boundary section that can move from its current region into a lighter neighbour. */
+    private record MoveCandidate<T>(Node<T> node, int destination) {
+
+        static <T> Comparator<MoveCandidate<T>> order() {
+            return (a, b) -> {
+                final int byKey = Long.compare(a.node.key, b.node.key);
+                return byKey != 0 ? byKey : Integer.compare(a.destination, b.destination);
+            };
+        }
     }
 
     static final class Node<T> {

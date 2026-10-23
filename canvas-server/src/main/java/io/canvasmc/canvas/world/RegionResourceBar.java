@@ -37,6 +37,13 @@ public abstract class RegionResourceBar {
     public void tick() {
         // use system nano time, more reliable with runtime tick rate changes
         if (enabled.apply(getWorldData()) && this.nextTick <= System.nanoTime()) {
+            // Building a bar is expensive (native/JMX sampling, MiniMessage rendering). A region
+            // with no local players has nobody to display it to, so skip the work entirely.
+            final RegionizedWorldData worldData = getWorldData();
+            if (worldData != null && worldData.getLocalPlayers().isEmpty()) {
+                this.nextTick = System.nanoTime() + 1_000_000_000;
+                return;
+            }
             // update maps and players
             long startTime = System.nanoTime();
             updatePlayerDisplaysAndTick(buildComponent());

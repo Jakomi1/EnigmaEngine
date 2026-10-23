@@ -1,23 +1,25 @@
 package io.enigmaclient.menu;
 
 import io.enigmaclient.EnigmaClient;
+import io.enigmaclient.chunkmap.ChunkMapClient;
 import io.enigmaclient.config.EnigmaConfig;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.StringWidget;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.layouts.LinearLayout;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.options.OptionsSubScreen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
 
-import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
+/**
+ * Settings screen, rebuilt on top of the vanilla {@link OptionsSubScreen} / {@code OptionsList}
+ * infrastructure. Rows are laid out and scrolled by the list itself, so nothing can overlap and
+ * every control is aligned the same way the vanilla video/sound settings are.
+ */
+public class EnigmaConfigScreen extends OptionsSubScreen {
 
-public class EnigmaConfigScreen extends Screen {
-
-    private static final String TITLE = "EnigmaClient \u2013 Einstellungen";
-
-    private final Screen parent;
+    private static final Component TITLE = Component.literal("EnigmaClient");
 
     private String host;
     private String port;
@@ -27,11 +29,15 @@ public class EnigmaConfigScreen extends Screen {
     private boolean debugLogging;
     private boolean showHud;
     private boolean notifications;
+    private boolean showChunkMap;
+    private boolean showChunkMapBuffer;
+    private boolean chunkMapShowPlayers;
+    private boolean chunkMapRegionDebug;
+    private boolean chunkMapPlayersMapOnly;
 
     public EnigmaConfigScreen(Screen parent) {
-        super(Component.literal(TITLE));
-        this.parent = parent;
-        EnigmaConfig config = EnigmaClient.config;
+        super(parent, net.minecraft.client.Minecraft.getInstance().options, TITLE);
+        final EnigmaConfig config = EnigmaClient.config;
         this.host = config.host;
         this.port = String.valueOf(config.port);
         this.jarPath = config.jarPath;
@@ -40,81 +46,122 @@ public class EnigmaConfigScreen extends Screen {
         this.debugLogging = config.debugLogging;
         this.showHud = config.showHud;
         this.notifications = config.notifications;
+        this.showChunkMap = config.showChunkMap;
+        this.showChunkMapBuffer = config.showChunkMapBuffer;
+        this.chunkMapShowPlayers = config.chunkMapShowPlayers;
+        this.chunkMapRegionDebug = config.chunkMapRegionDebug;
+        this.chunkMapPlayersMapOnly = config.chunkMapPlayersMapOnly;
     }
 
     @Override
-    protected void init() {
-        int cx = this.width / 2;
+    protected void addOptions() {
+        this.list.addHeader(Component.literal("Verbindung"));
 
-        addRenderableOnly(new StringWidget(
-                cx - this.font.width(TITLE) / 2, 14, Component.literal(TITLE), this.font));
-
-        addLabel(cx - 100, 36, "World-Host-Adresse:");
-        EditBox hostEdit = addRenderableWidget(new EditBox(this.font, cx - 100, 46, 200, 20,
-                Component.literal("World-Host-Adresse")));
+        EditBox hostEdit = new EditBox(this.font, 0, 0, 308, 20, Component.literal("World-Host-Adresse"));
         hostEdit.setMaxLength(255);
         hostEdit.setValue(this.host);
-        hostEdit.setResponder(v -> this.host = v);
+        hostEdit.setHint(Component.literal("World-Host-Adresse, z. B. 127.0.0.1").withStyle(s -> s.withColor(0x808080)));
+        hostEdit.setTooltip(Tooltip.create(Component.literal("Adresse des World-Host-Prozesses")));
+        hostEdit.setResponder(value -> this.host = value);
+        this.list.addBig(hostEdit);
         this.setInitialFocus(hostEdit);
 
-        addLabel(cx - 100, 74, "Control-Port:");
-        addLabel(cx + 40, 74, "Speicher (MB):");
-        EditBox portEdit = addRenderableWidget(new EditBox(this.font, cx - 100, 84, 60, 20,
-                Component.literal("Control-Port")));
-        portEdit.setMaxLength(5);
-        portEdit.setValue(this.port);
-        portEdit.setResponder(v -> this.port = v);
+        this.list.addSmall(
+                EditBoxHint.number(this.font, this.port, 5, "Control-Port", value -> this.port = value),
+                EditBoxHint.number(this.font, this.memory, 5, "Speicher (MB)", value -> this.memory = value)
+        );
 
-        EditBox memoryEdit = addRenderableWidget(new EditBox(this.font, cx + 40, 84, 60, 20,
-                Component.literal("Speicher")));
-        memoryEdit.setMaxLength(5);
-        memoryEdit.setValue(this.memory);
-        memoryEdit.setResponder(v -> this.memory = v);
+        this.list.addHeader(Component.literal("Host-Prozess"));
 
-        addLabel(cx - 100, 112, "EnigmaEngine.jar (leer = automatisch):");
-        EditBox jarEdit = addRenderableWidget(new EditBox(this.font, cx - 100, 122, 200, 20,
-                Component.literal("EnigmaEngine.jar")));
+        EditBox jarEdit = new EditBox(this.font, 0, 0, 308, 20, Component.literal("EnigmaEngine.jar"));
         jarEdit.setMaxLength(255);
         jarEdit.setValue(this.jarPath);
-        jarEdit.setResponder(v -> this.jarPath = v);
+        jarEdit.setHint(Component.literal("EnigmaEngine.jar-Pfad (leer = automatisch)").withStyle(s -> s.withColor(0x808080)));
+        jarEdit.setTooltip(Tooltip.create(Component.literal("Pfad zur Server-Jar. Leer lassen, um sie automatisch zu suchen.")));
+        jarEdit.setResponder(value -> this.jarPath = value);
+        this.list.addBig(jarEdit);
 
-        int buttonWidth = 98;
-        int toggleX = cx - 150;
-        int toggleY = 152;
-        addToggle(toggleX, toggleY, "Autostart", () -> this.enabled, v -> this.enabled = v);
-        addToggle(toggleX + buttonWidth + 3, toggleY, "HUD", () -> this.showHud, v -> this.showHud = v);
-        addToggle(toggleX + 2 * (buttonWidth + 3), toggleY, "Benachricht.", () -> this.notifications,
-                v -> this.notifications = v);
-        addToggle(toggleX, toggleY + 24, "Debug-Logging", () -> this.debugLogging,
-                v -> this.debugLogging = v);
+        this.list.addSmall(
+                Checkbox.builder(Component.literal("Autostart"), this.font)
+                        .selected(this.enabled)
+                        .onValueChange((box, value) -> this.enabled = value)
+                        .tooltip(Tooltip.create(Component.literal("Startet den Compute-Host beim Spielstart automatisch")))
+                        .build(),
+                Checkbox.builder(Component.literal("Debug-Logging"), this.font)
+                        .selected(this.debugLogging)
+                        .onValueChange((box, value) -> this.debugLogging = value)
+                        .tooltip(Tooltip.create(Component.literal("Ausfuehrliche Log-Ausgaben im Client")))
+                        .build()
+        );
 
-        int actionY = 200;
-        addRenderableWidget(Button.builder(Component.literal("Fertig"), b -> this.onClose())
-                .bounds(cx - 100, actionY, buttonWidth, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Zur\u00FCcksetzen"), b -> reset())
-                .bounds(cx + 2, actionY, buttonWidth, 20).build());
+        this.list.addHeader(Component.literal("Anzeige"));
+
+        this.list.addSmall(
+                Checkbox.builder(Component.literal("HUD"), this.font)
+                        .selected(this.showHud)
+                        .onValueChange((box, value) -> this.showHud = value)
+                        .tooltip(Tooltip.create(Component.literal("Zeigt das EnigmaClient-HUD oben links")))
+                        .build(),
+                Checkbox.builder(Component.literal("Benachrichtigungen"), this.font)
+                        .selected(this.notifications)
+                        .onValueChange((box, value) -> this.notifications = value)
+                        .tooltip(Tooltip.create(Component.literal("Chat-Hinweise bei Statusaenderungen")))
+                        .build()
+        );
+
+        this.list.addHeader(Component.literal("Server-Chunk-Karte"));
+
+        this.list.addSmall(
+                Checkbox.builder(Component.literal("Chunk-Karte"), this.font)
+                        .selected(this.showChunkMap)
+                        .onValueChange((box, value) -> this.showChunkMap = value)
+                        .tooltip(Tooltip.create(Component.literal("Zeichnet vom Server gemeldete Chunks auf Xaero's Karten")))
+                        .build(),
+                Checkbox.builder(Component.literal("Spieler anzeigen"), this.font)
+                        .selected(this.chunkMapShowPlayers)
+                        .onValueChange((box, value) -> this.chunkMapShowPlayers = value)
+                        .tooltip(Tooltip.create(Component.literal("Zeigt die Positionen aller Spieler mit Marker")))
+                        .build()
+        );
+
+        this.list.addSmall(
+                Checkbox.builder(Component.literal("Fusions-Buffer"), this.font)
+                        .selected(this.showChunkMapBuffer)
+                        .onValueChange((box, value) -> this.showChunkMapBuffer = value)
+                        .tooltip(Tooltip.create(Component.literal("Zeigt den vom Server verwendeten Buffer-Radius blau an")))
+                        .build(),
+                Checkbox.builder(Component.literal("Region-Infos beim Hovern"), this.font)
+                        .selected(this.chunkMapRegionDebug)
+                        .onValueChange((box, value) -> this.chunkMapRegionDebug = value)
+                        .tooltip(Tooltip.create(Component.literal("Beim Hovern Details der Region inkl. MSPT/TPS anzeigen")))
+                        .build()
+        );
+
+        this.list.addSmall(
+                Checkbox.builder(Component.literal("Spieler in Spielwelt"), this.font)
+                        .selected(!this.chunkMapPlayersMapOnly)
+                        .onValueChange((box, value) -> this.chunkMapPlayersMapOnly = !value)
+                        .tooltip(Tooltip.create(Component.literal("Zeigt Spieler-Marker zusätzlich in der Spielwelt")))
+                        .build(),
+                Button.builder(Component.literal("Karte neu laden"), button -> ChunkMapClient.syncSubscription())
+                        .tooltip(Tooltip.create(Component.literal("Fordert eine aktuelle Server-Chunk-Karte an")))
+                        .build()
+        );
+
     }
 
-    private void addLabel(int x, int y, String text) {
-        addRenderableOnly(new StringWidget(x, y, Component.literal(text)
-                .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)), this.font));
-    }
-
-    private void addToggle(int x, int y, String label, BooleanSupplier get, Consumer<Boolean> set) {
-        addRenderableWidget(Button.builder(toggleText(label, get.getAsBoolean()), b -> {
-            boolean next = !get.getAsBoolean();
-            set.accept(next);
-            b.setMessage(toggleText(label, next));
-        }).bounds(x, y, 98, 20).build());
-    }
-
-    private static Component toggleText(String label, boolean on) {
-        return Component.literal(label + ": " + (on ? "ein" : "aus"))
-                .withStyle(Style.EMPTY.withColor(on ? ChatFormatting.GREEN : ChatFormatting.GRAY));
+    @Override
+    protected void addFooter() {
+        LinearLayout row = LinearLayout.horizontal().spacing(8);
+        row.addChild(Button.builder(Component.literal("Zuruecksetzen"), button -> reset())
+                .width(150).build());
+        row.addChild(Button.builder(Component.literal("Fertig"), button -> this.onClose())
+                .width(150).build());
+        this.layout.addToFooter(row);
     }
 
     private void reset() {
-        EnigmaConfig defaults = new EnigmaConfig();
+        final EnigmaConfig defaults = new EnigmaConfig();
         this.host = defaults.host;
         this.port = String.valueOf(defaults.port);
         this.jarPath = defaults.jarPath;
@@ -123,14 +170,19 @@ public class EnigmaConfigScreen extends Screen {
         this.debugLogging = defaults.debugLogging;
         this.showHud = defaults.showHud;
         this.notifications = defaults.notifications;
+        this.showChunkMap = defaults.showChunkMap;
+        this.showChunkMapBuffer = defaults.showChunkMapBuffer;
+        this.chunkMapShowPlayers = defaults.chunkMapShowPlayers;
+        this.chunkMapRegionDebug = defaults.chunkMapRegionDebug;
+        this.chunkMapPlayersMapOnly = defaults.chunkMapPlayersMapOnly;
         this.rebuildWidgets();
     }
 
     @Override
     public void onClose() {
-        EnigmaConfig config = EnigmaClient.config;
+        final EnigmaConfig config = EnigmaClient.config;
 
-        String trimmedHost = this.host == null ? "" : this.host.trim();
+        final String trimmedHost = this.host == null ? "" : this.host.trim();
         if (!trimmedHost.isEmpty()) {
             config.host = trimmedHost;
         }
@@ -142,19 +194,47 @@ public class EnigmaConfigScreen extends Screen {
         config.debugLogging = this.debugLogging;
         config.showHud = this.showHud;
         config.notifications = this.notifications;
+        config.showChunkMap = this.showChunkMap;
+        config.showChunkMapBuffer = this.showChunkMapBuffer;
+        config.chunkMapShowPlayers = this.chunkMapShowPlayers;
+        config.chunkMapRegionDebug = this.chunkMapRegionDebug;
+        config.chunkMapPlayersMapOnly = this.chunkMapPlayersMapOnly;
         config.validate();
         config.save();
 
+        ChunkMapClient.syncSubscription();
+
         EnigmaClient.LOGGER.info("Einstellungen gespeichert \u2013 World-Host {}", config.target());
-        this.minecraft.gui.setScreen(this.parent);
+        this.minecraft.gui.setScreen(this.lastScreen);
     }
 
     private static int parseBounded(String text, int fallback, int min, int max) {
         try {
-            int value = Integer.parseInt(text.trim());
+            final int value = Integer.parseInt(text.trim());
             return Math.max(min, Math.min(max, value));
         } catch (Exception e) {
             return fallback;
+        }
+    }
+
+    /**
+     * Small helper so the numeric fields share one construction path and keep the hint styling
+     * consistent with the address fields.
+     */
+    private static final class EditBoxHint {
+
+        private EditBoxHint() {
+        }
+
+        static EditBox number(net.minecraft.client.gui.Font font, String value, int maxLength,
+                              String hint, java.util.function.Consumer<String> responder) {
+            final EditBox box = new EditBox(font, 0, 0, 150, 20, Component.literal(hint));
+            box.setMaxLength(maxLength);
+            box.setValue(value);
+            box.setHint(Component.literal(hint).withStyle(s -> s.withColor(0x808080)));
+            box.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(hint)));
+            box.setResponder(responder);
+            return box;
         }
     }
 }

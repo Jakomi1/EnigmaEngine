@@ -30,6 +30,12 @@ public class EnigmaMixinPlugin implements IMixinConfigPlugin {
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         if (mixinClassName.startsWith("io.enigmaclient.mixin.xaero")) {
             FabricLoader loader = FabricLoader.getInstance();
+            if (mixinClassName.contains("Minimap")) {
+                return loader.isModLoaded(XAERO_MINIMAP);
+            }
+            if (mixinClassName.contains("WorldMap")) {
+                return loader.isModLoaded(XAERO_WORLDMAP);
+            }
             return loader.isModLoaded(XAERO_MINIMAP) && loader.isModLoaded(XAERO_WORLDMAP);
         }
         return true;

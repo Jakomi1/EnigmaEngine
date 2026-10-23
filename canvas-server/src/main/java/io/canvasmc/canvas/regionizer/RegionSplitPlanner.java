@@ -9,15 +9,15 @@ package io.canvasmc.canvas.regionizer;
  */
 public final class RegionSplitPlanner {
 
-    /** Two active players per child preserves useful locality without allowing player hotspots. */
-    private static final int TARGET_PLAYERS_PER_REGION = 2;
+    /** Hard-border mode gives each active player its own action bubble where topology permits. */
+    private static final int TARGET_PLAYERS_PER_REGION = 1;
 
     private RegionSplitPlanner() {
     }
 
     /**
      * Chooses a target section count which produces enough children for the current region load.
-     * A child is planned for roughly every two active players and a region above the split
+     * A child is planned for every active player where topology permits, and a region above the split
      * threshold is reduced toward half that threshold, leaving headroom for normal tick variance.
      */
     public static int targetSections(

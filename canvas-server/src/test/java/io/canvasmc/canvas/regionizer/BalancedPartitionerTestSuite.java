@@ -356,20 +356,43 @@ class BalancedPartitionerTestSuite {
     }
 
     @Test
+    void testDenseUnevenGridRebalanceStaysFast() {
+        // Worst case for the section-count rebalancer: a large, fully connected grid where a
+        // single heavy section drives the grow phase into very uneven child sizes, forcing many
+        // boundary moves. This mirrors the live regionizer case (hundreds of sections, dense
+        // player cluster) that used to spin the region scheduler thread.
+        final List<TestSection> sections = new ArrayList<>();
+        for (int x = 0; x < 30; x++) {
+            for (int z = 0; z < 30; z++) {
+                final int weight = (x == 15 && z == 15) ? 500 : 1 + ((x * 7 + z * 13) % 4);
+                sections.add(new TestSection(x, z, weight));
+            }
+        }
+
+        final long start = System.nanoTime();
+        final List<List<TestSection>> result = partition(sections, 4, 16, 1, 0.15, 2);
+        final long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+
+        assertTrue(elapsedMs < 500, "Partitioning 900 dense sections must finish within 500ms, took " + elapsedMs + "ms");
+        assertTrue(result.size() >= 4);
+        assertValidPartition(sections, result);
+    }
+
+    @Test
     void testCombineWeight() {
-        // 2 players, 256 chunk fill (a full section), 16 entities with unit normalisation.
-        final int weight = BalancedPartitioner.combineWeight(2, 256, 16, 4.0D, 3.0D, 1.0D, 16, 256);
-        // 4 * 2 + 3 * (256 / 256) + 1 * (16 / 16) = 8 + 3 + 1 = 12
+        // 2 players, 1 chunk fill (a full 1x1 section), 16 entities with unit normalisation.
+        final int weight = BalancedPartitioner.combineWeight(2, 1, 16, 4.0D, 3.0D, 1.0D, 16, 1);
+        // 4 * 2 + 3 * (1 / 1) + 1 * (16 / 16) = 8 + 3 + 1 = 12
         assertEquals(12, weight);
 
-        assertTrue(BalancedPartitioner.combineWeight(0, 0, 0, 4.0D, 3.0D, 1.0D, 16, 256) >= 1);
+        assertTrue(BalancedPartitioner.combineWeight(0, 0, 0, 4.0D, 3.0D, 1.0D, 16, 1) >= 1);
     }
 
     @Test
     void testSplitPlannerCreatesEnoughChildrenForPlayersAndTickLoad() {
-        // Seven players in a 51-section, 14 MSPT region should create four near-equal children
-        // (about two players each), rather than retaining the configured static sizing alone.
-        assertEquals(13, RegionSplitPlanner.targetSections(51, 24, 16, 7, 14.0D, 8.0D));
+        // Seven players in a 51-section, 14 MSPT region get separate action bubbles where
+        // topology permits, rather than retaining the configured static sizing alone.
+        assertEquals(8, RegionSplitPlanner.targetSections(51, 24, 16, 7, 14.0D, 8.0D));
         // Tick pressure also causes additional children when no player count is available.
         assertEquals(13, RegionSplitPlanner.targetSections(51, 24, 16, 0, 14.0D, 8.0D));
     }
@@ -378,7 +401,7 @@ class BalancedPartitionerTestSuite {
     void testRegionizerSettingsPartitionKnobs() {
         final RegionizerSettings base = new RegionizerSettings(
             true, 0.25D, 24, 0.7D, 0.3D, 60_000L, 30_000L, 128, 4096, 32.0D, 15, 15, 20,
-            true, true, 16, 512, 100, 2, true, 8, 1, 0.2D, 3
+            true, true, 16, 512, 100, 2, true, 8, 1, 0.2D, 3, false
         );
 
         assertTrue(base.partitionEnabled());

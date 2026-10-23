@@ -465,10 +465,10 @@ index 0000000000000000000000000000000000000000..569d66ac195e566a780aef96b47a71c0
 +}
 diff --git a/io/canvasmc/canvas/commands/SubCommand.java b/io/canvasmc/canvas/commands/SubCommand.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..7307d36aff49bde5bdaeffc5ee65c47d7c375dc1
+index 0000000000000000000000000000000000000000..193211f51220b0cc139b385c38aa6e4e4da8c82a
 --- /dev/null
 +++ b/io/canvasmc/canvas/commands/SubCommand.java
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,75 @@
 +package io.canvasmc.canvas.commands;
 +
 +import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -510,18 +510,6 @@ index 0000000000000000000000000000000000000000..7307d36aff49bde5bdaeffc5ee65c47d
 +     * @return the fully constructed {@link LiteralArgumentBuilder} for registration
 +     */
 +    LiteralArgumentBuilder<CommandSourceStack> construct(final LiteralArgumentBuilder<CommandSourceStack> base, final CommandBuildContext buildContext);
-+
-+    /**
-+     * Gets if the command can be registered on its own and not as a subcommand of `/enigma`.
-+     * <p>
-+     * EnigmaEngine does not expose standalone commands, so this always returns {@code false}.
-+     * </p>
-+     *
-+     * @return if it can have a self-command
-+     */
-+    default boolean isAllowedSelfCommand() {
-+        return false;
-+    }
 +
 +    /**
 +     * Gets if the command has extra arguments or not or if it's just executed from the literal base of this sub
