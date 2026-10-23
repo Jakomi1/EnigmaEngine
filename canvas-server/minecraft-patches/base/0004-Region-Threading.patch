@@ -8916,6 +8916,36 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +        //this.loadTestData();
 +    }
 +
++    // Enigma start - strict loaded-chunk buffer isolation
++    // Empty region sections are only scheduling shells. They must never connect two regions:
++    // only the square buffer around chunks actually loaded by each region may do that.
++    private boolean enigma$buffersOverlap(final ThreadedRegion<R, S> first, final ThreadedRegion<R, S> second) {
++        final int reach = this.emptySectionCreateRadius * this.regionSectionChunkSize * 2;
++        for (final ThreadedRegionSection<R, S> section : first.sectionByKey.values()) {
++            if (section.chunkCount == 0) {
++                continue;
++            }
++            for (final long chunkKey : section.getChunks()) {
++                final int chunkX = CoordinateUtils.getChunkX(chunkKey);
++                final int chunkZ = CoordinateUtils.getChunkZ(chunkKey);
++                for (int dz = -reach; dz <= reach; ++dz) {
++                    for (int dx = -reach; dx <= reach; ++dx) {
++                        final int otherX = chunkX + dx;
++                        final int otherZ = chunkZ + dz;
++                        final ThreadedRegionSection<R, S> other = this.sections.get(CoordinateUtils.getChunkKey(
++                            otherX >> this.sectionChunkShift, otherZ >> this.sectionChunkShift
++                        ));
++                        if (other != null && other.getRegionPlain() == second && other.containsChunk(otherX, otherZ)) {
++                            return true;
++                        }
++                    }
++                }
++            }
++        }
++        return false;
++    }
++    // Enigma end - strict loaded-chunk buffer isolation
++
 +    /*
 +    private static String substr(String val, String prefix, int from) {
 +        int idx = val.indexOf(prefix, from) + prefix.length();
@@ -9250,6 +9280,12 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +                        continue;
 +                    }
 +
++                    // Enigma start - never let touching empty shells force a merge
++                    if (!this.enigma$buffersOverlap(region, regionOfInterest)) {
++                        continue;
++                    }
++                    // Enigma end - never let touching empty shells force a merge
++
 +                    if (!region.killAndMergeInto(regionOfInterest)) {
 +                        // note: the region may already be a merge target
 +                        regionOfInterest.mergeIntoLater(region);
@@ -9350,6 +9386,13 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +            // merge the regions into this one
 +            final ReferenceOpenHashSet<ThreadedRegion<R, S>> expectingMergeFrom = region.expectingMergeFrom.clone();
 +            for (final ThreadedRegion<R, S> mergeFrom : expectingMergeFrom) {
++                // Enigma start - a queued merge may have become invalid while its source ticked
++                if (!this.enigma$buffersOverlap(mergeFrom, region)) {
++                    mergeFrom.mergeIntoLater.remove(region);
++                    region.expectingMergeFrom.remove(mergeFrom);
++                    continue;
++                }
++                // Enigma end - a queued merge may have become invalid while its source ticked
 +                if (!mergeFrom.killAndMergeInto(region)) {
 +                    throw new IllegalStateException("Merge from region " + mergeFrom + " should be killable! Trying to merge into " + region);
 +                }
@@ -9762,6 +9805,13 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +        }
 +
 +        boolean killAndMergeInto(final ThreadedRegion<R, S> mergeTarget) {
++            // Enigma start - final merge gate; no caller can bypass strict buffer isolation
++            if (!this.regioniser.enigma$buffersOverlap(this, mergeTarget)) {
++                LOGGER.info("[Enigma] blocked region merge {} -> {}: loaded-chunk buffers do not overlap", this.id, mergeTarget.id);
++                return true;
++            }
++            // Enigma end - final merge gate
++
 +            if (this.state == STATE_TICKING) {
 +                return false;
 +            }
@@ -9828,6 +9878,11 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +            if (region.isDead()) {
 +                throw new IllegalStateException("Trying to merge later into a dead region: " + region);
 +            }
++            // Enigma start - do not queue an invalid merge for release-time execution
++            if (!this.regioniser.enigma$buffersOverlap(this, region)) {
++                return;
++            }
++            // Enigma end - do not queue an invalid merge for release-time execution
 +            final boolean add1, add2;
 +            if ((add1 = this.mergeIntoLater.add(region)) != (add2 = region.expectingMergeFrom.add(this))) {
 +                throw new IllegalStateException("Inconsistent state between target merge " + region + " and this " + this + ": add1,add2:" + add1 + "," + add2);
@@ -10056,6 +10111,13 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +        private boolean isEmpty() {
 +            return this.chunkCount == 0;
 +        }
++
++        // Enigma start - strict loaded-chunk buffer isolation
++        private boolean containsChunk(final int chunkX, final int chunkZ) {
++            final int index = this.getChunkIndex(chunkX, chunkZ);
++            return (this.chunksBitset[index >>> 6] & (1L << (index & (Long.SIZE - 1)))) != 0L;
++        }
++        // Enigma end - strict loaded-chunk buffer isolation
 +
 +        private boolean hasOnlyOneChunk() {
 +            return this.chunkCount == 1;
@@ -11123,6 +11185,11 @@ index 8424cf9d4617b4732d44cc460d25b04481068989..abcc8ae0a5ab4d089c6e888519b1b094
      public static int getRegionChunkShift() {
 -        return ca.spottedleaf.moonrise.patches.chunk_system.scheduling.ThreadedTicketLevelPropagator.SECTION_SHIFT;
 +        return regionShift;
++    }
++
++    /** Exact configured radius around loaded chunks, in chunks. */
++    public static int getBufferRadiusChunks() {
++        return bufferRadiusChunks;
 +    }
 +
 +    /** Converts the configured chunk radius to sections, rounding up if needed. */

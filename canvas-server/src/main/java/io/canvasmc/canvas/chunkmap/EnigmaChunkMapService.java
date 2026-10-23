@@ -404,7 +404,10 @@ public final class EnigmaChunkMapService {
         buf.writeUtf(level.dimension().identifier().toString());
         buf.writeLong(this.sequence.incrementAndGet());
         buf.writeBoolean(enabled);
-        buf.writeVarInt(enabled ? level.regioniser.emptySectionCreateRadius * level.regioniser.regionSectionChunkSize : 0);
+        // This must be the same configured radius used by the merge gate, rather than the
+        // currently materialised shell width (which can temporarily be only one section).
+        buf.writeVarInt(enabled ? Math.max(1,
+                io.papermc.paper.configuration.GlobalConfiguration.get().threadedRegions.bufferRadius) : 0);
 
         final long[] ticking = enabled ? snapshot.ticking() : new long[0];
         final long[] regionIds = enabled ? snapshot.regionIds() : new long[0];

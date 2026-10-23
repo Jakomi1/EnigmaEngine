@@ -128,23 +128,12 @@ tasks.register("fixupMinecraftFilePatches") {
     dependsOn(":canvas-server:fixupMinecraftSourcePatches")
 }
 
-
-
 val serverJarDir = layout.projectDirectory.dir("serverJar")
 
-val enigmaEngineJarName = providers.exec {
-    workingDir = rootProject.layout.projectDirectory.asFile
-    commandLine("git", "rev-parse", "--abbrev-ref", "HEAD")
-}.standardOutput.asText.map { raw ->
-    val branch = raw.trim()
-    val version = when {
-        branch.startsWith("experimental/") -> branch.removePrefix("experimental/") + "-exp"
-        branch.startsWith("ver/") -> branch.removePrefix("ver/")
-        branch.isBlank() || branch == "HEAD" -> "dev"
-        else -> branch
-    }
-    "EnigmaEngine-$version.jar"
-}
+// Keep the build artifact at the stable filename used by the local server run folder. A branch
+// suffix here made `buildEnigmaEngine` write a different file while the server continued to start
+// an older `EnigmaEngine.jar`.
+val enigmaEngineJarName = providers.provider { "EnigmaEngine.jar" }
 
 val enigmaClientVersion: String = Properties().apply {
     file("enigma-client/gradle.properties").inputStream().use { load(it) }
@@ -153,7 +142,7 @@ val enigmaClientVersion: String = Properties().apply {
 val enigmaClientJarName = "EnigmaClient-$enigmaClientVersion.jar"
 
 tasks.register<CopyPaperclipJar>("buildEnigmaEngine") {
-    description = "Baut die Server-Jar und kopiert sie nach serverJar/EnigmaEngine-<branch>.jar"
+    description = "Baut die Server-Jar mit allen aktuellen Patches nach serverJar/EnigmaEngine.jar"
     group = "build"
 
     dependsOn(":canvas-server:createPaperclipJar")

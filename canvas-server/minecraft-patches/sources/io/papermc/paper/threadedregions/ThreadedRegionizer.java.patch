@@ -133,7 +133,7 @@
 +        return false;
 +    }
 +
-+    /** Returns the configured empty-shell radius in chunks. */
++    /** Returns the configured merge-buffer radius in chunks. */
 +    private int enigma$bufferRadiusChunks() {
 +        return this.emptySectionCreateRadius * this.regionSectionChunkSize;
 +    }
@@ -1113,10 +1113,25 @@
 +                REGION_ID_FREE_LIST.add(this.id);
 +            }
          }
-@@ -928,6 +_,13 @@
+@@ -928,6 +_,26 @@
                  return false;
              }
  
++            // This is the only method that actually destroys a region and transfers its;
++            // the loaded-chunk buffer gate here is intentionally non-bypassable.
++            // sections into another one. Keep the hard-border rule here as the final gate,
++            // rather than relying on every caller to remember it. In particular, Folia's
++            // adjacency repair and deferred-release paths may call this method directly.
++            // Returning true means "no deferred merge required" to the upstream callers;
++            // returning false would cause them to enqueue the very merge we just rejected.
++            if (!this.regioniser.enigma$shouldMerge(this, mergeTarget)) {
++                if (this.regioniser.enigma$debug()) {
++                    LOGGER.info("[MergeDebug] blocked {} -> {}: buffer zones do not overlap",
++                        this.id, mergeTarget.id);
++                }
++                return true;
++            }
++
 +            final long mergeTime = System.currentTimeMillis();
 +            this.enigma$lastMergeTime = mergeTime;
 +            mergeTarget.enigma$lastMergeTime = mergeTime;
