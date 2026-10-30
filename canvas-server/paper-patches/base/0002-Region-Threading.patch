@@ -745,7 +745,7 @@ index bd68139ae635f2ad7ec8e7a21e0056a139c4c62e..48a43341b17247355a531164019d5cc9
      }
  
 diff --git a/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java b/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
-index 936f8388c84b3d83a85390ec337a5d0a317838f4..d45d23600b2c3585109378a523290b1a0af623ec 100644
+index 936f8388c84b3d83a85390ec337a5d0a317838f4..1fc74216504ba1b554c156a8555af6f80a387c43 100644
 --- a/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
 +++ b/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
 @@ -396,4 +396,19 @@ public class GlobalConfiguration extends ConfigurationPart {
@@ -759,8 +759,6 @@ index 936f8388c84b3d83a85390ec337a5d0a317838f4..d45d23600b2c3585109378a523290b1a
 +
 +        public int threads = -1;
 +        public int gridExponent = 0;
-+        @Constraints.Min(1)
-+        public int bufferRadius = 4;
 +        public io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType scheduler = io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType.EDF;
 +
 +        @PostProcess

@@ -6,7 +6,7 @@ Subject: [PATCH] Canvas RegionizedWorldData
 
 diff --git a/io/canvasmc/canvas/threadedregions/CanvasRegionizedWorldData.java b/io/canvasmc/canvas/threadedregions/CanvasRegionizedWorldData.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..640aa17f4e9ed8e146ff00ff44565daac4e3318c
+index 0000000000000000000000000000000000000000..de5b2e2ca5165cd53b592740057cee283989e312
 --- /dev/null
 +++ b/io/canvasmc/canvas/threadedregions/CanvasRegionizedWorldData.java
 @@ -0,0 +1,108 @@
