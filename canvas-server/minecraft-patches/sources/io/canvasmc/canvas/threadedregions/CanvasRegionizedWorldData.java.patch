@@ -1,0 +1,10 @@
+--- a/io/canvasmc/canvas/threadedregions/CanvasRegionizedWorldData.java
++++ b/io/canvasmc/canvas/threadedregions/CanvasRegionizedWorldData.java
+@@ -4,6 +_,7 @@
+ import io.canvasmc.canvas.region.RegionTickData;
+ import io.canvasmc.canvas.world.RegionResourceBar;
+ import io.canvasmc.canvas.world.RegionizedCpuBar;
++
+ import io.canvasmc.canvas.world.RegionizedNetworkBar;
+ import io.canvasmc.canvas.world.RegionizedRamBar;
+ import io.canvasmc.canvas.world.RegionizedTpsBar;

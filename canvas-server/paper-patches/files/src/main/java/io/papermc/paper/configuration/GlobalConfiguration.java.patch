@@ -115,8 +115,6 @@
 -        public int threads = -1;
 +        public int threads = 10;
          public int gridExponent = 0;
-+        @Constraints.Min(1)
-+        public int bufferRadius = 4;
 -        public io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType scheduler = io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType.EDF;
 +        public io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType scheduler = io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType.AFFINITY;
  

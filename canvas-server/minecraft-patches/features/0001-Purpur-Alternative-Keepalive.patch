@@ -42,7 +42,7 @@ index 63aea7219dc11ac8ecaab5edf0b4f29582c60f81..2a0785deabfe3ff078f0ef200184a8c2
          if (pending != null && pending.challengeId() == packet.getId()) {
              this.keepAlive.pendingKeepAlives.remove(pending);
  
-@@ -255,6 +268,23 @@ public abstract class ServerCommonPacketListenerImpl implements ServerCommonPack
+@@ -261,6 +274,23 @@ public abstract class ServerCommonPacketListenerImpl implements ServerCommonPack
      protected void keepConnectionAlive() {
          long now = Util.getMillis();
          // Paper start - improve keepalives

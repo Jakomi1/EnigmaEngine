@@ -9474,7 +9474,7 @@ index 0000000000000000000000000000000000000000..13f98a99f738fdb02e9aa496b7c911fd
 +}
 diff --git a/io/papermc/paper/threadedregions/ThreadedRegionizer.java b/io/papermc/paper/threadedregions/ThreadedRegionizer.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e36df2d4e8
+index 0000000000000000000000000000000000000000..b44445ce3cda8a07be11985d4d55d7d04d304b36
 --- /dev/null
 +++ b/io/papermc/paper/threadedregions/ThreadedRegionizer.java
 @@ -0,0 +1,1508 @@
@@ -9557,36 +9557,6 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +        this.callbacks = callbacks;
 +        //this.loadTestData();
 +    }
-+
-+    // Enigma start - strict loaded-chunk buffer isolation
-+    // Empty region sections are only scheduling shells. They must never connect two regions:
-+    // only the square buffer around chunks actually loaded by each region may do that.
-+    private boolean enigma$buffersOverlap(final ThreadedRegion<R, S> first, final ThreadedRegion<R, S> second) {
-+        final int reach = this.emptySectionCreateRadius * this.regionSectionChunkSize * 2;
-+        for (final ThreadedRegionSection<R, S> section : first.sectionByKey.values()) {
-+            if (section.chunkCount == 0) {
-+                continue;
-+            }
-+            for (final long chunkKey : section.getChunks()) {
-+                final int chunkX = CoordinateUtils.getChunkX(chunkKey);
-+                final int chunkZ = CoordinateUtils.getChunkZ(chunkKey);
-+                for (int dz = -reach; dz <= reach; ++dz) {
-+                    for (int dx = -reach; dx <= reach; ++dx) {
-+                        final int otherX = chunkX + dx;
-+                        final int otherZ = chunkZ + dz;
-+                        final ThreadedRegionSection<R, S> other = this.sections.get(CoordinateUtils.getChunkKey(
-+                            otherX >> this.sectionChunkShift, otherZ >> this.sectionChunkShift
-+                        ));
-+                        if (other != null && other.getRegionPlain() == second && other.containsChunk(otherX, otherZ)) {
-+                            return true;
-+                        }
-+                    }
-+                }
-+            }
-+        }
-+        return false;
-+    }
-+    // Enigma end - strict loaded-chunk buffer isolation
 +
 +    /*
 +    private static String substr(String val, String prefix, int from) {
@@ -9922,12 +9892,6 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +                        continue;
 +                    }
 +
-+                    // Enigma start - never let touching empty shells force a merge
-+                    if (!this.enigma$buffersOverlap(region, regionOfInterest)) {
-+                        continue;
-+                    }
-+                    // Enigma end - never let touching empty shells force a merge
-+
 +                    if (!region.killAndMergeInto(regionOfInterest)) {
 +                        // note: the region may already be a merge target
 +                        regionOfInterest.mergeIntoLater(region);
@@ -10028,13 +9992,6 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +            // merge the regions into this one
 +            final ReferenceOpenHashSet<ThreadedRegion<R, S>> expectingMergeFrom = region.expectingMergeFrom.clone();
 +            for (final ThreadedRegion<R, S> mergeFrom : expectingMergeFrom) {
-+                // Enigma start - a queued merge may have become invalid while its source ticked
-+                if (!this.enigma$buffersOverlap(mergeFrom, region)) {
-+                    mergeFrom.mergeIntoLater.remove(region);
-+                    region.expectingMergeFrom.remove(mergeFrom);
-+                    continue;
-+                }
-+                // Enigma end - a queued merge may have become invalid while its source ticked
 +                if (!mergeFrom.killAndMergeInto(region)) {
 +                    throw new IllegalStateException("Merge from region " + mergeFrom + " should be killable! Trying to merge into " + region);
 +                }
@@ -10447,13 +10404,6 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +        }
 +
 +        boolean killAndMergeInto(final ThreadedRegion<R, S> mergeTarget) {
-+            // Enigma start - final merge gate; no caller can bypass strict buffer isolation
-+            if (!this.regioniser.enigma$buffersOverlap(this, mergeTarget)) {
-+                LOGGER.info("[Enigma] blocked region merge {} -> {}: loaded-chunk buffers do not overlap", this.id, mergeTarget.id);
-+                return true;
-+            }
-+            // Enigma end - final merge gate
-+
 +            if (this.state == STATE_TICKING) {
 +                return false;
 +            }
@@ -10520,11 +10470,6 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +            if (region.isDead()) {
 +                throw new IllegalStateException("Trying to merge later into a dead region: " + region);
 +            }
-+            // Enigma start - do not queue an invalid merge for release-time execution
-+            if (!this.regioniser.enigma$buffersOverlap(this, region)) {
-+                return;
-+            }
-+            // Enigma end - do not queue an invalid merge for release-time execution
 +            final boolean add1, add2;
 +            if ((add1 = this.mergeIntoLater.add(region)) != (add2 = region.expectingMergeFrom.add(this))) {
 +                throw new IllegalStateException("Inconsistent state between target merge " + region + " and this " + this + ": add1,add2:" + add1 + "," + add2);
@@ -10753,13 +10698,6 @@ index 0000000000000000000000000000000000000000..070760eb24bda6db6ee0561d07a1d9e3
 +        private boolean isEmpty() {
 +            return this.chunkCount == 0;
 +        }
-+
-+        // Enigma start - strict loaded-chunk buffer isolation
-+        private boolean containsChunk(final int chunkX, final int chunkZ) {
-+            final int index = this.getChunkIndex(chunkX, chunkZ);
-+            return (this.chunksBitset[index >>> 6] & (1L << (index & (Long.SIZE - 1)))) != 0L;
-+        }
-+        // Enigma end - strict loaded-chunk buffer isolation
 +
 +        private boolean hasOnlyOneChunk() {
 +            return this.chunkCount == 1;
@@ -11800,22 +11738,10 @@ index 8424cf9d4617b4732d44cc460d25b04481068989..1652b21bbaa3b2e8ec6aa45f0c9bccc6
 +
 +    private static final Logger LOGGER = LogUtils.getClassLogger(); // Canvas - region threading
 +    private static int regionShift = 31;
-+    private static int bufferRadiusChunks = 4;
  
      public static int getRegionChunkShift() {
 -        return ca.spottedleaf.moonrise.patches.chunk_system.scheduling.ThreadedTicketLevelPropagator.SECTION_SHIFT;
 +        return regionShift;
-+    }
-+
-+    /** Exact configured radius around loaded chunks, in chunks. */
-+    public static int getBufferRadiusChunks() {
-+        return bufferRadiusChunks;
-+    }
-+
-+    /** Converts the configured chunk radius to sections, rounding up if needed. */
-+    public static int getBufferRadiusSections() {
-+        final int sectionSize = 1 << regionShift;
-+        return Math.max(1, (bufferRadiusChunks + sectionSize - 1) / sectionSize);
 +    }
 +
 +    private static boolean initialised;
@@ -11866,7 +11792,6 @@ index 8424cf9d4617b4732d44cc460d25b04481068989..1652b21bbaa3b2e8ec6aa45f0c9bccc6
 +        gridExponent = Math.max(0, gridExponent);
 +        gridExponent = Math.min(31, gridExponent);
 +        regionShift = gridExponent;
-+        bufferRadiusChunks = Math.max(1, config.bufferRadius);
 +        scheduler = new TickRegionScheduler(config.scheduler, tickThreads);
 +    }
 +
@@ -22420,8 +22345,8 @@ index 3b5966e5580a1413d464f3a0dd5eacb6ad28e348..5cb3e37c5b472f14b6d48ffd0daf4103
 +        this.regioniser = new io.papermc.paper.threadedregions.ThreadedRegionizer<>(
 +            (int)Math.max(1L, (8L * 16L * 16L) / (1L << (2 * (io.papermc.paper.threadedregions.TickRegions.getRegionChunkShift())))),
 +            (1.0 / 6.0),
-+            io.papermc.paper.threadedregions.TickRegions.getBufferRadiusSections(),
-+            io.papermc.paper.threadedregions.TickRegions.getBufferRadiusSections(),
++            Math.max(1, (this.dimension() == net.minecraft.world.level.Level.END ? 1 : 1) / (1 << io.papermc.paper.threadedregions.TickRegions.getRegionChunkShift())),
++            1,
 +            io.papermc.paper.threadedregions.TickRegions.getRegionChunkShift(),
 +            this,
 +            this.tickRegions
