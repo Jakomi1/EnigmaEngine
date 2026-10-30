@@ -1,6 +1,6 @@
 --- a/io/papermc/paper/threadedregions/ThreadedRegionizer.java
 +++ b/io/papermc/paper/threadedregions/ThreadedRegionizer.java
-@@ -268,6 +_,1042 @@
+@@ -268,6 +_,1076 @@
          }
      }
  
@@ -19,10 +19,8 @@
 +        }
 +        final boolean enigma$debugMerge = settings.debug();
 +
-+        // Hard prerequisite: two regions may ONLY ever be considered for a merge if their
-+        // actual buffer zones spatially touch. Pure spatial proximity or coupling must never
-+        // bridge regions whose buffer zones do not touch.
-+        if (!this.enigma$territoriesAdjacent(from, into)) {
++        // Hard prerequisite: actual buffer zones around loaded chunks MUST spatially touch / overlap!
++        if (!this.enigma$bufferZonesOverlap(from, into)) {
 +            if (enigma$debugMerge) {
 +                LOGGER.info("[MergeDebug] from={} secs={} into={} secs={} -> NO merge (buffer zones do not touch)",
 +                    from.id, from.sectionByKey.size(), into.id, into.sectionByKey.size());
@@ -30,25 +28,11 @@
 +            return false;
 +        }
 +
-+        // Two regions whose loaded chunks are within the regionizer's merge radius MUST be one
-+        // region. ChunkTaskScheduler.scheduleTickingState only hands a load to the region that
-+        // owns the whole access-radius box around the tick target, and Folia preserves that by
-+        // merging regions as soon as a chunk is added between them. Never veto that merge,
-+        // whatever the adaptive policy, sibling lockout or cooldown say, otherwise a player
-+        // walking up to a neighbouring region leaves it unmerged and the load can never be
-+        // scheduled.
-+        //
-+        // The distance is measured between the chunks the two regions own, not between their
-+        // section shells. A shell is the empty buffer that surrounds a region's loaded chunks
-+        // and it outlives the chunks themselves, so shells of two regions that are hundreds of
-+        // blocks apart can touch. Merging on shell contact is what let a region grow across a
-+        // whole map.
 +        final int mergeDistance = this.enigma$mergeDistance(from, into);
 +        final int mergeReach = this.enigma$mergeReach() - 1;
 +        if (mergeDistance > mergeReach) {
 +            // The two regions are too far apart: merging them would create a single region that
-+            // spans unloaded ground and ticks on one thread. Refuse the merge no matter what the
-+            // adaptive policy thinks.
++            // spans unloaded ground and ticks on one thread.
 +            if (enigma$debugMerge) {
 +                LOGGER.info("[MergeDebug] from={} secs={} into={} secs={} dist={} > reach={} -> NO merge (too far)",
 +                    from.id, from.sectionByKey.size(), into.id, into.sectionByKey.size(), mergeDistance, mergeReach);
@@ -56,13 +40,27 @@
 +            return false;
 +        }
 +
++        final double overlap = this.enigma$computeOverlap(from, into);
++
++        // Mandatory merge (Folia scheduler invariant):
++        // Two regions whose loaded chunks are within the regionizer's merge radius MUST be one
++        // region. ChunkTaskScheduler.scheduleTickingState only hands a load to the region that
++        // owns the whole access-radius box around the tick target. Never veto that merge,
++        // otherwise a player loading chunks or walking up to a neighbouring region cannot join!
++        if (overlap > 0.0D) {
++            if (enigma$debugMerge) {
++                LOGGER.info("[MergeDebug] from={} secs={} into={} secs={} dist={} reach={} overlap={} -> FORCE merge (adjacent)",
++                    from.id, from.sectionByKey.size(), into.id, into.sectionByKey.size(),
++                    mergeDistance, mergeReach + 1, String.format("%.3f", overlap));
++            }
++            return true;
++        }
++
 +        final long now = System.currentTimeMillis();
 +
 +        // Sibling lockout: regions produced by the same split must not be merged back into each
 +        // other right away, otherwise the partitioner would immediately be undone by the merge
-+        // logic. The lockout only holds while the split is fresh. Once the split cooldown has
-+        // passed the siblings may merge again, a player that walks from one sibling into the
-+        // other must never be stuck at the border.
++        // logic.
 +        if (from.enigma$partitionGroup != 0L && from.enigma$partitionGroup == into.enigma$partitionGroup
 +            && now - from.enigma$lastSplitTime < settings.splitCooldownMillis()) {
 +            if (enigma$debugMerge) {
@@ -71,9 +69,6 @@
 +            }
 +            return false;
 +        }
-+
-+
-+        final double overlap = this.enigma$computeOverlap(from, into);
 +
 +        // Strict cooldown check on BOTH merges and splits to prevent split-merge oscillation
 +        if (now - from.enigma$lastMergeTime < settings.mergeCooldownMillis()
@@ -84,11 +79,8 @@
 +        }
 +
 +        // A merge should fill a region towards the active target, not create another oversized
-+        // outlier that needs splitting again. One section of tolerance covers indivisible,
-+        // connected shapes while keeping the region population as even as possible.
++        // outlier that needs splitting again.
 +        final int combinedSections = from.sectionByKey.size() + into.sectionByKey.size();
-+        // Never build a region larger than the active split ceiling. At aggressive settings this
-+        // also prevents two one-section children from immediately collapsing into one again.
 +        final int balancedMergeLimit = Math.max(2, Math.min(settings.splitMaxSections(), settings.targetSections()) - 4);
 +        if (combinedSections > balancedMergeLimit) {
 +            if (enigma$debugMerge) {
@@ -112,21 +104,6 @@
 +            return true;
 +        }
 +
-+        // Only merge small regions below mergeMinRegionSections if they are low load/idle and actually touch
-+        if ((from.sectionByKey.size() < settings.mergeMinRegionSections() || into.sectionByKey.size() < settings.mergeMinRegionSections())
-+            && overlap > 0.0D) {
-+            double msptFrom = -1.0D, msptInto = -1.0D;
-+            if (from.data instanceof TickRegions.TickRegionData td) {
-+                msptFrom = td.getMSPT(io.canvasmc.canvas.region.RegionTickData.Frame._5_SECONDS);
-+            }
-+            if (into.data instanceof TickRegions.TickRegionData td) {
-+                msptInto = td.getMSPT(io.canvasmc.canvas.region.RegionTickData.Frame._5_SECONDS);
-+            }
-+            if (msptFrom < 1.0D && msptInto < 1.0D) {
-+                return true;
-+            }
-+        }
-+
 +        return false;
 +    }
 +
@@ -140,7 +117,10 @@
 +     * would end up on a single thread.
 +     */
 +    private boolean enigma$shouldMergeRequired(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> into) {
-+        if (!this.enigma$territoriesAdjacent(from, into)) {
++        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto() || !this.world.enigma$regionizerSettings.enabled()) {
++            return true;
++        }
++        if (!this.enigma$bufferZonesOverlap(from, into)) {
 +            if (this.enigma$debug()) {
 +                LOGGER.info("[MergeDebug] required from={} secs={} into={} secs={} -> NO merge (buffer zones do not touch)",
 +                    from.id, from.sectionByKey.size(), into.id, into.sectionByKey.size());
@@ -159,13 +139,67 @@
 +        return true;
 +    }
 +
++    /** Returns the configured merge-buffer radius in chunks. */
++    public int enigma$bufferRadiusChunks() {
++        try {
++            final io.papermc.paper.configuration.GlobalConfiguration global = io.papermc.paper.configuration.GlobalConfiguration.get();
++            if (global != null && global.threadedRegions != null) {
++                return Math.max(1, global.threadedRegions.bufferRadius);
++            }
++        } catch (final Throwable ignored) {
++        }
++        return Math.max(1, this.emptySectionCreateRadius * this.regionSectionChunkSize);
++    }
++
 +    /**
-+     * Returns whether the two regions occupy neighbouring sections. This is the adjacency
-+     * criterion that upstream Folia uses when it merges regions: a section is adjacent to
-+     * another one when one of its eight neighbours belongs to the other region. The empty
-+     * buffer sections are included on purpose, they are the edge of a region and they decide
-+     * where two regions touch.
++     * Returns true only when the configured square buffer zones around real loaded chunks
++     * overlap. Empty region sections, coupling and load are intentionally ignored.
++     *
++     * <p>A region that owns no chunks ("husk") has no buffer zone by definition. Husks
++     * therefore never satisfy this predicate, even if their empty scheduling sections
++     * touch the sections of another region. Use {@link #enigma$territoriesAdjacent} when
++     * the physical section adjacency matters (e.g. the mandatory-merge path).</p>
 +     */
++    public boolean enigma$bufferZonesOverlap(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> into) {
++        // A husk (region with no loaded chunks) has no buffer zone: its buffer-zone cannot
++        // touch any other region's buffer zone, so the predicate is always false.
++        if (!this.enigma$hasContent(from) || !this.enigma$hasContent(into)) {
++            return false;
++        }
++
++        ThreadedRegion<R, S> small = from;
++        ThreadedRegion<R, S> large = into;
++        if (small.sectionByKey.size() > large.sectionByKey.size()) {
++            final ThreadedRegion<R, S> swap = small;
++            small = large;
++            large = swap;
++        }
++        final int overlapReach = this.enigma$bufferRadiusChunks() * 2;
++        for (final ThreadedRegionSection<R, S> section : small.sectionByKey.values()) {
++            if (section.chunkCount <= 0) {
++                continue;
++            }
++            for (final long chunkKey : section.getChunks()) {
++                final int chunkX = CoordinateUtils.getChunkX(chunkKey);
++                final int chunkZ = CoordinateUtils.getChunkZ(chunkKey);
++                for (int dz = -overlapReach; dz <= overlapReach; ++dz) {
++                    for (int dx = -overlapReach; dx <= overlapReach; ++dx) {
++                        final int otherChunkX = chunkX + dx;
++                        final int otherChunkZ = chunkZ + dz;
++                        final ThreadedRegionSection<R, S> other = this.sections.get(CoordinateUtils.getChunkKey(
++                            otherChunkX >> this.sectionChunkShift, otherChunkZ >> this.sectionChunkShift
++                        ));
++                        if (other != null && other.getRegionPlain() == large
++                            && other.containsChunk(otherChunkX, otherChunkZ)) {
++                            return true;
++                        }
++                    }
++                }
++            }
++        }
++        return false;
++    }
++
 +    boolean enigma$territoriesAdjacent(final ThreadedRegion<R, S> a, final ThreadedRegion<R, S> b) {
 +        ThreadedRegion<R, S> small = a;
 +        ThreadedRegion<R, S> large = b;
@@ -682,7 +716,7 @@
 +                            // when the neighbour's footprint has not already drifted away from its
 +                            // own content.
 +                            final int contentDistance = this.enigma$distanceToContentOf(region, neighbourRegion);
-+                            final int reach = this.enigma$mergeReach();
++                            final int reach = Math.min(this.enigma$mergeReach(), this.enigma$bufferRadiusChunks() >> this.sectionChunkShift);
 +                            if (contentDistance > reach) {
 +                                if (this.world.enigma$regionizerSettings.debug()) {
 +                                    LOGGER.info("[MergeDebug] absorb {} -> {} refused: content distance {} exceeds reach {}",
@@ -1244,7 +1278,7 @@
 +            // Enigma start - a pending merge must not chain across unloaded ground
 +            if (io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()
 +                && this.regioniser.world.enigma$regionizerSettings.enabled()
-+                && !this.regioniser.enigma$territoriesAdjacent(this, region)) {
++                && !this.regioniser.enigma$bufferZonesOverlap(this, region)) {
 +                if (this.regioniser.enigma$debug()) {
 +                    LOGGER.info("[MergeDebug] pending merge {} -> {} dropped: buffer zones do not touch",
 +                        this.id, region.id);
