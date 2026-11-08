@@ -1,31 +1,30 @@
 --- a/io/papermc/paper/threadedregions/ThreadedRegionizer.java
 +++ b/io/papermc/paper/threadedregions/ThreadedRegionizer.java
-@@ -268,6 +_,1076 @@
+@@ -268,6 +_,1072 @@
          }
      }
  
 +    // Enigma start - adaptive regionizer
 +    private boolean enigma$shouldMerge(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> into) {
-+        // FOLIA mode deliberately bypasses every Enigma merge policy and preserves upstream's
-+        // original merge decision.
-+        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()) {
-+            return true;
-+        }
-+
 +        final io.canvasmc.canvas.regionizer.RegionizerSettings settings = this.world.enigma$regionizerSettings;
-+        if (!settings.enabled()) {
-+            // upstream behavior
-+            return true;
-+        }
 +        final boolean enigma$debugMerge = settings.debug();
 +
-+        // Hard prerequisite: actual buffer zones around loaded chunks MUST spatially touch / overlap!
++        // Hard prerequisite: the client-visible blue buffer zones must overlap.
 +        if (!this.enigma$bufferZonesOverlap(from, into)) {
 +            if (enigma$debugMerge) {
 +                LOGGER.info("[MergeDebug] from={} secs={} into={} secs={} -> NO merge (buffer zones do not touch)",
 +                    from.id, from.sectionByKey.size(), into.id, into.sectionByKey.size());
 +            }
 +            return false;
++        }
++
++        // FOLIA mode deliberately bypasses every Enigma merge policy, but never the buffer-zone invariant.
++        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()) {
++            return true;
++        }
++        if (!settings.enabled()) {
++            // upstream behavior
++            return true;
 +        }
 +
 +        final int mergeDistance = this.enigma$mergeDistance(from, into);
@@ -42,20 +41,7 @@
 +
 +        final double overlap = this.enigma$computeOverlap(from, into);
 +
-+        // Mandatory merge (Folia scheduler invariant):
-+        // Two regions whose loaded chunks are within the regionizer's merge radius MUST be one
-+        // region. ChunkTaskScheduler.scheduleTickingState only hands a load to the region that
-+        // owns the whole access-radius box around the tick target. Never veto that merge,
-+        // otherwise a player loading chunks or walking up to a neighbouring region cannot join!
-+        if (overlap > 0.0D) {
-+            if (enigma$debugMerge) {
-+                LOGGER.info("[MergeDebug] from={} secs={} into={} secs={} dist={} reach={} overlap={} -> FORCE merge (adjacent)",
-+                    from.id, from.sectionByKey.size(), into.id, into.sectionByKey.size(),
-+                    mergeDistance, mergeReach + 1, String.format("%.3f", overlap));
-+            }
-+            return true;
-+        }
-+
+
 +        final long now = System.currentTimeMillis();
 +
 +        // Sibling lockout: regions produced by the same split must not be merged back into each
@@ -109,23 +95,22 @@
 +
 +    /**
 +     * Merge decision for the case where a region would otherwise break the regionizer's
-+     * adjacency invariant. A section that owns chunks must have all of its neighbouring
-+     * sections in the same region, otherwise the access-radius box around the chunk crosses
-+     * the region border and the chunk can never be scheduled. Merging the regions is then
-+     * mandatory, no policy, cooldown or size limit may prevent it. Only the distance gate
-+     * still applies: a region that is hundreds of blocks away is never merged, its chunks
-+     * would end up on a single thread.
++    * adjacency invariant. A section that owns chunks must have all of its neighbouring
++    * sections in the same region, otherwise the access-radius box around the chunk crosses
++    * the region border and the chunk can never be scheduled. A required merge is only
++    * considered when the blue buffer zones overlap; then no policy, cooldown, or
++     * size limit may prevent it. The distance gate still applies to avoid distant merges.
 +     */
 +    private boolean enigma$shouldMergeRequired(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> into) {
-+        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto() || !this.world.enigma$regionizerSettings.enabled()) {
-+            return true;
-+        }
 +        if (!this.enigma$bufferZonesOverlap(from, into)) {
 +            if (this.enigma$debug()) {
 +                LOGGER.info("[MergeDebug] required from={} secs={} into={} secs={} -> NO merge (buffer zones do not touch)",
 +                    from.id, from.sectionByKey.size(), into.id, into.sectionByKey.size());
 +            }
 +            return false;
++        }
++        if (!io.canvasmc.canvas.regionizer.RegionizerMode.isAuto() || !this.world.enigma$regionizerSettings.enabled()) {
++            return true;
 +        }
 +        final int mergeDistance = this.enigma$mergeDistance(from, into);
 +        final int mergeReach = this.enigma$mergeReach();
@@ -148,86 +133,65 @@
 +            }
 +        } catch (final Throwable ignored) {
 +        }
-+        return Math.max(1, this.emptySectionCreateRadius * this.regionSectionChunkSize);
++        return 0;
 +    }
 +
 +    /**
-+     * Returns true only when the configured square buffer zones around real loaded chunks
-+     * overlap. Empty region sections, coupling and load are intentionally ignored.
-+     *
-+     * <p>A region that owns no chunks ("husk") has no buffer zone by definition. Husks
-+     * therefore never satisfy this predicate, even if their empty scheduling sections
-+     * touch the sections of another region. Use {@link #enigma$territoriesAdjacent} when
-+     * the physical section adjacency matters (e.g. the mandatory-merge path).</p>
++     * Uses the exact source chunks and loaded-chunk exclusion set from the client's blue overlay.
++     * Both are based on full-ready holders, not the broader set of chunks registered with regions.
 +     */
 +    public boolean enigma$bufferZonesOverlap(final ThreadedRegion<R, S> from, final ThreadedRegion<R, S> into) {
-+        // A husk (region with no loaded chunks) has no buffer zone: its buffer-zone cannot
-+        // touch any other region's buffer zone, so the predicate is always false.
-+        if (!this.enigma$hasContent(from) || !this.enigma$hasContent(into)) {
++        if (from == into) {
++            return false;
++        }
++        final Boolean publishedOverlap = io.canvasmc.canvas.chunkmap.EnigmaChunkMapService.publishedBufferZonesOverlap(
++            this.world, from.id, into.id);
++        if (Boolean.FALSE.equals(publishedOverlap)) {
++            if (this.enigma$debug()) {
++                LOGGER.info("[MergeDebug] from={} into={} -> NO merge (last client snapshot has no buffer overlap)",
++                    from.id, into.id);
++            }
 +            return false;
 +        }
 +
-+        ThreadedRegion<R, S> small = from;
-+        ThreadedRegion<R, S> large = into;
-+        if (small.sectionByKey.size() > large.sectionByKey.size()) {
-+            final ThreadedRegion<R, S> swap = small;
-+            small = large;
-+            large = swap;
++        final int radius = this.enigma$bufferRadiusChunks();
++        if (radius <= 0) {
++            return false;
 +        }
-+        final int overlapReach = this.enigma$bufferRadiusChunks() * 2;
-+        for (final ThreadedRegionSection<R, S> section : small.sectionByKey.values()) {
-+            if (section.chunkCount <= 0) {
-+                continue;
-+            }
-+            for (final long chunkKey : section.getChunks()) {
-+                final int chunkX = CoordinateUtils.getChunkX(chunkKey);
-+                final int chunkZ = CoordinateUtils.getChunkZ(chunkKey);
-+                for (int dz = -overlapReach; dz <= overlapReach; ++dz) {
-+                    for (int dx = -overlapReach; dx <= overlapReach; ++dx) {
-+                        final int otherChunkX = chunkX + dx;
-+                        final int otherChunkZ = chunkZ + dz;
-+                        final ThreadedRegionSection<R, S> other = this.sections.get(CoordinateUtils.getChunkKey(
-+                            otherChunkX >> this.sectionChunkShift, otherChunkZ >> this.sectionChunkShift
-+                        ));
-+                        if (other != null && other.getRegionPlain() == large
-+                            && other.containsChunk(otherChunkX, otherChunkZ)) {
-+                            return true;
-+                        }
-+                    }
-+                }
-+            }
-+        }
-+        return false;
-+    }
 +
-+    boolean enigma$territoriesAdjacent(final ThreadedRegion<R, S> a, final ThreadedRegion<R, S> b) {
-+        ThreadedRegion<R, S> small = a;
-+        ThreadedRegion<R, S> large = b;
-+        if (small.sectionByKey.size() > large.sectionByKey.size()) {
-+            final ThreadedRegion<R, S> swap = small;
-+            small = large;
-+            large = swap;
-+        }
-+        for (final ThreadedRegionSection<R, S> section : small.sectionByKey.values()) {
-+            if (section.chunkCount <= 0 && !section.hasNonEmptyNeighbours()) {
++        final ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemServerLevel chunkSystemLevel =
++            (ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemServerLevel)this.world;
++        final java.util.List<ca.spottedleaf.moonrise.patches.chunk_system.scheduling.NewChunkHolder> holders =
++            chunkSystemLevel.moonrise$getChunkTaskScheduler().chunkHolderManager.getChunkHolders();
++        final it.unimi.dsi.fastutil.longs.LongOpenHashSet loadedChunks =
++            new it.unimi.dsi.fastutil.longs.LongOpenHashSet(holders.size());
++        final it.unimi.dsi.fastutil.longs.LongArrayList fromChunks = new it.unimi.dsi.fastutil.longs.LongArrayList();
++        final it.unimi.dsi.fastutil.longs.LongArrayList intoChunks = new it.unimi.dsi.fastutil.longs.LongArrayList();
++        for (final ca.spottedleaf.moonrise.patches.chunk_system.scheduling.NewChunkHolder holder : holders) {
++            if (!holder.isFullChunkReady()) {
 +                continue;
 +            }
-+            final int x = section.sectionX;
-+            final int z = section.sectionZ;
-+            for (int dz = -1; dz <= 1; ++dz) {
-+                for (int dx = -1; dx <= 1; ++dx) {
-+                    if ((dx | dz) == 0) {
-+                        continue;
-+                    }
-+                    final ThreadedRegionSection<R, S> other =
-+                        large.sectionByKey.get(CoordinateUtils.getChunkKey(x + dx, z + dz));
-+                    if (other != null && (other.chunkCount > 0 || other.hasNonEmptyNeighbours())) {
-+                        return true;
-+                    }
-+                }
++            final long key = CoordinateUtils.getChunkKey(holder.chunkX, holder.chunkZ);
++            loadedChunks.add(key);
++            final ThreadedRegion<R, S> owner = this.getRegionAtUnsynchronised(holder.chunkX, holder.chunkZ);
++            if (owner == from) {
++                fromChunks.add(key);
++            } else if (owner == into) {
++                intoChunks.add(key);
 +            }
 +        }
-+        return false;
++        final boolean debug = this.enigma$debug();
++        final long[] overlapChunk = debug ? new long[1] : null;
++        final java.util.function.LongConsumer overlapConsumer = overlapChunk == null
++            ? null : (java.util.function.LongConsumer)(packed -> overlapChunk[0] = packed);
++        final boolean overlaps = io.canvasmc.canvas.chunkmap.EnigmaChunkMapService.bufferZonesOverlap(
++            loadedChunks.toLongArray(), fromChunks.toLongArray(), intoChunks.toLongArray(), radius, overlapConsumer);
++        if (overlaps && debug) {
++            LOGGER.info("[MergeDebug] buffer zones overlap from={} into={} publishedSnapshotOverlap={} at shared unloaded chunk=({}, {}) radius={}",
++                from.id, into.id, publishedOverlap, CoordinateUtils.getChunkX(overlapChunk[0]),
++                CoordinateUtils.getChunkZ(overlapChunk[0]), radius);
++        }
++        return overlaps;
 +    }
 +
 +    private double enigma$computeOverlap(final ThreadedRegion<R, S> a, final ThreadedRegion<R, S> b) {
@@ -759,13 +723,8 @@
 +        if (sectionCount < settings.splitMinSize()) {
 +            return false;
 +        }
-+        // The cooldown must gate every split, including the oversized fast path below. Otherwise a
-+        // region that cannot actually be split (for example because coalescing rejects the plan to
-+        // preserve the buffer invariant) is re-partitioned on every single chunk release, and the
-+        // partitioner dominates the tick at a time when the region holds almost no players.
-+        if (System.currentTimeMillis() - region.enigma$lastSplitTime < settings.splitCooldownMillis()) {
-+            return false;
-+        }
++        // Current chunk topology and workload drive splitting; no wall-clock cooldown delays a
++        // qualifying split. Rejected partition inputs are memoized below to avoid repeated work.
 +        final long enigma$debugNow = System.currentTimeMillis();
 +        final boolean enigma$debugSplit = settings.debug()
 +            && (enigma$debugNow - region.enigma$lastSplitDebugTime > 30_000L);
@@ -848,6 +807,37 @@
 +        );
 +    }
 +
++    private long enigma$splitInputSignature(final ThreadedRegion<R, S> region,
++                                             final io.canvasmc.canvas.regionizer.RegionizerSettings settings) {
++        long sectionXor = 0L;
++        long sectionSum = 0L;
++        for (final ThreadedRegionSection<R, S> section : region.sectionByKey.values()) {
++            final long value = CoordinateUtils.getChunkKey(section.sectionX, section.sectionZ)
++                ^ ((long)section.chunkCount * 0x9E3779B97F4A7C15L);
++            sectionXor ^= Long.rotateLeft(value, section.sectionX & (Long.SIZE - 1));
++            sectionSum += value;
++        }
++        long hash = 0xcbf29ce484222325L;
++        hash = (hash ^ sectionXor) * 0x100000001b3L;
++        hash = (hash ^ sectionSum) * 0x100000001b3L;
++        int players = 0;
++        if (region.data instanceof TickRegions.TickRegionData tickData) {
++            players = tickData.getRegionStats().getPlayerCount();
++        }
++        hash = (hash ^ region.sectionByKey.size()) * 0x100000001b3L;
++        hash = (hash ^ players) * 0x100000001b3L;
++        final int targetSections = Math.max(1, Math.min(this.enigma$splitTargetSections(region, settings),
++            (region.sectionByKey.size() + 1) / 2));
++        hash = (hash ^ targetSections) * 0x100000001b3L;
++        hash = (hash ^ settings.splitMaxSections()) * 0x100000001b3L;
++        hash = (hash ^ settings.splitMaxRegions()) * 0x100000001b3L;
++        hash = (hash ^ (settings.partitionEnabled() ? 1L : 0L)) * 0x100000001b3L;
++        hash = (hash ^ settings.partitionMinSections()) * 0x100000001b3L;
++        hash = (hash ^ Double.doubleToLongBits(settings.partitionSlack())) * 0x100000001b3L;
++        hash = (hash ^ settings.partitionRefinementPasses()) * 0x100000001b3L;
++        return hash == 0L ? 1L : hash;
++    }
++
 +    /**
 +     * Splits the given alive region into multiple regions based on its section clusters. Must be called while holding
 +     * the write lock and while the region is in the ready state.
@@ -874,10 +864,10 @@
 +            return false;
 +        }
 +
-+        // Record the attempt before partitioning. When the partitioner's result is later discarded
-+        // (buffer-neighbourhood coalescing), the region must still observe the split cooldown so the
-+        // next chunk release does not immediately re-run this whole O(n log n) partition.
-+        region.enigma$lastSplitTime = System.currentTimeMillis();
++        final long splitSignature = this.enigma$splitInputSignature(region, settings);
++        if (splitSignature == region.enigma$lastFailedSplitSignature) {
++            return false;
++        }
 +
 +        // A region is a schedulable work unit, not a dedicated thread. Do not cap
 +        // partitions at Runtime.availableProcessors(): containers often report one
@@ -886,7 +876,8 @@
 +        // A static section target cannot see that one region currently owns most players or
 +        // tick time. Reduce the target for this split so the partitioner creates enough children
 +        // to share that live work, while its topology pass keeps every child contiguous.
-+        final int targetSections = this.enigma$splitTargetSections(region, settings);
++        final int targetSections = Math.max(1, Math.min(this.enigma$splitTargetSections(region, settings),
++            (region.sectionByKey.size() + 1) / 2));
 +        List<List<ThreadedRegionSection<R, S>>> newRegions = settings.partitionEnabled()
 +            ? io.canvasmc.canvas.regionizer.BalancedPartitioner.partition(
 +                region.sectionByKey.values(),
@@ -923,6 +914,7 @@
 +        }
 +
 +        if (newRegions.size() <= 1) {
++            region.enigma$lastFailedSplitSignature = splitSignature;
 +            return false;
 +        }
 +
@@ -944,6 +936,7 @@
 +        if (newRegions.size() <= 1) {
 +            // the split could only be achieved by separating a non-empty section from its buffer
 +            // sections, which would break the scheduler's region ownership guarantee.
++            region.enigma$lastFailedSplitSignature = splitSignature;
 +            return false;
 +        }
 +        // Enigma end - preserve the regionizer's buffer invariant across a split
@@ -1072,6 +1065,24 @@
 +            parent[rootA] = rootB;
 +        }
 +    }
++
++    // Enigma start - force kill for emergency unload (/enigma regions force-unload)
++    // Force-kills a region even when it is mid-tick, bypassing tryKill()'s
++    // STATE_TICKING guard. Intended as last resort before server restart.
++    public boolean enigma$forceKill(final ThreadedRegion<R, S> region) {
++        final boolean wasActive = region.state == ThreadedRegion.STATE_TICKING
++            || region.state == ThreadedRegion.STATE_READY;
++        region.state = ThreadedRegion.STATE_DEAD;
++        if (wasActive) {
++            this.callbacks.onRegionInactive(region);
++        }
++        this.callbacks.onRegionDestroy(region);
++        this.onRegionDestroy(region);
++        region.enigma$recycleId();
++        return true;
++    }
++    // Enigma end - force kill
++
 +    // Enigma end - adaptive regionizer
 +
      /**
@@ -1101,9 +1112,17 @@
              }
              // due to the fast check from above, we know the section is empty whether we needed to create it or not
  
-@@ -352,8 +_,51 @@
+@@ -352,8 +_,58 @@
              }
  
++            // Empty sections created in this addChunk pass do not have a region owner yet.
++            if (nearbyRegions != null) {
++                nearbyRegions.remove(null);
++                if (nearbyRegions.isEmpty()) {
++                    nearbyRegions = null;
++                }
++            }
++
              if (newSections.isEmpty()) {
 -                // if we didn't add any sections, then we don't need to merge any regions or create a region
 +                // Enigma start - a section that already existed just received its first chunk
@@ -1154,6 +1173,22 @@
              }
  
              final ThreadedRegion<R, S> regionOfInterest;
+@@ -375,10 +_,14 @@
+                 for (final ThreadedRegion<R, S> region : nearbyRegions) {
+                     if (region.isTicking()) {
+                         continue;
+                     }
+                     firstUnlockedRegion = region;
+                     if (firstUnlockedRegion.state == ThreadedRegion.STATE_READY && (!firstUnlockedRegion.mergeIntoLater.isEmpty() || !firstUnlockedRegion.expectingMergeFrom.isEmpty())) {
+-                        throw new IllegalStateException("Illegal state for unlocked region " + firstUnlockedRegion);
++                        // A ready region with pending links must not be scheduled while Folia resolves them.
++                        firstUnlockedRegion.state = ThreadedRegion.STATE_TRANSIENT;
++                        this.callbacks.onRegionInactive(firstUnlockedRegion);
++                        firstUnlockedRegion = null;
++                        continue;
+                     }
+                     break;
+                 }
 @@ -412,6 +_,13 @@
                          continue;
                      }
@@ -1183,9 +1218,28 @@
 +            LOGGER.debug("Chunk ({},{}) is not part of section {}, already released",
 +                    chunkX, chunkZ, section);
 +            return;
-         }
++        }
          if (!section.hasOnlyOneChunk()) {
              // chunk will not go empty, so we don't need to acquire the lock
+@@ -530,5 +_,17 @@
+             for (final ThreadedRegion<R, S> mergeFrom : expectingMergeFrom) {
+                 if (!mergeFrom.killAndMergeInto(region)) {
+-                    throw new IllegalStateException("Merge from region " + mergeFrom + " should be killable! Trying to merge into " + region);
++                    if (mergeFrom.state == ThreadedRegion.STATE_TICKING) {
++                        throw new IllegalStateException("Merge from region " + mergeFrom + " should be killable! Trying to merge into " + region);
++                    }
++                    if (!region.expectingMergeFrom.remove(mergeFrom)
++                        || !mergeFrom.mergeIntoLater.remove(region)) {
++                        throw new IllegalStateException("Inconsistent pending merge between " + mergeFrom + " and " + region);
++                    }
++                    if (mergeFrom.state == ThreadedRegion.STATE_TRANSIENT
++                        && mergeFrom.mergeIntoLater.isEmpty() && mergeFrom.expectingMergeFrom.isEmpty()) {
++                        mergeFrom.state = ThreadedRegion.STATE_READY;
++                        this.callbacks.onRegionActive(mergeFrom);
++                    }
++                    continue;
+                 }
+             }
 @@ -560,6 +_,12 @@
          // if we removed dead sections, we should check if the region can be split into smaller ones
          // otherwise, the region remains alive
@@ -1212,7 +1266,7 @@
              // no need to split anything, we're done here
              region.state = ThreadedRegion.STATE_READY;
              if (!region.expectingMergeFrom.isEmpty() || !region.mergeIntoLater.isEmpty()) {
-@@ -785,9 +_,22 @@
+@@ -785,9 +_,23 @@
          private final ReferenceOpenHashSet<ThreadedRegion<R, S>> mergeIntoLater = new ReferenceOpenHashSet<>();
          private final ReferenceOpenHashSet<ThreadedRegion<R, S>> expectingMergeFrom = new ReferenceOpenHashSet<>();
  
@@ -1221,6 +1275,7 @@
 +        volatile long enigma$lastSplitTime;
 +        volatile long enigma$partitionGroup;
 +        volatile long enigma$lastSplitDebugTime;
++        volatile long enigma$lastFailedSplitSignature;
 +        // Enigma end - adaptive regionizer
 +
 +        // Enigma start - region ID recycling: ids of dead regions are reused so the coupling
@@ -1257,13 +1312,28 @@
          }
  
          public final boolean hasNoAliveSections() {
-@@ -928,6 +_,13 @@
+@@ -928,6 +_,28 @@
                  return false;
              }
  
++            if (!this.regioniser.enigma$bufferZonesOverlap(this, mergeTarget)) {
++                if (this.regioniser.enigma$debug()) {
++                    LOGGER.info("[MergeDebug] from={} into={} -> NO merge (buffer zones do not touch)",
++                        this.id, mergeTarget.id);
++                }
++                return false;
++            }
++            if (this.regioniser.enigma$debug()) {
++                LOGGER.info("[MergeDebug] from={} into={} -> merge passed client and live buffer gates (radius={} chunks)",
++                    this.id, mergeTarget.id, this.regioniser.enigma$bufferRadiusChunks());
++            }
++
 +            final long mergeTime = System.currentTimeMillis();
 +            this.enigma$lastMergeTime = mergeTime;
 +            mergeTarget.enigma$lastMergeTime = mergeTime;
++            // The merged footprint is new: discard stale split and failed-plan state.
++            mergeTarget.enigma$lastSplitTime = 0L;
++            mergeTarget.enigma$lastFailedSplitSignature = 0L;
 +            // Enigma: a merged region is no longer one of a split's siblings.
 +            this.enigma$partitionGroup = 0L;
 +            mergeTarget.enigma$partitionGroup = 0L;
@@ -1271,44 +1341,8 @@
              this.regioniser.callbacks.preMerge(this, mergeTarget);
  
              this.tryKill();
-@@ -990,6 +_,37 @@
-             if (region.isDead()) {
-                 throw new IllegalStateException("Trying to merge later into a dead region: " + region);
-             }
-+            // Enigma start - a pending merge must not chain across unloaded ground
-+            if (io.canvasmc.canvas.regionizer.RegionizerMode.isAuto()
-+                && this.regioniser.world.enigma$regionizerSettings.enabled()
-+                && !this.regioniser.enigma$bufferZonesOverlap(this, region)) {
-+                if (this.regioniser.enigma$debug()) {
-+                    LOGGER.info("[MergeDebug] pending merge {} -> {} dropped: buffer zones do not touch",
-+                        this.id, region.id);
-+                }
-+                return;
-+            }
-+            // When a region is merged, upstream forwards every pending merge of that region to
-+            // the new target. Each individual hop is only a couple of sections wide, but a chain
-+            // of hops keeps growing: A waits for B, B is merged into C and A is forwarded to C,
-+            // C is merged into D and A is forwarded to D again. The result is a single region
-+            // that spans hundreds of blocks of unloaded ground, ticking on one thread. Only
-+            // forward the merge when the two regions are still close enough to be one region.
-+            final int enigma$mergeDistance = this.regioniser.enigma$mergeDistance(this, region);
-+            if (enigma$mergeDistance > this.regioniser.enigma$mergeReach()) {
-+                if (this.regioniser.enigma$debug()) {
-+                    LOGGER.info("[MergeDebug] pending merge {} -> {} dropped: distance {} exceeds reach {}",
-+                        this.id, region.id, enigma$mergeDistance, this.regioniser.enigma$mergeReach());
-+                }
-+                return;
-+            }
-+            // Enigma end - a pending merge must not chain across unloaded ground
-+            final long mergeTime = System.currentTimeMillis();
-+            this.enigma$lastMergeTime = mergeTime;
-+            region.enigma$lastMergeTime = mergeTime;
-+            // Enigma: a merged region is no longer one of a split's siblings.
-+            this.enigma$partitionGroup = 0L;
-+            region.enigma$partitionGroup = 0L;
-             final boolean add1, add2;
-             if ((add1 = this.mergeIntoLater.add(region)) != (add2 = region.expectingMergeFrom.add(this))) {
-                 throw new IllegalStateException("Inconsistent state between target merge " + region + " and this " + this + ": add1,add2:" + add1 + "," + add2);
+ 
+
 @@ -1217,6 +_,14 @@
  
          private boolean isEmpty() {

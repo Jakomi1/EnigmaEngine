@@ -14,12 +14,13 @@ import io.canvasmc.canvas.distributed.config.EnigmaDistributedConfig;
 import io.canvasmc.canvas.regionizer.RegionizerSettings;
 import io.canvasmc.canvas.regionizer.loadscaling.LoadScaling;
 import io.canvasmc.canvas.simd.SIMDDetection;
+import io.canvasmc.canvas.subcommands.ConfigSubCommand;
 import io.canvasmc.canvas.subcommands.DisplaySubCommand;
+import io.canvasmc.canvas.subcommands.InfoSubCommand;
 import io.canvasmc.canvas.subcommands.LimitsSubCommand;
 import io.canvasmc.canvas.subcommands.RegionTickSubCommand;
 import io.canvasmc.canvas.subcommands.RegionizerSubCommand;
 import io.canvasmc.canvas.subcommands.RegionsSubCommand;
-import io.canvasmc.canvas.subcommands.ReloadSubCommand;
 import io.canvasmc.canvas.util.FasterRandomSource;
 import io.canvasmc.canvas.util.LockedReference;
 import io.canvasmc.canvas.util.TimeSpan;
@@ -131,7 +132,7 @@ public class GlobalConfiguration extends Part {
                 ).endLine()
                 .blank()
                 .wordWrap(
-                    "You may refresh this configuration at runtime using the \"/enigma reload\" command, however",
+                    "You may refresh this configuration at runtime using the \"/enigma config reload\" command, however",
                     "it is not recommended to do this during production, as this can cause issues like unexpected crashes",
                     "or unintended behavior."
                 ).endLine()
@@ -247,8 +248,8 @@ public class GlobalConfiguration extends Part {
                 }
             }
 
-            // Distributed is opt-in. Load it before building the command tree so an ordinary
-            // single-server installation never advertises an unusable /enigma distributed root.
+            // Load distributed settings before building the command tree. Its command remains
+            // available even while the runtime is disabled, so operators can enable/configure it.
             EnigmaDistributedConfig distributedConfig = null;
             try {
                 distributedConfig = EnigmaDistributedConfig.load();
@@ -259,21 +260,16 @@ public class GlobalConfiguration extends Part {
 
             // Register the local Enigma command tree.
             CanvasCommands.register(
+                EnigmaChunkMapSubCommand.class,
+                ConfigSubCommand.class,
                 DisplaySubCommand.class,
-                RegionsSubCommand.class,
-                ReloadSubCommand.class,
+                DistributedSubCommand.class,
+                InfoSubCommand.class,
                 LimitsSubCommand.class,
-                RegionTickSubCommand.class,
+                RegionsSubCommand.class,
                 RegionizerSubCommand.class,
-                io.canvasmc.canvas.subcommands.InfoSubCommand.class,
-                EnigmaChunkMapSubCommand.class
+                RegionTickSubCommand.class
             );
-            // Distributed is opt-in. Only advertise /enigma distributed (and the root prepare-stop
-            // alias) when it is actually enabled, so it never shows up in tab completion otherwise.
-            DistributedSubCommand.ENABLED = distributedConfig != null && distributedConfig.enabled;
-            if (DistributedSubCommand.ENABLED) {
-                CanvasCommands.register(DistributedSubCommand.class);
-            }
 
             broadcast("Registered all Enigma commands", INFO);
 

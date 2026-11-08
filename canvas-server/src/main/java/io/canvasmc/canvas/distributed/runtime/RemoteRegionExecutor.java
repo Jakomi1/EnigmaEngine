@@ -89,7 +89,7 @@ public final class RemoteRegionExecutor {
 
     /**
      * Whether a prepare-stop run (return everything, then stop) has been requested. Guarded so a
-     * second /prepare-stop or a re-entrant halt cannot start a second run.
+     * second /enigma distributed prepare-stop or a re-entrant halt cannot start a second run.
      */
     private final AtomicBoolean prepareStopStarted = new AtomicBoolean();
 
@@ -1065,7 +1065,7 @@ public final class RemoteRegionExecutor {
         RegionSnapshotUtil.restore(entry.world, snapshot).whenComplete((ignored, error) -> {
             if (error != null) {
                 // Chunks may still be loaded on this host (a player re-entered before the return).
-                // The Compute Host keeps the region, so a retried /prepare-stop can complete the
+                // The Compute Host keeps the region, so a retried /enigma distributed prepare-stop can complete the
                 // return; the ledger is unchanged, nothing is lost.
                 LOGGER.warn("Return of region {} could not be installed: {}", regionId, error.toString());
                 this.finishReturn(regionId, "return restore failed: " + error);
@@ -2047,7 +2047,7 @@ public final class RemoteRegionExecutor {
 
     /**
      * Stage of a migration as reported by {@link #listMigrations()} and the
-     * {@code enigma distributed migrations} command. Transitions are driven by the callback chain in
+     * {@code enigma distributed migration list} command. Transitions are driven by the callback chain in
      * {@link #requestRegionMigration} and the verify poll.
      */
     public enum MigrationStage {

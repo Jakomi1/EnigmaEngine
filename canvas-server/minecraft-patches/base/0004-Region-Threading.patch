@@ -21694,7 +21694,7 @@ index 24321fb6687ef75ffd75b239bc7fbcc11b2c6a7c..e8a3210d33aea150270122764ee68aa8
          @Override
          public void onTrackingStart(final Entity entity) {
              org.spigotmc.AsyncCatcher.catchOp("entity register"); // Spigot
-+            ServerLevel.this.getCurrentWorldData().addLoadedEntity(entity); // Folia - region threading
+             ServerLevel.this.getCurrentWorldData().addLoadedEntity(entity); // Folia - region threading
              // ServerLevel.this.getChunkSource().addEntity(entity); // Paper - ignore and warn about illegal addEntity calls instead of crashing server; moved down below valid=true
              if (entity instanceof ServerPlayer player) {
                  ServerLevel.this.players.add(player);

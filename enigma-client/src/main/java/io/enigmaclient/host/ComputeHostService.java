@@ -546,7 +546,7 @@ private void supervise() {
             if (parsed.migrationsActive > 0) {
                 try {
                     String migrations = RconClient.execute(
-                            "127.0.0.1", RC_PORT, config.rconPassword, "enigma distributed migrations", 2000);
+                            "127.0.0.1", RC_PORT, config.rconPassword, "enigma distributed migration list", 2000);
                     parsed.migrationsDetail = DistributedStatus.parseMigrations(migrations);
                 } catch (IOException ignored) {
                 }

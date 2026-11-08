@@ -74,16 +74,16 @@ $rb = Read-Exact $cl.Stream 4
 $rl = [System.BitConverter]::ToInt32($rb, 0)
 $null = Read-Exact $cl.Stream $rl
 
-'--- regionizer info (load scaling state) ---'
-Write-Output (Clean (Invoke-Rcon $cl 'enigma regionizer info'))
+'--- regionizer settings (load scaling state) ---'
+Write-Output (Clean (Invoke-Rcon $cl 'enigma regionizer settings'))
 $null = Invoke-Rcon $cl 'execute in minecraft:overworld run forceload add 100 100'
 Start-Sleep -Seconds 2
 Write-Output '--- after forceload 100,100 (2s) ---'
-Write-Output (Clean (Invoke-Rcon $cl 'enigma regionizer regions minecraft:overworld'))
+Write-Output (Clean (Invoke-Rcon $cl 'enigma regions list minecraft:overworld'))
 '--- waiting 20s for region scheduler ---'
 Start-Sleep -Seconds 20
-Write-Output '--- regionizer regions after 20s ---'
-Write-Output (Clean (Invoke-Rcon $cl 'enigma regionizer regions minecraft:overworld'))
+Write-Output '--- regions after 20s ---'
+Write-Output (Clean (Invoke-Rcon $cl 'enigma regions list minecraft:overworld'))
 Write-Output (Clean (Invoke-Rcon $cl 'enigma distributed regions'))
 
 Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue

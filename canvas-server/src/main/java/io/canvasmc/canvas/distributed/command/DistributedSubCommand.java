@@ -6,6 +6,8 @@ import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
 import io.canvasmc.canvas.distributed.DistributedBootstrap;
@@ -22,13 +24,14 @@ import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,13 +41,6 @@ import static net.minecraft.commands.Commands.literal;
 
 public class DistributedSubCommand implements SubCommand {
 
-    /**
-     * Whether the distributed runtime is enabled for this process. Set once during startup from
-     * {@link EnigmaDistributedConfig}. The command tree and the root {@code /prepare-stop} alias
-     * are only advertised when this is {@code true}, so a single-server installation never sees
-     * them in tab completion.
-     */
-    public static volatile boolean ENABLED = false;
 
     /**
      * Cap for the per-region "forwarded to Compute Host X" sub-lines in the status report so
@@ -68,36 +64,49 @@ public class DistributedSubCommand implements SubCommand {
             final CommandBuildContext buildContext
     ) {
         return base
-                // Bare "/enigma distributed" would be an "Unknown or incomplete command" error
-                // without an executes on the literal itself; show the status instead.
-                .executes(this::status)
                 .then(literal("status")
                         .requires(this.check("status"))
                         .executes(this::status))
-                .then(literal("migrate")
-                        .requires(this.check("migrate"))
-                        .executes(this::migrateAggressive)
-                        .then(argument("regionId", LongArgumentType.longArg())
-                                .executes(this::migrateSelf))
-                        .then(argument("regionId", LongArgumentType.longArg())
-                                .then(argument("targetInstanceId", LongArgumentType.longArg())
-                                        .executes(this::migrate))))
+                .then(literal("on")
+                        .requires(this.check("on"))
+                        .executes(ctx -> setEnabled(ctx, true)))
+                .then(literal("off")
+                        .requires(this.check("off"))
+                        .executes(ctx -> setEnabled(ctx, false)))
+                .then(literal("settings")
+                        .requires(this.check("settings"))
+                        .executes(this::settings)
+                        .then(literal("get")
+                                .then(argument("setting", StringArgumentType.word())
+                                        .suggests(DistributedSubCommand::suggestSettings)
+                                        .executes(this::getSetting)))
+                        .then(literal("set")
+                                .then(argument("setting", StringArgumentType.word())
+                                        .suggests(DistributedSubCommand::suggestWritableSettings)
+                                        .then(argument("value", StringArgumentType.greedyString())
+                                                .suggests(DistributedSubCommand::suggestSettingValues)
+                                                .executes(this::setConfig)))))
+                .then(literal("migration")
+                        .requires(this.check("migration"))
+                        .then(literal("start")
+                                .executes(this::migrateAggressive)
+                                .then(argument("regionId", LongArgumentType.longArg())
+                                        .suggests(DistributedSubCommand::suggestRegions)
+                                        .executes(this::migrateSelf)
+                                        .then(argument("targetInstanceId", LongArgumentType.longArg())
+                                                .suggests(DistributedSubCommand::suggestComputeHosts)
+                                                .executes(this::migrate))))
+                        .then(literal("list")
+                                .executes(this::migrations)))
                 .then(literal("gc")
                         .requires(this.check("gc"))
                         .executes(this::gc))
-                .then(literal("info")
-                        .requires(this.check("info"))
-                        // No argument: list the regions with their display numbers so the
-                        // argument form has something to refer to.
-                        .executes(this::regions)
-                        .then(argument("regionId", LongArgumentType.longArg())
-                                .executes(this::info)))
                 .then(literal("regions")
                         .requires(this.check("regions"))
-                        .executes(this::regions))
-                .then(literal("migrations")
-                        .requires(this.check("migrations"))
-                        .executes(this::migrations))
+                        .executes(this::regions)
+                        .then(argument("regionId", LongArgumentType.longArg())
+                                .suggests(DistributedSubCommand::suggestRegions)
+                                .executes(this::info)))
                 .then(literal("prepare-stop")
                         .requires(this.check("prepare-stop"))
                         .executes(this::prepareStop))
@@ -117,24 +126,164 @@ public class DistributedSubCommand implements SubCommand {
                                                         .executes(this::debugChestSet))))));
     }
 
+    private int settings(final CommandContext<CommandSourceStack> ctx) {
+        final EnigmaDistributedConfig config = DistributedBootstrap.getInstance().getConfig();
+        final Style.Report report = Style.report("Enigma Distributed Settings");
+        for (final String key : EnigmaDistributedConfig.settingNames()) {
+            final Object value = config.settingValue(key);
+            report.bullet(key, value == null ? "<unset>" : String.valueOf(value));
+        }
+        report.line(Style.value("Read one with /enigma distributed settings get <setting>"));
+        report.line(Style.value("Change one with /enigma distributed settings set <setting> <value>"));
+        report.send(ctx.getSource());
+        return 1;
+    }
+
+    private int getSetting(final CommandContext<CommandSourceStack> ctx) {
+        final String key = StringArgumentType.getString(ctx, "setting");
+        final EnigmaDistributedConfig config = DistributedBootstrap.getInstance().getConfig();
+        if (!EnigmaDistributedConfig.settingNames().contains(key)) {
+            Style.send(ctx.getSource(), Component.text("Unknown setting: " + key, Style.bad()));
+            return 0;
+        }
+        final Object value = config.settingValue(key);
+        Style.bullets().bullet(key, value == null ? "<unset>" : String.valueOf(value)).send(ctx.getSource());
+        return 1;
+    }
+
+    private static CompletableFuture<Suggestions> suggestSettings(
+            final CommandContext<CommandSourceStack> context,
+            final SuggestionsBuilder builder
+    ) {
+        EnigmaDistributedConfig.settingNames().forEach(builder::suggest);
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestSettingValues(
+            final CommandContext<CommandSourceStack> context,
+            final SuggestionsBuilder builder
+    ) {
+        final String key = StringArgumentType.getString(context, "setting");
+        switch (key) {
+            case "role" -> {
+                builder.suggest("WORLD_HOST");
+                builder.suggest("COMPUTE_HOST");
+            }
+            case "debugLogging", "autoMigrate" -> {
+                builder.suggest("true");
+                builder.suggest("false");
+            }
+            default -> { }
+        }
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestWritableSettings(
+            final CommandContext<CommandSourceStack> context,
+            final SuggestionsBuilder builder
+    ) {
+        EnigmaDistributedConfig.settingNames().stream()
+                .filter(key -> !"enabled".equals(key))
+                .forEach(builder::suggest);
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestRegions(
+            final CommandContext<CommandSourceStack> context,
+            final SuggestionsBuilder builder
+    ) {
+        for (final RegionNumbering.Entry entry : RegionNumbering.list(context.getSource().getServer())) {
+            builder.suggest(entry.number());
+        }
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestComputeHosts(
+            final CommandContext<CommandSourceStack> context,
+            final SuggestionsBuilder builder
+    ) {
+        for (final RuntimeConnection connection : DistributedBootstrap.getInstance().getComputeHostConnections()) {
+            builder.suggest((int) connection.getRemoteInstanceId());
+        }
+        return builder.buildFuture();
+    }
+
+    private int setEnabled(final CommandContext<CommandSourceStack> ctx, final boolean enabled) {
+        final DistributedBootstrap bootstrap = DistributedBootstrap.getInstance();
+        final EnigmaDistributedConfig config = bootstrap.getConfig();
+        if (!enabled && config.enabled) {
+            final RemoteRegionExecutor executor = bootstrap.getRegionExecutor();
+            if (executor != null && (executor.activeMigrationCount() > 0
+                    || executor.recoveringRegionCount() > 0
+                    || (config.isWorldHost() && executor.handedOverCount() > 0)
+                    || (config.isComputeHost() && executor.installedRegionCount() > 0))) {
+                Style.send(ctx.getSource(), Component.text(
+                        "Cannot disable distributed mode while regions are active, migrating, handed over or recovering.",
+                        Style.warn()));
+                return 0;
+            }
+        }
+        final String error = config.updateSetting("enabled", Boolean.toString(enabled));
+        if (error != null) {
+            Style.send(ctx.getSource(), Component.text(error, Style.bad()));
+            return 0;
+        }
+        if (!enabled) {
+            bootstrap.stop();
+        }
+        Style.send(ctx.getSource(), Component.text(
+                "Distributed mode " + (enabled ? "enabled" : "disabled")
+                        + (enabled ? "; startup will begin on the next server tick." : "."),
+                Style.good()));
+        return 1;
+    }
+
+
+    private int setConfig(final CommandContext<CommandSourceStack> ctx) {
+        final String key = StringArgumentType.getString(ctx, "setting");
+        final String value = StringArgumentType.getString(ctx, "value");
+        if ("enabled".equals(key)) {
+            Style.send(ctx.getSource(), Component.text("Use /enigma distributed on or off to change this setting.", Style.warn()));
+            return 0;
+        }
+        final DistributedBootstrap bootstrap = DistributedBootstrap.getInstance();
+        if (bootstrap.isStarted() && java.util.Set.of("role", "worldHost", "bind", "port",
+                "worldHostPort", "identityKey", "leaseRenewalIntervalSeconds").contains(key)) {
+            Style.send(ctx.getSource(), Component.text(
+                    "Disable distributed mode before changing " + key + "; this setting is applied on next enable.",
+                    Style.warn()));
+            return 0;
+        }
+        final EnigmaDistributedConfig config = bootstrap.getConfig();
+        final String error = config.updateSetting(key, value);
+        if (error != null) {
+            Style.send(ctx.getSource(), Component.text(error, Style.bad()));
+            return 0;
+        }
+        bootstrap.onConfigUpdated(key);
+        Style.send(ctx.getSource(), Component.text("Updated distributed setting " + key + ".", Style.good()));
+        return 1;
+    }
+
     private int status(final CommandContext<CommandSourceStack> ctx) {
         final DistributedBootstrap bootstrap = DistributedBootstrap.getInstance();
         final EnigmaDistributedConfig config = bootstrap.getConfig();
         final CommandSourceStack source = ctx.getSource();
 
         final Style.Report report = Style.report("Enigma Distributed Status");
-        report.bullet("Config source", "-Denigma.distributed.* system properties");
+        report.bullet("Config source", "config/enigma-engine.yml + -Denigma.distributed.* overrides");
         report.bullet("Enabled", Style.onOff(config.enabled));
 
+        final EnigmaDistributedConfig.Role role = config.getRole();
+        report.bullet("Role", role == null ? "<unset>" : role.name());
+        report.bullet("Started", Style.onOff(bootstrap.isStarted()));
         if (!config.enabled) {
             report.send(source);
             return 1;
         }
-
-        final EnigmaDistributedConfig.Role role = config.getRole();
-        report.bullet("Role", role == null ? "<unset>" : role.name());
-        report.bullet("Instance ID", String.valueOf(bootstrap.getIdentity().getInstanceId()));
-        report.bullet("Started", Style.onOff(bootstrap.isStarted()));
+        if (bootstrap.isStarted()) {
+            report.bullet("Instance ID", String.valueOf(bootstrap.getIdentity().getInstanceId()));
+        }
         report.bullet("Port", String.valueOf(config.port));
         report.bullet("World host", config.worldHostAddress + ":" + config.effectiveWorldHostPort()
                 + (config.worldHostPort != config.effectiveWorldHostPort()
@@ -367,8 +516,7 @@ public class DistributedSubCommand implements SubCommand {
     }
 
     /**
-     * Shared by {@code /enigma distributed prepare-stop} and the root {@code /prepare-stop} alias:
-     * returns every forwarded and recovering region to the World Host, then stops the server.
+     * Returns every forwarded and recovering region to the World Host, then stops the server.
      */
     public static int executePrepareStop(final CommandContext<CommandSourceStack> ctx) {
         final DistributedBootstrap bootstrap = DistributedBootstrap.getInstance();
@@ -427,7 +575,7 @@ public class DistributedSubCommand implements SubCommand {
             final var peers = bootstrap.getComputeHostConnections();
             if (peers.size() != 1) {
                 Style.fail(ctx.getSource(), "Expected exactly one connected Compute Host but found "
-                        + peers.size() + ". Specify one explicitly: /enigma distributed migrate <regionId> <instanceId>");
+                        + peers.size() + ". Specify one explicitly: /enigma distributed migration start <regionId> <instanceId>");
                 return 0;
             }
             targetInstanceId = peers.iterator().next().getRemoteInstanceId();
@@ -453,7 +601,7 @@ public class DistributedSubCommand implements SubCommand {
     }
 
     /**
-     * The commands print display numbers ({@code #N}), so arguments are resolved through
+     * The command accepts display numbers or raw ids, resolved through
      * {@link RegionNumbering} before they are treated as real region ids. Prints the failure
      * itself; callers just return 0 when the result is empty.
      */
@@ -645,7 +793,7 @@ public class DistributedSubCommand implements SubCommand {
                 .build());
         report.line(Component.text()
                 .append(Component.text("    ", Style.PRIMARY))
-                .append(Component.text("(use the # number in migrate/info)", Style.SECONDARY))
+                .append(Component.text("Use the region number with /enigma distributed migration start or regions", Style.SECONDARY))
                 .build());
         report.send(ctx.getSource());
         return total;
@@ -653,7 +801,7 @@ public class DistributedSubCommand implements SubCommand {
 
     /**
      * One region row: local rows show their size, forwarded rows show the Compute Host they
-     * live on. Both are clickable and open {@code /enigma distributed info #N}.
+     * live on. Both are clickable and open {@code /enigma distributed regions <number>}.
      */
     private static Component regionRow(
             final RegionNumbering.Entry entry,
@@ -685,7 +833,7 @@ public class DistributedSubCommand implements SubCommand {
         }
         return row
                 .hoverEvent(HoverEvent.showText(Component.text("Click to show region details", Style.SECONDARY)))
-                .clickEvent(ClickEvent.runCommand("/enigma distributed info " + entry.number()))
+                .clickEvent(ClickEvent.runCommand("/enigma distributed regions " + entry.number()))
                 .build();
     }
 

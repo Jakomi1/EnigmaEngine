@@ -1,0 +1,30 @@
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java
+@@ -300,5 +_,27 @@
+         if (!this.screenEntity(entity, fromDisk, event)) {
+             return false;
+         }
+ 
++        // Enigma start - prevent dense item and ender pearl entity overloads
++        final int nearbyEntityLimit = this.world.canvasConfig().entities.maxNearbyItemAndPearlEntities;
++        if (nearbyEntityLimit > 0 && (entity instanceof net.minecraft.world.entity.item.ItemEntity || entity instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl)) {
++            final AABB nearbyBounds = entity.getBoundingBox().inflate(16.0D);
++            final List<Entity> nearbyEntities = new ArrayList<>(Math.min(nearbyEntityLimit, 16));
++            // Level queries are bounded and clipped to the owning region; never inspect another region's entities.
++            this.world.getEntities(
++                EntityType.ITEM, nearbyBounds,
++                candidate -> candidate != entity && candidate.distanceToSqr(entity) <= 256.0D, nearbyEntities, nearbyEntityLimit
++            );
++            if (nearbyEntities.size() < nearbyEntityLimit) {
++                this.world.getEntities(
++                    EntityType.ENDER_PEARL, nearbyBounds,
++                    candidate -> candidate != entity && candidate.distanceToSqr(entity) <= 256.0D, nearbyEntities, nearbyEntityLimit
++                );
++            }
++            if (nearbyEntities.size() >= nearbyEntityLimit) {
++                return false;
++            }
++        }
++        // Enigma end - prevent dense item and ender pearl entity overloads
++
+         Entity currentlyMapped = this.entityById.putIfAbsent((long)entity.getId(), entity);

@@ -113,7 +113,7 @@ public class WorldConfig extends Part {
                 ).endLine()
                 .blank()
                 .wordWrap(
-                    "You may refresh this configuration at runtime using the \"/enigma reload\" command, however",
+                    "You may refresh this configuration at runtime using the \"/enigma config reload\" command, however",
                     "it is not recommended to do this during production, as this can cause issues like unexpected crashes",
                     "or unintended behavior."
                 ).endLine()
@@ -339,6 +339,11 @@ public class WorldConfig extends Part {
                     "equivalent. This also fixes \"ghost orbs\", since instead of increasing the count, this",
                     "increases the value of the orb"
                 );
+            option("maxNearbyItemAndPearlEntities")
+                .docs(
+                    "The maximum number of item and ender pearl entities owned by the same region within 16 blocks.",
+                    "Additional entities are rejected before world registration. Set to 0 to disable this protection."
+                ).greaterThanOrEqualTo(0.0F).lessThanOrEqualTo(2048.0F);
 
             option("entityCollisionMode")
                 .docs(

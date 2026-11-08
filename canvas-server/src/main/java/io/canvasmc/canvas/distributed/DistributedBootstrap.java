@@ -141,6 +141,11 @@ public final class DistributedBootstrap {
                 .bind("world-host", bindAddr, this.identity().getInstanceId().getMostSignificantBits(),
                         this::onComputeHostConnected)
                 .thenAccept(listener -> {
+                    if (!this.config.enabled) {
+                        listener.close();
+                        this.startRequested = false;
+                        return;
+                    }
                     this.runtimeConnection = listener;
                     // Propagated to every accepted Compute Host connection.
                     listener.setMessageHandler(this::handleWorldHostMessage);
@@ -290,6 +295,11 @@ public final class DistributedBootstrap {
         return RuntimeConnection
                 .connect("compute-host", worldHostAddr, this.identity().getInstanceId().getMostSignificantBits())
                 .thenCompose(connection -> {
+                    if (!this.config.enabled) {
+                        connection.close();
+                        this.startRequested = false;
+                        return CompletableFuture.completedFuture(null);
+                    }
                     this.runtimeConnection = connection;
                     connection.setMessageHandler(this::handleComputeHostMessage);
                     // If the link to the World Host dies (or the World Host is stopped), drop back
@@ -333,6 +343,9 @@ public final class DistributedBootstrap {
                             final String detail = SnapshotSerializer.readString(ack);
                             if (!accepted) {
                                 throw new IllegalStateException("World Host rejected handshake: " + detail);
+                            }
+                            if (!this.config.enabled) {
+                                throw new IllegalStateException("Distributed mode was disabled during startup");
                             }
                             this.worldHostLost = false;
                             this.started = true;
@@ -499,7 +512,7 @@ public final class DistributedBootstrap {
     }
 
     public void stop() {
-        if (!this.started) {
+        if (!this.started && !this.startRequested && this.runtimeConnection == null) {
             return;
         }
         this.started = false;
@@ -517,9 +530,14 @@ public final class DistributedBootstrap {
         this.computeHostConnections.clear();
 
         final RuntimeConnection connection = this.runtimeConnection;
+        this.runtimeConnection = null;
         if (connection != null) {
             connection.close();
         }
+        this.regionExecutor = null;
+        this.networkGateway = null;
+        this.playerRouter = null;
+        this.worldHostLost = false;
         LOGGER.info("Distributed runtime stopped");
     }
 
@@ -556,6 +574,10 @@ public final class DistributedBootstrap {
     }
 
     private void tick0() {
+        if (!this.config.enabled) {
+            this.stop();
+            return;
+        }
         // Lazy start. The config is read during Bootstrap.bootStrap(), long before a MinecraftServer
         // exists, so the runtime cannot be started from the config load. The first tick happens once
         // the server and all of its worlds are up, which is the earliest moment the runtime can
@@ -668,6 +690,13 @@ public final class DistributedBootstrap {
 
     public EnigmaDistributedConfig getConfig() {
         return this.config;
+    }
+
+    /** Clears lazy identity state when its configured backing file is changed while stopped. */
+    public void onConfigUpdated(final String key) {
+        if (!this.started && !this.startRequested && "identityKey".equals(key)) {
+            this.identity = null;
+        }
     }
 
     public InstanceIdentity getIdentity() {

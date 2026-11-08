@@ -37,7 +37,7 @@ import static net.minecraft.commands.Commands.literal;
  * grouping them under {@code limits} keeps the root command tree about one topic per node.
  *
  * <pre>
- * /enigma limits max-players &lt;count&gt; [&lt;persist&gt;]
+ * /enigma limits players [set &lt;count&gt; [&lt;persist&gt;]]
  * /enigma limits mobcaps list
  * /enigma limits mobcaps get &lt;category&gt;
  * /enigma limits mobcaps set &lt;category&gt; &lt;value&gt;
@@ -88,15 +88,17 @@ public class LimitsSubCommand implements SubCommand {
         final CommandBuildContext buildContext
     ) {
         return base
-            .then(literal("max-players")
-                .requires(this.check("max-players"))
-                .then(argument("count", IntegerArgumentType.integer(0))
-                    .executes(context -> setMaxPlayers(
-                        IntegerArgumentType.getInteger(context, "count"), false))
-                    .then(argument("persist", BoolArgumentType.bool())
+            .then(literal("players")
+                .requires(this.check("players"))
+                .executes(LimitsSubCommand::getMaxPlayers)
+                .then(literal("set")
+                    .then(argument("count", IntegerArgumentType.integer(0))
                         .executes(context -> setMaxPlayers(
-                            IntegerArgumentType.getInteger(context, "count"),
-                            BoolArgumentType.getBool(context, "persist"))))))
+                            IntegerArgumentType.getInteger(context, "count"), false))
+                        .then(argument("persist", BoolArgumentType.bool())
+                            .executes(context -> setMaxPlayers(
+                                IntegerArgumentType.getInteger(context, "count"),
+                                BoolArgumentType.getBool(context, "persist")))))))
             .then(literal("mobcaps")
                 .requires(this.check("mobcaps"))
                 .then(literal("list").executes(LimitsSubCommand::listCaps))
@@ -113,6 +115,12 @@ public class LimitsSubCommand implements SubCommand {
                     .then(argument("category", StringArgumentType.word())
                         .suggests(new StringSuggestionProvider(ARGS))
                         .executes(LimitsSubCommand::resetOperation))));
+    }
+
+    private static int getMaxPlayers(final CommandContext<CommandSourceStack> context) {
+        final int maxPlayers = MinecraftServer.getServer().server.getMaxPlayers();
+        Style.bullets().bullet("Maximum players", maxPlayers).send(context.getSource());
+        return Command.SINGLE_SUCCESS;
     }
 
     private static int setMaxPlayers(final int newSize, final boolean persist) {

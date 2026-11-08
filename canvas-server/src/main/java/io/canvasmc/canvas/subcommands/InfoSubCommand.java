@@ -18,10 +18,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Server overview. This used to live under {@code /enigma regionizer info}, which meant the
- * first thing an operator wants to see was hidden behind the name of an implementation detail.
- * {@code /enigma regionizer status} is kept as an alias so both entry points show exactly the
- * same report.
+ * Server overview with runtime metrics, region counts and chunk-map state.
  */
 public class InfoSubCommand implements SubCommand {
 

@@ -2,6 +2,7 @@ package io.canvasmc.canvas.distributed.config;
 
 import io.canvasmc.canvas.config.EnigmaConfig;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -32,49 +33,49 @@ public final class EnigmaDistributedConfig {
      * Master switch. When false the distributed runtime is never started, so a normal
      * single-server setup is completely unaffected by the enigma configuration.
      */
-    public boolean enabled = false;
+    public volatile boolean enabled = false;
 
-    public @Nullable String role = null;
+    public volatile @Nullable String role = null;
 
     /**
      * Hostname of the World Host as seen by Compute Hosts. {@link #effectiveWorldHostPort()}
      * decides the port to connect to.
      */
-    public String worldHostAddress = "localhost";
+    public volatile String worldHostAddress = "localhost";
 
     /**
      * Bind address for the World Host runtime listener.
      */
-    public String bindAddress = "0.0.0.0";
+    public volatile String bindAddress = "0.0.0.0";
 
     /**
      * Runtime control channel port. Must not collide with the Minecraft server port. The World
      * Host binds this port; a Compute Host uses it to reach the World Host unless
      * {@link #worldHostPort} is set explicitly.
      */
-    public int port = 25567;
+    public volatile int port = 25567;
 
     /**
      * Port a Compute Host connects to on the World Host. {@code 0} means "use {@link #port}".
      * The World Host ignores this value and always binds {@link #port}.
      */
-    public int worldHostPort = 0;
+    public volatile int worldHostPort = 0;
 
     /**
      * Where the Ed25519 instance identity key is stored, relative to the server directory. Lives
      * under {@code config/} so no Enigma artifacts are left next to the server jar.
      */
-    public String identityKeyPath = "config/enigma_identity.key";
+    public volatile String identityKeyPath = "config/enigma_identity.key";
 
-    public int leaseTtlSeconds = 5;
+    public volatile int leaseTtlSeconds = 5;
 
-    public int leaseRenewalIntervalSeconds = 2;
+    public volatile int leaseRenewalIntervalSeconds = 2;
 
-    public int snapshotChunkSizeKb = 64;
+    public volatile int snapshotChunkSizeKb = 64;
 
-    public int maxSnapshotSizeMb = 512;
+    public volatile int maxSnapshotSizeMb = 512;
 
-    public boolean debugLogging = false;
+    public volatile boolean debugLogging = false;
 
     /**
      * Automatically hand regions over to connected Compute Hosts (World Host only). Tuned to be
@@ -82,19 +83,19 @@ public final class EnigmaDistributedConfig {
      * to {@link #autoMigratePerRun} new migrations while at most {@link #autoMigrateMaxConcurrent}
      * run at the same time.
      */
-    public boolean autoMigrate = true;
+    public volatile boolean autoMigrate = true;
 
-    public int autoMigrateIntervalSeconds = 10;
+    public volatile int autoMigrateIntervalSeconds = 10;
 
-    public int autoMigratePerRun = 2;
+    public volatile int autoMigratePerRun = 2;
 
-    public int autoMigrateMaxConcurrent = 3;
+    public volatile int autoMigrateMaxConcurrent = 3;
 
     /**
      * Regions owning fewer chunks than this are left alone so small spawn/slice regions never burn
      * migration bandwidth.
      */
-    public int autoMigrateMinChunks = 100;
+    public volatile int autoMigrateMinChunks = 100;
 
     /**
      * Whether {@code -Denigma.distributed.enabled=true} was passed.
@@ -270,18 +271,19 @@ public final class EnigmaDistributedConfig {
         if (!this.enabled) {
             return;
         }
-
         if (this.role == null || this.role.isBlank()) {
             throw new IllegalStateException("enigma.distributed.role must be set to WORLD_HOST or COMPUTE_HOST"
                     + " when enigma.distributed.enabled is true");
         }
-
         final Role parsed = this.getRole();
         if (parsed == null) {
             throw new IllegalStateException("enigma.distributed.role must be WORLD_HOST or COMPUTE_HOST,"
                     + " got: " + this.role);
         }
+        this.validateSettings();
+    }
 
+    private void validateSettings() {
         if (this.port <= 0 || this.port > 65535) {
             throw new IllegalStateException("enigma.distributed.port must be 1-65535");
         }
@@ -320,5 +322,115 @@ public final class EnigmaDistributedConfig {
      */
     public int effectiveWorldHostPort() {
         return this.worldHostPort > 0 ? this.worldHostPort : this.port;
+    }
+
+    /**
+     * Validates, persists and applies a setting changed through the distributed command.
+     * Returns {@code null} on success, otherwise a user-facing error.
+     */
+    public static List<String> settingNames() {
+        return List.of("enabled", "role", "worldHost", "bind", "port", "worldHostPort", "identityKey",
+                "leaseTtlSeconds", "leaseRenewalIntervalSeconds", "snapshotChunkSizeKb", "maxSnapshotSizeMb",
+                "debugLogging", "autoMigrate", "autoMigrateIntervalSeconds", "autoMigratePerRun",
+                "autoMigrateMaxConcurrent", "autoMigrateMinChunks");
+    }
+
+    public @Nullable Object settingValue(final String key) {
+        return this.toMap().get(key);
+    }
+
+    public synchronized @Nullable String updateSetting(final String key, final String value) {
+        final EnigmaDistributedConfig candidate = new EnigmaDistributedConfig();
+        candidate.applySectionOverrides(this.toMap());
+        try {
+            switch (key) {
+                case "enabled" -> candidate.enabled = parseBoolean(key, value);
+                case "role" -> candidate.role = value.trim().toUpperCase(Locale.ROOT);
+                case "worldHost" -> candidate.worldHostAddress = value;
+                case "bind" -> candidate.bindAddress = value;
+                case "port" -> candidate.port = Integer.parseInt(value);
+                case "worldHostPort" -> candidate.worldHostPort = Integer.parseInt(value);
+                case "identityKey" -> candidate.identityKeyPath = value;
+                case "leaseTtlSeconds" -> candidate.leaseTtlSeconds = Integer.parseInt(value);
+                case "leaseRenewalIntervalSeconds" -> candidate.leaseRenewalIntervalSeconds = Integer.parseInt(value);
+                case "snapshotChunkSizeKb" -> candidate.snapshotChunkSizeKb = Integer.parseInt(value);
+                case "maxSnapshotSizeMb" -> candidate.maxSnapshotSizeMb = Integer.parseInt(value);
+                case "debugLogging" -> candidate.debugLogging = parseBoolean(key, value);
+                case "autoMigrate" -> candidate.autoMigrate = parseBoolean(key, value);
+                case "autoMigrateIntervalSeconds" -> candidate.autoMigrateIntervalSeconds = Integer.parseInt(value);
+                case "autoMigratePerRun" -> candidate.autoMigratePerRun = Integer.parseInt(value);
+                case "autoMigrateMaxConcurrent" -> candidate.autoMigrateMaxConcurrent = Integer.parseInt(value);
+                case "autoMigrateMinChunks" -> candidate.autoMigrateMinChunks = Integer.parseInt(value);
+                default -> {
+                    return "Unknown setting '" + key + "'. Use /enigma distributed settings to list valid names.";
+                }
+            }
+            if (candidate.enabled) {
+                candidate.validateCrossField();
+            } else {
+                candidate.validateSettings();
+            }
+        } catch (final IllegalArgumentException | IllegalStateException exception) {
+            return "Invalid distributed setting: " + exception.getMessage();
+        }
+
+        final Map<String, Object> values = candidate.toMap();
+        if (!EnigmaConfig.writeSection(EnigmaConfig.DISTRIBUTED_SECTION, values)) {
+            return "Could not save config/enigma-engine.yml; the setting was not changed.";
+        }
+        this.copyFrom(candidate);
+        return null;
+    }
+
+    private static boolean parseBoolean(final String key, final String value) {
+        if ("true".equalsIgnoreCase(value) || "on".equalsIgnoreCase(value)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(value) || "off".equalsIgnoreCase(value)) {
+            return false;
+        }
+        throw new IllegalArgumentException(key + " must be true/false or on/off");
+    }
+
+    private Map<String, Object> toMap() {
+        final Map<String, Object> values = new java.util.LinkedHashMap<>();
+        values.put("enabled", this.enabled);
+        values.put("role", this.role);
+        values.put("worldHost", this.worldHostAddress);
+        values.put("bind", this.bindAddress);
+        values.put("port", this.port);
+        values.put("worldHostPort", this.worldHostPort);
+        values.put("identityKey", this.identityKeyPath);
+        values.put("leaseTtlSeconds", this.leaseTtlSeconds);
+        values.put("leaseRenewalIntervalSeconds", this.leaseRenewalIntervalSeconds);
+        values.put("snapshotChunkSizeKb", this.snapshotChunkSizeKb);
+        values.put("maxSnapshotSizeMb", this.maxSnapshotSizeMb);
+        values.put("debugLogging", this.debugLogging);
+        values.put("autoMigrate", this.autoMigrate);
+        values.put("autoMigrateIntervalSeconds", this.autoMigrateIntervalSeconds);
+        values.put("autoMigratePerRun", this.autoMigratePerRun);
+        values.put("autoMigrateMaxConcurrent", this.autoMigrateMaxConcurrent);
+        values.put("autoMigrateMinChunks", this.autoMigrateMinChunks);
+        return values;
+    }
+
+    private void copyFrom(final EnigmaDistributedConfig source) {
+        this.enabled = source.enabled;
+        this.role = source.role;
+        this.worldHostAddress = source.worldHostAddress;
+        this.bindAddress = source.bindAddress;
+        this.port = source.port;
+        this.worldHostPort = source.worldHostPort;
+        this.identityKeyPath = source.identityKeyPath;
+        this.leaseTtlSeconds = source.leaseTtlSeconds;
+        this.leaseRenewalIntervalSeconds = source.leaseRenewalIntervalSeconds;
+        this.snapshotChunkSizeKb = source.snapshotChunkSizeKb;
+        this.maxSnapshotSizeMb = source.maxSnapshotSizeMb;
+        this.debugLogging = source.debugLogging;
+        this.autoMigrate = source.autoMigrate;
+        this.autoMigrateIntervalSeconds = source.autoMigrateIntervalSeconds;
+        this.autoMigratePerRun = source.autoMigratePerRun;
+        this.autoMigrateMaxConcurrent = source.autoMigrateMaxConcurrent;
+        this.autoMigrateMinChunks = source.autoMigrateMinChunks;
     }
 }

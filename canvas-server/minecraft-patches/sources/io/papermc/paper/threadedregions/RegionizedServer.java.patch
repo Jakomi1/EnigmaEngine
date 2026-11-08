@@ -14,11 +14,9 @@
 +        io.canvasmc.canvas.regionizer.loadscaling.RegionMaintenance.tick();
 +        // Enigma end - adaptive regionizer maintenance pass
 +        // Enigma start - distributed runtime tick
-+        // Only touch the runtime when it was actually enabled, so a normal single-node server does
-+        // not construct the bootstrap (and with it an instance identity) just to tick a no-op.
-+        if (io.canvasmc.canvas.distributed.config.EnigmaDistributedConfig.current().enabled) {
-+            io.canvasmc.canvas.distributed.DistributedBootstrap.getInstance().tick();
-+        }
++        // Always tick so in-game enable/disable commands take effect without a restart. Instance
++        // identity creation remains lazy and only happens when the runtime is actually started.
++        io.canvasmc.canvas.distributed.DistributedBootstrap.getInstance().tick();
 +        // Enigma end - distributed runtime tick
 +        // Enigma start - chunk map snapshots
 +        io.canvasmc.canvas.chunkmap.EnigmaChunkMapService.globalTick();
