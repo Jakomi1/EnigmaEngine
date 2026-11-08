@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
 
 /**
  * Wertet das Live-Ergebnis des Enigma-Serverbefehls {@code /enigma distributed status} aus
- * (und optional {@code /enigma distributed migrations}) - also EnigmaSeite des Zahlenwerks.
+ * (und optional {@code /enigma distributed migration list}) - also EnigmaSeite des Zahlenwerks.
  */
 public final class DistributedStatus {
 

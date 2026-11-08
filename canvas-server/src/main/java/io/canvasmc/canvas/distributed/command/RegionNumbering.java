@@ -24,7 +24,7 @@ import java.util.OptionalLong;
  *
  * <p>Regions that were handed over to a Compute Host are gone from the local regionizer but
  * stay addressable: they join the listing with {@link Entry#forwardedToHost()} set, so
- * {@code info}, {@code migrate} and the region lists keep referring to them by the same
+ * region details and migration commands keep referring to them by the same
  * {@code #N} number.</p>
  */
 public final class RegionNumbering {

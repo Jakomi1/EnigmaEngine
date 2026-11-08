@@ -28,9 +28,7 @@ import static net.minecraft.commands.Commands.literal;
  * per-world overrides). Read-only region information lives in {@code /enigma regions} and
  * {@code /enigma info}; this command only changes state.
  *
- * <p>The old {@code info}, {@code settings}, {@code regions} and {@code reload} children are
- * still accepted as aliases, but the canonical commands are {@code /enigma info},
- * {@code /enigma regions ...} and {@code /enigma reload}.</p>
+ * <p>All read-only region inspection is owned by {@code /enigma regions}.</p>
  */
 public class RegionizerSubCommand implements SubCommand {
 
@@ -42,15 +40,20 @@ public class RegionizerSubCommand implements SubCommand {
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> construct(final LiteralArgumentBuilder<CommandSourceStack> base, final CommandBuildContext buildContext) {
         return base
-            .then(literal("status")
-                .requires(this.check("status"))
-                .executes(InfoSubCommand::info))
-            .then(literal("info")
-                .requires(this.check("info"))
-                .executes(InfoSubCommand::info))
             .then(literal("settings")
                 .requires(this.check("settings"))
-                .executes(InfoSubCommand::info))
+                .executes(RegionizerSubCommand::settings)
+                .then(literal("get")
+                    .then(argument("key", StringArgumentType.word())
+                        .suggests(RegionizerSubCommand::suggestRegionizerSettings)
+                        .executes(RegionizerSubCommand::getSetting)))
+                .then(literal("set")
+                    .requires(this.check("settings.set"))
+                    .then(argument("key", StringArgumentType.word())
+                        .suggests(RegionizerSubCommand::suggestRegionizerSettings)
+                        .then(argument("value", StringArgumentType.greedyString())
+                            .suggests(RegionizerSubCommand::suggestRegionizerValues)
+                            .executes(RegionizerSubCommand::setting)))))
             .then(literal("mode")
                 .requires(this.check("mode"))
                 .then(argument("mode", StringArgumentType.word())
@@ -61,14 +64,6 @@ public class RegionizerSubCommand implements SubCommand {
                     })
                     .executes(RegionizerSubCommand::mode)))
             .then(aggression(literal("aggression").requires(this.check("aggression"))))
-            .then(aggression(literal("aggr").requires(this.check("aggr"))))
-            .then(setting(literal("set").requires(this.check("set"))))
-            .then(setting(literal("setting").requires(this.check("setting"))))
-            .then(literal("regions")
-                .requires(this.check("regions"))
-                .then(argument("dimension", DimensionArgument.dimension())
-                    .executes(context -> RegionsSubCommand.listFor(
-                        context, DimensionArgument.getDimension(context, "dimension")))))
             .then(literal("level")
                 .requires(this.check("level"))
                 .then(argument("players", IntegerArgumentType.integer(0))
@@ -128,11 +123,17 @@ public class RegionizerSubCommand implements SubCommand {
         return node.then(argument("percent", IntegerArgumentType.integer(0, 100)).executes(RegionizerSubCommand::aggression));
     }
 
-    private static LiteralArgumentBuilder<CommandSourceStack> setting(final LiteralArgumentBuilder<CommandSourceStack> node) {
-        return node.then(argument("key", StringArgumentType.word())
-            .suggests(RegionizerSubCommand::suggestRegionizerSettings)
-            .then(argument("value", StringArgumentType.greedyString())
-                .executes(RegionizerSubCommand::setting)));
+    private static int settings(final CommandContext<CommandSourceStack> context) {
+        final var snapshot = LoadScaling.regionizerSettingsSnapshot();
+        final var report = Style.report("Regionizer Settings");
+        report.bullet("Mode", RegionizerMode.get().name().toLowerCase(Locale.ROOT));
+        report.bullet("Aggression", LoadScaling.getAggression() + "%");
+        for (final var entry : snapshot.entrySet()) {
+            report.bullet(entry.getKey(), String.valueOf(entry.getValue()));
+        }
+        report.line(Style.value("Change with /enigma regionizer settings set <key> <value>"));
+        report.send(context.getSource());
+        return Command.SINGLE_SUCCESS;
     }
 
     private static CompletableFuture<Suggestions> suggestMobTypes(
@@ -151,6 +152,22 @@ public class RegionizerSubCommand implements SubCommand {
     ) {
         for (final String key : LoadScaling.REGIONIZER_SETTING_KEYS) {
             builder.suggest(key);
+        }
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestRegionizerValues(
+        final CommandContext<CommandSourceStack> context,
+        final SuggestionsBuilder builder
+    ) {
+        final String key = StringArgumentType.getString(context, "key");
+        switch (key) {
+            case "enabled" -> builder.suggest("true");
+            case "instant-unload-enabled", "instant-unload-active-regions", "partition-enabled", "debug" -> {
+                builder.suggest("true");
+                builder.suggest("false");
+            }
+            default -> { }
         }
         return builder.buildFuture();
     }
@@ -180,6 +197,17 @@ public class RegionizerSubCommand implements SubCommand {
         LoadScaling.save();
         Style.bullets().bullet("Aggression", percent + "%").send(source);
         GlobalConfiguration.broadcast("Enigma regionizer aggression set to " + percent + "%", GlobalConfiguration.INFO);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int getSetting(final CommandContext<CommandSourceStack> context) {
+        final String key = StringArgumentType.getString(context, "key");
+        final Object value = LoadScaling.regionizerSettingsSnapshot().get(key);
+        if (value == null) {
+            Style.fail(context.getSource(), "Unknown regionizer setting: " + key);
+            return 0;
+        }
+        Style.bullets().bullet(key, String.valueOf(value)).send(context.getSource());
         return Command.SINGLE_SUCCESS;
     }
 

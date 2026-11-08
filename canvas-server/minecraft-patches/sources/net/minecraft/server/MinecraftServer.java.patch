@@ -15,7 +15,7 @@
 +        // Enigma start - return forwarded regions before stopping
 +        // A World Host that still has regions out on Compute Hosts must bring them back (and thereby
 +        // their compute-held state) before it stops. This funnels every stop path: console "stop",
-+        // RCON, plugins and the /prepare-stop command all land here. The run is driven from the
++        // RCON, plugins and the /enigma distributed prepare-stop command all land here. The run is driven from the
 +        // global tick (see DistributedBootstrap.tick), and once it finishes the server halts for real.
 +        if (io.canvasmc.canvas.distributed.config.EnigmaDistributedConfig.current().enabled
 +                && io.canvasmc.canvas.distributed.config.EnigmaDistributedConfig.current().isWorldHost()) {

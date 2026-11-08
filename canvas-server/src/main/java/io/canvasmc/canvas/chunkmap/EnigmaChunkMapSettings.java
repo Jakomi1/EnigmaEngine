@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
  * Persistent store for the chunk map server settings. The live values live in
  * {@link EnigmaChunkMapService}; this class only reads and writes the {@code chunkmap} section of
  * {@code config/enigma-engine.yml}, which is seeded from the code defaults on first start and
- * rewritten by every {@code /enigma chunkmap settings} change.
+ * rewritten by every {@code /enigma chunkmap on/off} change.
  */
 public final class EnigmaChunkMapSettings {
 

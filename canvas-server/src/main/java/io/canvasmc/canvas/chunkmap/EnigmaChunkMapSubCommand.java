@@ -18,9 +18,8 @@ import static net.minecraft.commands.Commands.literal;
  * {@code enigmaclient:chunkmap_subscribe} payload receive periodic snapshots of the chunks this
  * server considers ticking and the exact chunks owned by every Canvas/Folia region.
  *
- * <p>Only the lowercase {@code /enigma chunkmap <argument>} form exists; the bare command is not
- * executable, so an operator always states what they want to do. All settings changed here are
- * persisted to the {@code chunkmap} section of {@code config/enigma-engine.yml}.</p>
+ * <p>The bare command shows status. The enabled switch is controlled with {@code on}/{@code off};
+ * settings are persisted to the {@code chunkmap} section of {@code config/enigma-engine.yml}.</p>
  */
 public final class EnigmaChunkMapSubCommand implements SubCommand {
 
@@ -34,11 +33,6 @@ public final class EnigmaChunkMapSubCommand implements SubCommand {
         return "chunkmap";
     }
 
-    @Override
-    public boolean hasExtraArgs() {
-        // The bare "/enigma chunkmap" is deliberately not executable.
-        return false;
-    }
 
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> construct(final LiteralArgumentBuilder<CommandSourceStack> base, final CommandBuildContext buildContext) {
@@ -46,21 +40,15 @@ public final class EnigmaChunkMapSubCommand implements SubCommand {
             .then(literal("status")
                 .requires(this.check("status"))
                 .executes(EnigmaChunkMapSubCommand::status))
-            .then(literal("enable")
-                .requires(this.check("enable"))
+            .then(literal("on")
+                .requires(this.check("on"))
                 .executes(EnigmaChunkMapSubCommand::enable))
-            .then(literal("disable")
-                .requires(this.check("disable"))
+            .then(literal("off")
+                .requires(this.check("off"))
                 .executes(EnigmaChunkMapSubCommand::disable))
             .then(literal("clients")
                 .requires(this.check("clients"))
-                .executes(EnigmaChunkMapSubCommand::clients))
-            .then(literal("settings")
-                .requires(this.check("settings"))
-                .executes(EnigmaChunkMapSubCommand::settings)
-                .then(literal("enabled")
-                    .then(literal("on").executes(ctx -> setSetting(ctx, true)))
-                    .then(literal("off").executes(ctx -> setSetting(ctx, false)))));
+                .executes(EnigmaChunkMapSubCommand::clients));
     }
 
     private static int status(final CommandContext<CommandSourceStack> context) {
@@ -92,25 +80,6 @@ public final class EnigmaChunkMapSubCommand implements SubCommand {
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int settings(final CommandContext<CommandSourceStack> context) {
-        final EnigmaChunkMapService service = EnigmaChunkMapService.getInstance();
-        Style.bullets()
-            .bullet("enabled", Style.onOff(service.enabled()))
-            .bullet("Config", "config/enigma-engine.yml (chunkmap)")
-            .line(Style.value("Change a value with /enigma chunkmap settings <key> <on|off>"))
-            .send(context.getSource());
-        return Command.SINGLE_SUCCESS;
-    }
-
-    private static int setSetting(final CommandContext<CommandSourceStack> context, final boolean value) {
-        final EnigmaChunkMapService service = EnigmaChunkMapService.getInstance();
-        service.setEnabled(value);
-        Style.bullets()
-            .bullet("enabled", value ? "on" : "off", value ? Style.good() : Style.bad())
-            .bullet("Saved", "config/enigma-engine.yml (chunkmap)", Style.good())
-            .send(context.getSource());
-        return Command.SINGLE_SUCCESS;
-    }
 
     /**
      * Lists every subscribed client with its name and the age of the last snapshot it received.

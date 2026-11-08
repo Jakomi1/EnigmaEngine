@@ -74,12 +74,12 @@ $rb = Read-Exact $cl.Stream 4
 $rl = [System.BitConverter]::ToInt32($rb, 0)
 $null = Read-Exact $cl.Stream $rl
 
-'--- enigma regionizer regions (fork-level truth) ---'
-Write-Output (Clean (Invoke-Rcon $cl 'enigma regionizer regions'))
+'--- enigma regions list (fork-level truth) ---'
+Write-Output (Clean (Invoke-Rcon $cl 'enigma regions list'))
 Start-Sleep -Seconds 2
 '--- enigma distributed regions ---'
 Write-Output (Clean (Invoke-Rcon $cl 'enigma distributed regions'))
-'--- enigma regionizer info (no arg lists?) keep status ---'
+'--- distributed status ---'
 $st = Clean (Invoke-Rcon $cl 'enigma distributed status')
 ($st -split "`n") | Where-Object { $_ -match 'Active regions|Handed over' }
 

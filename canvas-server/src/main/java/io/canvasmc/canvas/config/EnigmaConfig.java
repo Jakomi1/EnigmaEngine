@@ -104,10 +104,10 @@ public final class EnigmaConfig {
      * Replaces one top-level section and writes the file back, preserving all other sections.
      * Synchronised so concurrent command mutations cannot clobber each other.
      */
-    public static synchronized void writeSection(final String name, final Map<String, Object> data) {
+    public static synchronized boolean writeSection(final String name, final Map<String, Object> data) {
         final Map<String, Object> root = readRoot();
         root.put(name, new LinkedHashMap<>(data));
-        writeRoot(root);
+        return writeRoot(root);
     }
 
     /** Writes the full root mapping with the documented header. Returns whether the write succeeded. */

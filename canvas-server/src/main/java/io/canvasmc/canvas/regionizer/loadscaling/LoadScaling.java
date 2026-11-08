@@ -280,7 +280,7 @@ public final class LoadScaling {
         return node;
     }
 
-    /** All global regionizer keys accepted by {@code /enigma regionizer setting}. */
+    /** All global regionizer keys accepted by {@code /enigma regionizer settings set}. */
     public static final String[] REGIONIZER_SETTING_KEYS = {
         "enabled", "merge-overlap-threshold", "merge-min-region-sections", "coupling-weight", "overlap-weight",
         "merge-cooldown-millis", "split-cooldown-millis", "split-min-size", "split-max-sections",

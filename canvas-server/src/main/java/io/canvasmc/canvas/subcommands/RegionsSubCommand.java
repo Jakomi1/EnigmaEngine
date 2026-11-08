@@ -4,6 +4,7 @@ import ca.spottedleaf.concurrentutil.util.Priority;
 import ca.spottedleaf.moonrise.common.util.CoordinateUtils;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
@@ -54,17 +55,16 @@ import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
 
 /**
- * Live view of the regionizer. This is the single place that knows how to turn a region into
- * something an operator can read, so {@code /enigma regions} and the {@code regionizer} legacy
- * aliases cannot drift apart.
+ * Live view and emergency operations for regions. Region selectors are shared across inspection
+ * and force-unload commands so suggestions and lookup behavior stay consistent.
  *
  * <p>A region is selected either as {@code here} (the region at the sender's position), as
  * {@code #N} using the display number from {@code /enigma regions list}, or as the raw internal
  * region id copied from a log. Display numbers and raw ids are deliberately disjoint syntax so
  * there is never a question which one was meant.</p>
  *
- * <p>Section counts always come from the regionizer's own section table. They are not chunk
- * counts, which is what the old {@code /enigma regionizer regions} printed by mistake.</p>
+ * <p>Section counts always come from the regionizer's own section table and are reported
+ * separately from owned chunk counts.</p>
  */
 public final class RegionsSubCommand implements SubCommand {
 
@@ -99,7 +99,6 @@ public final class RegionsSubCommand implements SubCommand {
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> construct(final LiteralArgumentBuilder<CommandSourceStack> base, final CommandBuildContext buildContext) {
         return base
-            .executes(context -> list(context, null))
             .then(literal("list")
                 .requires(this.check("list"))
                 .executes(context -> list(context, null))
@@ -142,12 +141,14 @@ public final class RegionsSubCommand implements SubCommand {
                         )))))
             .then(literal("decisions")
                 .requires(this.check("decisions"))
-                .executes(RegionsSubCommand::decisions));
+                .executes(RegionsSubCommand::decisions))
+            .then(literal("force-unload")
+                .requires(this.check("force-unload"))
+                .then(argument("region", StringArgumentType.word())
+                    .suggests(RegionsSubCommand::suggestRegions)
+                    .executes(RegionsSubCommand::forceUnload)));
     }
 
-    public static int listFor(final CommandContext<CommandSourceStack> context, final @Nullable ServerLevel level) {
-        return list(context, level);
-    }
 
     private static int list(final CommandContext<CommandSourceStack> context, final @Nullable ServerLevel only) {
         final CommandSourceStack source = context.getSource();
@@ -697,6 +698,19 @@ public final class RegionsSubCommand implements SubCommand {
             builder.suggest("#" + entry.number());
         }
         return builder.buildFuture();
+    }
+
+
+    private static int forceUnload(final CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        final String selector = StringArgumentType.getString(context, "region");
+        final Located located = locate(context.getSource(), selector);
+        if (located.forwarded()) {
+            throw FORWARDED_REGION.create();
+        }
+        if (located.region() == null) {
+            throw UNKNOWN_REGION.create();
+        }
+        return ForceUnloadSubCommand.execute(context, located.region().id);
     }
 
     private static CompletableFuture<Suggestions> suggestEntityTypes(

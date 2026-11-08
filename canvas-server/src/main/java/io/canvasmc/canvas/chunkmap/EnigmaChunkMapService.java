@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 
 /**
  * Pushes the chunk state of this server to subscribed EnigmaClient mods.
@@ -81,6 +82,7 @@ public final class EnigmaChunkMapService {
     private final Map<UUID, Long> lastSent = new ConcurrentHashMap<>();
     /** Per player wall clock time of the last snapshot actually sent, for the clients command. */
     private final Map<UUID, Long> lastPushedAt = new ConcurrentHashMap<>();
+    private final Map<ServerLevel, PublishedBufferSnapshot> publishedBufferSnapshots = new ConcurrentHashMap<>();
     private final AtomicLong sequence = new AtomicLong();
 
     /**
@@ -131,6 +133,8 @@ public final class EnigmaChunkMapService {
             final boolean fresh = INSTANCE.subscribed.add(uuid);
             if (fresh) {
                 INSTANCE.lastSent.remove(uuid);
+                INSTANCE.publishedBufferSnapshots.put(player.level(),
+                        new PublishedBufferSnapshot(LevelSnapshot.empty(), 0));
                 INSTANCE.forceResend = true;
             }
         } else {
@@ -142,6 +146,25 @@ public final class EnigmaChunkMapService {
 
     public boolean enabled() {
         return this.enabled;
+    }
+
+    /**
+     * Returns whether the two region buffer zones overlapped in the latest chunk-map snapshot
+     * actually sent to a client, or {@code null} if no snapshot has been sent for this level.
+     */
+    public static Boolean publishedBufferZonesOverlap(final ServerLevel level,
+                                                       final long firstRegionId,
+                                                       final long secondRegionId) {
+        final PublishedBufferSnapshot published = INSTANCE.publishedBufferSnapshots.get(level);
+        if (published == null) {
+            return null;
+        }
+        final long[] first = published.snapshot().regionChunks().get(firstRegionId);
+        final long[] second = published.snapshot().regionChunks().get(secondRegionId);
+        if (first == null || second == null) {
+            return false;
+        }
+        return bufferZonesOverlap(published.snapshot().ticking(), first, second, published.bufferRadiusChunks());
     }
 
     public void setEnabled(final boolean enabled) {
@@ -365,6 +388,8 @@ public final class EnigmaChunkMapService {
             try {
                 writeSnapshot(server, buf, level, online, snapshot, true);
                 send(online, buf);
+                this.publishedBufferSnapshots.put(level,
+                        new PublishedBufferSnapshot(snapshot, bufferRadiusChunks(true)));
             } finally {
                 buf.release();
             }
@@ -386,6 +411,8 @@ public final class EnigmaChunkMapService {
             try {
                 writeSnapshot(server, buf, online.level(), online, LevelSnapshot.empty(), false);
                 send(online, buf);
+                this.publishedBufferSnapshots.put(online.level(),
+                        new PublishedBufferSnapshot(LevelSnapshot.empty(), 0));
             } finally {
                 buf.release();
             }
@@ -406,8 +433,7 @@ public final class EnigmaChunkMapService {
         buf.writeBoolean(enabled);
         // This must be the same configured radius used by the merge gate, rather than the
         // currently materialised shell width (which can temporarily be only one section).
-        buf.writeVarInt(enabled ? Math.max(1,
-                io.papermc.paper.configuration.GlobalConfiguration.get().threadedRegions.bufferRadius) : 0);
+        buf.writeVarInt(bufferRadiusChunks(enabled));
 
         final long[] ticking = enabled ? snapshot.ticking() : new long[0];
         final long[] regionIds = enabled ? snapshot.regionIds() : new long[0];
@@ -449,6 +475,69 @@ public final class EnigmaChunkMapService {
         writePlayers(server, buf, level, online, enabled);
     }
 
+    private static int bufferRadiusChunks(final boolean enabled) {
+        return enabled ? Math.max(1,
+                io.papermc.paper.configuration.GlobalConfiguration.get().threadedRegions.bufferRadius) : 0;
+    }
+
+    public static boolean bufferZonesOverlap(final long[] loadedChunks, final long[] firstChunks,
+                                              final long[] secondChunks, final int radius) {
+        return bufferZonesOverlap(loadedChunks, firstChunks, secondChunks, radius, null);
+    }
+
+    /**
+     * Same exact buffer-set intersection as {@link #bufferZonesOverlap(long[], long[], long[], int)},
+     * optionally reporting one shared, unloaded chunk for merge diagnostics.
+     */
+    public static boolean bufferZonesOverlap(final long[] loadedChunks, final long[] firstChunks,
+                                              final long[] secondChunks, final int radius,
+                                              final LongConsumer overlapChunk) {
+        if (radius <= 0 || firstChunks.length == 0 || secondChunks.length == 0) {
+            return false;
+        }
+
+        final it.unimi.dsi.fastutil.longs.LongOpenHashSet loaded =
+                new it.unimi.dsi.fastutil.longs.LongOpenHashSet(loadedChunks);
+        long[] smaller = firstChunks;
+        long[] larger = secondChunks;
+        if (smaller.length > larger.length) {
+            smaller = secondChunks;
+            larger = firstChunks;
+        }
+
+        final it.unimi.dsi.fastutil.longs.LongOpenHashSet firstBuffer =
+                new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+        for (final long packed : smaller) {
+            final int x = CoordinateUtils.getChunkX(packed);
+            final int z = CoordinateUtils.getChunkZ(packed);
+            for (int dz = -radius; dz <= radius; dz++) {
+                for (int dx = -radius; dx <= radius; dx++) {
+                    final long candidate = CoordinateUtils.getChunkKey(x + dx, z + dz);
+                    if (!loaded.contains(candidate)) {
+                        firstBuffer.add(candidate);
+                    }
+                }
+            }
+        }
+
+        for (final long packed : larger) {
+            final int x = CoordinateUtils.getChunkX(packed);
+            final int z = CoordinateUtils.getChunkZ(packed);
+            for (int dz = -radius; dz <= radius; dz++) {
+                for (int dx = -radius; dx <= radius; dx++) {
+                    final long candidate = CoordinateUtils.getChunkKey(x + dx, z + dz);
+                    if (!loaded.contains(candidate) && firstBuffer.contains(candidate)) {
+                        if (overlapChunk != null) {
+                            overlapChunk.accept(candidate);
+                        }
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private static void writePlayers(final MinecraftServer server, final FriendlyByteBuf buf, final ServerLevel level,
                                      final ServerPlayer online, final boolean enabled) {
         final List<ServerPlayer> all = server.getPlayerList().getPlayers();
@@ -486,6 +575,7 @@ public final class EnigmaChunkMapService {
         long hash = level.dimension().identifier().hashCode();
         hash = hash * PRIME + Arrays.hashCode(snapshot.ticking());
         hash = hash * PRIME + Arrays.hashCode(snapshot.regionIds());
+        hash = hash * PRIME + bufferRadiusChunks(true);
         hash = hash * PRIME + hashRegions(snapshot.regionChunks());
         hash = hash * PRIME + hashRegions(snapshot.regionStats());
         hash = hash * PRIME + snapshot.regionEntities().hashCode();
@@ -540,6 +630,9 @@ public final class EnigmaChunkMapService {
 
     /** An entity count sampled on the owning region thread, together with its sampling tick. */
     private record EntitySample(long count, long tick) {
+    }
+
+    private record PublishedBufferSnapshot(LevelSnapshot snapshot, int bufferRadiusChunks) {
     }
 
     private record LevelSnapshot(long[] ticking, long[] regionIds,

@@ -193,11 +193,11 @@ function EntitiesOf([string]$infoTxt) {
 function Wait-EntitiesLe([hashtable]$srv2, $rcon, [int]$regionNum, [int]$max, [int]$timeoutSec = 45) {
     $deadline = (Get-Date).AddSeconds($timeoutSec)
     while ((Get-Date) -lt $deadline) {
-        $e = EntitiesOf (Invoke-Rcon $rcon "enigma distributed info $regionNum")
+        $e = EntitiesOf (Invoke-Rcon $rcon "enigma distributed regions $regionNum")
         if ($e -le $max) { return $e }
         Start-Sleep -Seconds 3
     }
-    return (EntitiesOf (Invoke-Rcon $rcon "enigma distributed info $regionNum"))
+    return (EntitiesOf (Invoke-Rcon $rcon "enigma distributed regions $regionNum"))
 }
 
 # ---------------------------------------------------------------- preflight
@@ -287,12 +287,12 @@ Add-Check 'spawn region identified (#N id)' ($null -ne $spawn) $(if($spawn){"#$(
 # ---------------------------------------------------------------- S1: guards
 Write-Output '== S1: guards (spawn + entity data) =='
 if ($spawn) {
-    $respS = Invoke-Rcon $whRcon "enigma distributed migrate $($spawn.Num)"
+    $respS = Invoke-Rcon $whRcon "enigma distributed migration start $($spawn.Num)"
     Save-Txt (Join-Path $Art 'migrate-spawn-guard.txt') $respS
     Add-Check 'spawn region refused by spawn guard' ((Clean-Txt $respS) -match 'contains the world spawn') $respS
 }
 if ($tgt) {
-    $eBase = EntitiesOf (Invoke-Rcon $whRcon "enigma distributed info $($tgt.Num)")
+    $eBase = EntitiesOf (Invoke-Rcon $whRcon "enigma distributed regions $($tgt.Num)")
     Add-Check 'baseline entity count is 0' ($eBase -eq 0) ("baseline Entities=$eBase")
 
     foreach ($x in 48006, 48010, 48014) {
@@ -310,7 +310,7 @@ if ($tgt) {
     # guard refuses ("still carries N local entit(y/ies)"). An IDLE region has no
     # TickRegionData (dataOf -> null), so the guard is skipped and migration
     # proceeds; the later snapshot assertion proves no live entity was cut.
-    $respG = Invoke-Rcon $whRcon "enigma distributed migrate $($tgt.Num)"
+    $respG = Invoke-Rcon $whRcon "enigma distributed migration start $($tgt.Num)"
     Save-Txt (Join-Path $Art 'migrate-guard.txt') $respG
     $wasBlocked = (Clean-Txt $respG) -match 'still carries'
     if ($wasBlocked) {
@@ -335,7 +335,7 @@ if ($tgt) {
 
     if ($wasBlocked) {
         # Ticking region: S1's guard probe refused, so this is the first real migrate.
-        $respM = Invoke-Rcon $whRcon "enigma distributed migrate $($tgt.Num)"
+        $respM = Invoke-Rcon $whRcon "enigma distributed migration start $($tgt.Num)"
     } else {
         # Idle region: S1's guard probe already started/completed the migration.
         $respM = '(guard probe already migrated the idle region)'
