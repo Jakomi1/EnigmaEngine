@@ -91,8 +91,8 @@
  
          @PostProcess
          private void postProcess() {
-@@ -324,7 +_,7 @@
-         public boolean sendFullPosForItemEntities = false;
+@@ -322,7 +_,7 @@
+         public IntOr.Default catchupTicks = IntOr.Default.USE_DEFAULT;
          public boolean loadPermissionsYmlBeforePlugins = true;
          @Constraints.Min(4)
 -        public int regionFileCacheSize = 256;
@@ -100,23 +100,23 @@
          @Comment("See https://luckformula.emc.gs")
          public boolean useAlternativeLuckFormula = false;
          public boolean useDimensionTypeForCustomSpawners = false;
-@@ -394,16 +_,16 @@
+@@ -390,17 +_,17 @@
      public UpdateChecker updateChecker;
  
      public class UpdateChecker extends ConfigurationPart {
 -        public boolean enabled = true;
 +        public boolean enabled = false;
      }
-     // Folia start - threaded regions
+     // Folia & Canvas start - threaded regions
  
      public ThreadedRegions threadedRegions;
      public class ThreadedRegions extends ConfigurationPart {
  
 -        public int threads = -1;
 +        public int threads = 10;
-         public int gridExponent = 0;
--        public io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType scheduler = io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType.EDF;
-+        public io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType scheduler = io.papermc.paper.threadedregions.TickRegionScheduler.SchedulerType.AFFINITY;
+         public int gridExponent = 4;
+         public io.canvasmc.canvas.threadedregions.SchedulerRegistry.RegistryEntries
+             scheduler = io.canvasmc.canvas.threadedregions.SchedulerRegistry.DEFAULT_SCHEDULER;
  
          @PostProcess
          public void postProcess() {

@@ -143,27 +143,29 @@
          public boolean allowPlayerCrammingDamage = false;
      }
  
-@@ -509,10 +_,10 @@
+@@ -506,12 +_,12 @@
  
      public class Chunks extends ConfigurationPart {
          public AutosavePeriod autoSaveInterval = AutosavePeriod.def();
 -        public int maxAutoSaveChunksPerTick = 24;
 +        public int maxAutoSaveChunksPerTick = 16;
          public int fixedChunkInhabitedTime = -1;
+         public int minChunkUnloadCount = 50;
+         public double minChunkUnloadFraction = 0.05;
          public boolean preventMovingIntoUnloadedChunks = false;
 -        public Duration delayChunkUnloadsBy = Duration.of("10s");
 +        public Duration delayChunkUnloadsBy = Duration.of("4s");
          public Reference2IntMap<EntityType<?>> entityPerChunkSaveLimit = Util.make(new Reference2IntOpenHashMap<>(BuiltInRegistries.ENTITY_TYPE.size()), map -> {
              map.defaultReturnValue(-1);
              map.put(EntityTypes.EXPERIENCE_ORB, -1);
-@@ -556,7 +_,7 @@
+@@ -555,7 +_,7 @@
      public class FeatureSeeds extends ConfigurationPart {
          @SuppressWarnings("unused") // Is used in FeatureSeedsGeneration
          @Setting(FeatureSeedsGeneration.GENERATE_KEY)
 -        public boolean generateRandomSeedsForAll = false;
 +        public boolean generateRandomSeedsForAll = true;
          @Setting(FeatureSeedsGeneration.FEATURES_KEY)
-         public Reference2LongMap<Holder<ConfiguredFeature<?, ?>>> features = new Reference2LongOpenHashMap<>();
+         public Reference2LongMap<Holder<Feature>> features = new Reference2LongOpenHashMap<>();
  
 @@ -578,7 +_,7 @@
      public class Misc extends ConfigurationPart {

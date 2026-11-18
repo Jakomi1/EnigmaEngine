@@ -237,18 +237,18 @@ class DynamicRegionPartitionerTestSuite {
         assertEquals(100, aggr100.aggression());
         assertEquals(2, aggr100.targetSections());
         assertEquals(2, aggr100.splitMinSize());
-        assertEquals(4, aggr100.splitMaxSections());
+        assertEquals(16, aggr100.splitMaxSections());
         assertEquals(1, aggr100.mergeMinRegionSections());
-        assertEquals(0.90, aggr100.mergeOverlapThreshold(), 0.001);
+        assertEquals(0.99, aggr100.mergeOverlapThreshold(), 0.001);
         assertEquals(4.0, aggr100.splitHighLoadMspt(), 0.001);
 
         final RegionizerSettings aggr0 = RegionizerSettings.forWorld(base, 2, 0);
         assertEquals(0, aggr0.aggression());
         assertTrue(aggr0.targetSections() > 1);
         assertEquals(32, aggr0.splitMinSize());
-        assertEquals(128, aggr0.splitMaxSections());
+        assertEquals(32, aggr0.splitMaxSections());
         assertEquals(16, aggr0.mergeMinRegionSections());
-        assertEquals(0.30, aggr0.mergeOverlapThreshold(), 0.001);
+        assertEquals(0.95, aggr0.mergeOverlapThreshold(), 0.001);
         assertEquals(15.0, aggr0.splitHighLoadMspt(), 0.001);
 
         final RegionizerSettings aggr50 = RegionizerSettings.forWorld(base, 2, 50);

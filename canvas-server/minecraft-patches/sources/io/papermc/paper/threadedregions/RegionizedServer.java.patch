@@ -1,6 +1,6 @@
 --- a/io/papermc/paper/threadedregions/RegionizedServer.java
 +++ b/io/papermc/paper/threadedregions/RegionizedServer.java
-@@ -299,6 +_,25 @@
+@@ -302,9 +_,26 @@
  
          // player list
          minecraftServer.getPlayerList().tick();
@@ -22,5 +22,8 @@
 +        io.canvasmc.canvas.chunkmap.EnigmaChunkMapService.globalTick();
 +        // Enigma end - chunk map snapshots
          // Canvas start - region threading
+ 
+         // update effective respawn data
+         minecraftServer.updateEffectiveRespawnData();
  
          // gui tick

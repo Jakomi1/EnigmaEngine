@@ -1,7 +1,7 @@
 --- a/net/minecraft/server/network/ServerCommonPacketListenerImpl.java
 +++ b/net/minecraft/server/network/ServerCommonPacketListenerImpl.java
 @@ -151,6 +_,12 @@
-
+ 
          final net.minecraft.resources.Identifier identifier = packet.payload().type().id();
          final byte[] data = discardedPayload.data();
 +        // Enigma start - chunk map subscription

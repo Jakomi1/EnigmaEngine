@@ -476,8 +476,9 @@ public final class EnigmaChunkMapService {
     }
 
     private static int bufferRadiusChunks(final boolean enabled) {
-        return enabled ? Math.max(1,
-                io.papermc.paper.configuration.GlobalConfiguration.get().threadedRegions.bufferRadius) : 0;
+        // Buffer-radius based merging was disabled in the third buffer-bug fix. Keep the
+        // published radius at zero so client overlays and merge gates agree.
+        return 0;
     }
 
     public static boolean bufferZonesOverlap(final long[] loadedChunks, final long[] firstChunks,

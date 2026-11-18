@@ -361,6 +361,8 @@ public class WorldConfig extends Part {
 
         public boolean fastOrbs = true;
 
+        public int maxNearbyItemAndPearlEntities = 0;
+
         public ItemEntities itemEntities = new ItemEntities();
         public static class ItemEntities extends Part {
 

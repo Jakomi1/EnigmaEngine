@@ -23,4 +23,3 @@
  
      static {
          INSTANCE = new CanvasCommands();
-

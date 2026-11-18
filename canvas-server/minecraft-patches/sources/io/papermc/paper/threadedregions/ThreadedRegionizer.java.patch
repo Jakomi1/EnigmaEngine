@@ -41,7 +41,7 @@
 +
 +        final double overlap = this.enigma$computeOverlap(from, into);
 +
-
++
 +        final long now = System.currentTimeMillis();
 +
 +        // Sibling lockout: regions produced by the same split must not be merged back into each
@@ -112,7 +112,7 @@
 +        // Physical section-level adjacency is the correct criterion for required merges.
 +        // Buffer zones may be empty when a region just received its first chunk, so
 +        // enigma$bufferZonesOverlap() is unreliable here and must not block the merge.
-+        if (!this.enigma$territoriesAdjacent(from, into)) {
++        if (!this.enigma$hasNeighbour(from, into, 1, false, false)) {
 +            if (this.enigma$debug()) {
 +                LOGGER.info("[MergeDebug] required from={} secs={} into={} secs={} -> NO merge (sections not adjacent)",
 +                    from.id, from.sectionByKey.size(), into.id, into.sectionByKey.size());
@@ -133,13 +133,13 @@
 +
 +    /** Returns the configured merge-buffer radius in chunks. */
 +    public int enigma$bufferRadiusChunks() {
-+        try {
-+            final io.papermc.paper.configuration.GlobalConfiguration global = io.papermc.paper.configuration.GlobalConfiguration.get();
-+            if (global != null && global.threadedRegions != null) {
-+                return Math.max(1, global.threadedRegions.bufferRadius);
-+            }
-+        } catch (final Throwable ignored) {
-+        }
++        // Buffer-radius based merging is disabled; see the third buffer-bug fix.
++        // The former configured radius no longer exists on the 26.3 config part.
++        //
++        // final io.papermc.paper.configuration.GlobalConfiguration global =
++        //     io.papermc.paper.configuration.GlobalConfiguration.get();
++        // if (global != null && global.threadedRegions != null) {
++        //     return Math.max(1, global.threadedRegions.bufferRadius);
 +        return 0;
 +    }
 +
@@ -1220,7 +1220,7 @@
 +            // crash the region that just gave the chunk away.
 +            LOGGER.debug("Chunk ({},{}) has no section, already released", chunkX, chunkZ);
 +            return;
-+        }
+         }
 +        if (!section.containsChunk(chunkX, chunkZ)) {
 +            LOGGER.debug("Chunk ({},{}) is not part of section {}, already released",
 +                    chunkX, chunkZ, section);
@@ -1348,8 +1348,6 @@
              this.regioniser.callbacks.preMerge(this, mergeTarget);
  
              this.tryKill();
- 
-
 @@ -1217,6 +_,14 @@
  
          private boolean isEmpty() {

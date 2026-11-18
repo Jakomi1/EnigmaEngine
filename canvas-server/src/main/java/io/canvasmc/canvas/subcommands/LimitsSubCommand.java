@@ -13,7 +13,7 @@ import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import io.canvasmc.canvas.GlobalConfiguration;
 import io.canvasmc.canvas.commands.Style;
 import io.canvasmc.canvas.commands.SubCommand;
-import io.canvasmc.canvas.threadedregions.commands.AbstractCommandExecution;
+import io.canvasmc.canvas.threadedregions.command.AbstractCommandExecution;
 import io.canvasmc.canvas.util.StringSuggestionProvider;
 import io.papermc.paper.threadedregions.RegionizedServer;
 import java.util.Arrays;

@@ -35,16 +35,16 @@
          this.playersByName.put(player.getScoreboardName().toLowerCase(java.util.Locale.ROOT), player); // Spigot
          this.playersByUUID.put(player.getUUID(), player);
          // this.broadcastAll(ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(List.of(player))); // CraftBukkit - replaced with loop below
-@@ -301,6 +_,9 @@
-        level.addNewPlayer(player);
-        level.canvas$decrementJoiningPlayers(gameProfile.name()); // Canvas - region threading - we are added to player list by now, meaning it will be caught by unload preconditions
-        this.server.getCustomBossEvents().onPlayerConnect(player); // see commented out section below serverLevel.addPlayerJoin(player);
+@@ -312,6 +_,9 @@
+         level.addNewPlayer(player);
+         level.canvas$decrementJoiningPlayers(gameProfile.name()); // Canvas - region threading - we are added to player list by now, meaning it will be caught by unload preconditions
+         this.server.getCustomBossEvents().onPlayerConnect(player); // see commented out section below serverLevel.addPlayerJoin(player);
 +        // Enigma start - load scaling
 +        io.canvasmc.canvas.regionizer.loadscaling.LoadScaling.onPlayerJoin(level);
 +        // Enigma end - load scaling
-        // Paper end - Fire PlayerJoinEvent when Player is actually ready
-        player.initInventoryMenu();
-        // CraftBukkit start
+         // Paper end - Fire PlayerJoinEvent when Player is actually ready
+         player.initInventoryMenu();
+         // CraftBukkit start
 @@ -503,6 +_,7 @@
          if (advancements != null) {
              advancements.save();

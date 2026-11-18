@@ -1,17 +1,17 @@
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
-@@ -663,6 +_,7 @@
-        this.server.getCommandMap().registerServerAliases(); // Paper - relocate initial CommandMap#registerServerAliases() call
-        ((org.bukkit.craftbukkit.help.SimpleHelpMap) this.server.getHelpMap()).initializeCommands();
-        this.server.getPluginManager().callEvent(new org.bukkit.event.server.ServerLoadEvent(org.bukkit.event.server.ServerLoadEvent.LoadType.STARTUP));
+@@ -653,6 +_,7 @@
+         this.server.getCommandMap().registerServerAliases(); // Paper - relocate initial CommandMap#registerServerAliases() call
+         ((org.bukkit.craftbukkit.help.SimpleHelpMap) this.server.getHelpMap()).initializeCommands();
+         this.server.getPluginManager().callEvent(new org.bukkit.event.server.ServerLoadEvent(org.bukkit.event.server.ServerLoadEvent.LoadType.STARTUP));
 +        io.canvasmc.canvas.util.JoinGate.markReady(); // Enigma - arm the startup login gate
-        this.connection.acceptConnections();
-    }
-    // Paper end - rework world loading process
-@@ -1156,6 +_,28 @@
-        this.halt(wait, false);
-    }
-    public void halt(final boolean wait, final boolean isRestarting) {
+         this.connection.acceptConnections();
+     }
+     // Paper end - rework world loading process
+@@ -1135,6 +_,28 @@
+         this.halt(wait, false);
+     }
+     public void halt(final boolean wait, final boolean isRestarting) {
 +        // Enigma start - return forwarded regions before stopping
 +        // A World Host that still has regions out on Compute Hosts must bring them back (and thereby
 +        // their compute-held state) before it stops. This funnels every stop path: console "stop",
@@ -34,9 +34,9 @@
 +            }
 +        }
 +        // Enigma end - return forwarded regions before stopping
-        this.isRestarting = isRestarting;
-        this.hasLoggedStop = true; // Paper - Debugging
-        if (this.isDebugging()) io.papermc.paper.util.TraceUtil.dumpTraceForThread("Server stopped"); // Paper - Debugging
+         this.isRestarting = isRestarting;
+         this.hasLoggedStop = true; // Paper - Debugging
+         if (this.isDebugging()) io.papermc.paper.util.TraceUtil.dumpTraceForThread("Server stopped"); // Paper - Debugging
 @@ -1304,11 +_,7 @@
                  LOGGER.info("*************************************************************************************");
              }
@@ -51,9 +51,9 @@
              while (this.running) {
                  final long tickStart = System.nanoTime(); // Paper - improve tick loop
 @@ -1825,6 +_,10 @@
-        if (false) while (!this.processQueue.isEmpty()) { // Folia - region threading
-            this.processQueue.remove().run();
-        }
+         if (false) while (!this.processQueue.isEmpty()) { // Folia - region threading
+             this.processQueue.remove().run();
+         }
 +        regionizedWorldData.getCanvasWorldData().tpsbar.tick(); // Canvas - tpsbar
 +        regionizedWorldData.getCanvasWorldData().rambar.tick(); // Canvas - rambar
 +        regionizedWorldData.getCanvasWorldData().cpubar.tick(); // Canvas - cpubar
@@ -84,7 +84,7 @@
      public boolean enforceSecureProfile() {
          return false;
      }
-@@ -2666,7 +_,11 @@
+@@ -2650,7 +_,11 @@
      public long getAverageTickTimeNanos() {
          // Folia start - region threading
          if (io.papermc.paper.threadedregions.TickRegionScheduler.getCurrentTickingTask() instanceof io.papermc.paper.threadedregions.TickRegionScheduler.RegionScheduleHandle handle) {
